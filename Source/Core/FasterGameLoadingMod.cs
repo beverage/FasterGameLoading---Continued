@@ -41,6 +41,7 @@ namespace FasterGameLoading
             // 背景預載入所有類型，以加速後續的 AccessTools.AllTypes() 呼叫
             AccessTools_AllTypes_Patch.Preload();
             harmony.PatchAll();
+            ImageOptEarlyLoadCoordinator.TryInstall();
 
             // 註冊執行個體層級的快取清理（在語言切換時由 CacheResetter.ResetAll() 觸發）
             CacheResetter.Register(() =>
