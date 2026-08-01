@@ -721,10 +721,16 @@ namespace FasterGameLoading.Tests
                 .GetGetMethod();
             var enterSyncScope = typeof(ImageOptEarlyLoadCoordinator)
                 .GetMethod("EnterEarlyLoadSyncScope", BindingFlags.NonPublic | BindingFlags.Static);
+            var imageOptInstalledGetter = typeof(ImageOptEarlyLoadCoordinator)
+                .GetProperty("IsInstalled", BindingFlags.NonPublic | BindingFlags.Static)
+                .GetGetMethod(true);
 
             Assert.IsTrue(
                 MethodBodyContainsMetadataToken(update, enterSyncScope),
                 "FGL early content loading should enter the ImageOpt synchronous scope.");
+            Assert.IsTrue(
+                MethodBodyContainsMetadataToken(update, imageOptInstalledGetter),
+                "FGL should cache whether the ImageOpt synchronous scope is required.");
             Assert.IsFalse(
                 MethodBodyContainsMetadataToken(update, imageOptActiveGetter),
                 "ImageOpt should not globally disable FGL early content loading.");

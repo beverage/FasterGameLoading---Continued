@@ -12,6 +12,7 @@ namespace FasterGameLoading
     public class EarlyModContentLoader
     {
         private Queue<ModContentPack> pendingEarlyLoads;
+        private bool useImageOptSyncScope;
         private int consecutiveTimeouts;
         private int skipFrames;
         private const int TIMEOUT_THRESHOLD = 3;
@@ -45,6 +46,8 @@ namespace FasterGameLoading
 
             if (pendingEarlyLoads == null)
             {
+                // ImageOpt 整合狀態在 Mod 初始化後不會改變；每輪提早載入只判斷一次。
+                useImageOptSyncScope = ImageOptEarlyLoadCoordinator.IsInstalled;
                 var modsToLoad = LoadedModManager.RunningMods
                     .Where(x => !ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(x)
                                 && !EarlyLoadSkipList.ShouldSkip(x))
@@ -60,8 +63,16 @@ namespace FasterGameLoading
                     continue;
                 try
                 {
-                    using (ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope())
+                    if (useImageOptSyncScope)
                     {
+                        using (ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope())
+                        {
+                            modToLoad.ReloadContentInt();
+                        }
+                    }
+                    else
+                    {
+                        // 未啟用 ImageOpt 時維持原始熱路徑，不建立或釋放空 scope。
                         modToLoad.ReloadContentInt();
                     }
                     ModContentPack_ReloadContentInt_Patch.loadedMods.Add(modToLoad);
@@ -98,6 +109,7 @@ namespace FasterGameLoading
         public void Reset()
         {
             pendingEarlyLoads = null;
+            useImageOptSyncScope = false;
             EarlyLoadingComplete = false;
             consecutiveTimeouts = 0;
             skipFrames = 0;
