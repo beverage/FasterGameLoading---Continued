@@ -97,6 +97,30 @@ namespace FasterGameLoading
                             ScanDirectoryMetadata(patchesPath, ref metadataHash, ref xmlCount);
                         }
 
+                        // 版本資料夾與 LoadFolders 佈局（如 1.6/Defs、Common/Patches）：
+                        // 根目錄下沒有 Defs/Patches 的 Mod（包含所有 VE 系列）內容位於
+                        // 子資料夾中，必須逐一探測，否則其更新永遠不會使快取失效（issue #5）。
+                        //
+                        // Versioned and LoadFolders layouts (e.g. 1.6/Defs, Common/Patches):
+                        // mods with no Defs/Patches at their root — which includes every
+                        // Vanilla Expanded mod — keep their content in subfolders, so each
+                        // must be probed as well. Otherwise updates to those mods never
+                        // invalidate the cache (issue #5).
+                        foreach (var subDir in Directory.GetDirectories(modPath))
+                        {
+                            var subDefsPath = Path.Combine(subDir, FGLConsts.DefsDirName);
+                            if (Directory.Exists(subDefsPath))
+                            {
+                                ScanDirectoryMetadata(subDefsPath, ref metadataHash, ref xmlCount);
+                            }
+
+                            var subPatchesPath = Path.Combine(subDir, FGLConsts.PatchesDirName);
+                            if (Directory.Exists(subPatchesPath))
+                            {
+                                ScanDirectoryMetadata(subPatchesPath, ref metadataHash, ref xmlCount);
+                            }
+                        }
+
                         nextMetadataHashes[key] = metadataHash;
                         totalXmlCount += xmlCount;
                     }
@@ -116,6 +140,16 @@ namespace FasterGameLoading
             {
                 if (result == null || result.Exception != null)
                 {
+                    // 掃描失敗：本 session 無法驗證快取基準 — 清空持久化 miss 快取，
+                    // 以冷啟動語義運作（fail-closed，issue #6）。isCacheValidated 保持 false。
+                    // 先執行安全動作再記錄：fail-closed 不可因記錄失敗而被跳過。
+                    //
+                    // Scan failed: the cache baseline cannot be validated this session,
+                    // so clear the persisted misses and behave as a cold start
+                    // (fail-closed, issue #6). isCacheValidated stays false. Act before
+                    // logging — the fail-closed action must not be skipped if the
+                    // logger throws.
+                    SessionCache.xmlPathsSinceLastSession.Clear();
                     FGLLog.Warning("Error during background XML file scan:", result?.Exception);
                     return;
                 }
@@ -140,6 +174,12 @@ namespace FasterGameLoading
                     SessionCache.xmlCombinedHashSinceLastSession = combinedHash;
                     needWriteSettings = true;
                 }
+
+                // 掃描成功且基準已提交 — 快取本 session 可用（fail-closed 的成功側，issue #6）。
+                //
+                // Scan succeeded and the baseline is committed, so the cache may be
+                // used this session (the success side of fail-closed, issue #6).
+                XmlNode_SelectSingleNode_Patch.isCacheValidated = true;
             }
             finally
             {

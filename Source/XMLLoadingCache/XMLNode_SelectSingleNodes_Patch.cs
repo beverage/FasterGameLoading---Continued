@@ -28,6 +28,16 @@ namespace FasterGameLoading
         public static volatile bool isXmlScanComplete = false;
 
         /// <summary>
+        /// 背景掃描是否成功完成並驗證快取基準。掃描失敗時保持 false，
+        /// 持久化 miss 快取該 session 全程停用（fail-closed，issue #6）。
+        ///
+        /// Whether the background scan completed successfully and validated the
+        /// cache baseline. Stays false when the scan fails, which disables the
+        /// persisted miss cache for the whole session (fail-closed, issue #6).
+        /// </summary>
+        public static volatile bool isCacheValidated = false;
+
+        /// <summary>
         /// 標記當前執行緒是否處於補丁套用（PatchOperation.Apply）流程中。
         /// </summary>
         [ThreadStatic]
@@ -38,6 +48,7 @@ namespace FasterGameLoading
             CacheResetter.Register(() =>
             {
                 isXmlScanComplete = false;
+                isCacheValidated = false;
                 xmlPathsThisSession.Clear();
                 isXmlExtensionsActive = null;
             });
@@ -76,6 +87,7 @@ namespace FasterGameLoading
         {
             patchEnabled = false;
             isXmlScanComplete = false;
+            isCacheValidated = false;
             xmlPathsThisSession.Clear();
             SessionCache.xmlPathsSinceLastSession.Clear();
         }
@@ -123,7 +135,7 @@ namespace FasterGameLoading
 
         public static bool Prefix(string xpath, ref XmlNode __result)
         {
-            if (isInPatchOperation || !isXmlScanComplete || !patchEnabled || !FasterGameLoadingSettings.XPathCaching || IsXmlExtensionsActive || Utils.IsMissileGirlActive)
+            if (isInPatchOperation || !isXmlScanComplete || !isCacheValidated || !patchEnabled || !FasterGameLoadingSettings.XPathCaching || IsXmlExtensionsActive || Utils.IsMissileGirlActive)
             {
                 return true;
             }
