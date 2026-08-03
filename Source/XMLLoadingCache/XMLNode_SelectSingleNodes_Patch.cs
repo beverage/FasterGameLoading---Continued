@@ -55,40 +55,58 @@ namespace FasterGameLoading
 
             Startup.RegisterOnStartupCompleted(() =>
             {
-                foreach (var kvp in xmlPathsThisSession)
+                try
                 {
-                    if (!kvp.Value)
+                    foreach (var kvp in xmlPathsThisSession)
                     {
-                        SessionCache.xmlPathsSinceLastSession.TryAdd(kvp.Key, 0);
-                    }
-                }
-                xmlPathsThisSession.Clear();
-
-                if (XmlChangeDetector.needWriteSettings)
-                {
-                    XmlChangeDetector.needWriteSettings = false;
-                    try
-                    {
-                        LoadedModManager.GetMod<FasterGameLoadingMod>().WriteSettings();
-                        if (FasterGameLoadingSettings.VerboseLogging)
+                        if (!kvp.Value)
                         {
-                            FGLLog.Message("XPath cache invalidated and new hash saved to settings on main thread at startup completion.");
+                            SessionCache.xmlPathsSinceLastSession.TryAdd(kvp.Key, 0);
                         }
                     }
-                    catch (Exception ex)
+
+                    xmlPathsThisSession.Clear();
+
+                    if (XmlChangeDetector.needWriteSettings)
                     {
-                        FGLLog.Warning("Failed to save updated XML combined hash at startup completion:", ex);
+                        XmlChangeDetector.needWriteSettings = false;
+                        try
+                        {
+                            LoadedModManager.GetMod<FasterGameLoadingMod>().WriteSettings();
+                            if (FasterGameLoadingSettings.VerboseLogging)
+                            {
+                                FGLLog.Message("XPath cache invalidated and new hash saved to settings on main thread at startup completion.");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            FGLLog.Warning("Failed to save updated XML combined hash at startup completion:", ex);
+                        }
                     }
+                }
+                finally
+                {
+                    EndStartupCacheWindow();
                 }
             });
         }
 
-        public static void DisableAndClear()
+        /// <summary>
+        /// 結束啟動期 XPath 快取攔截。
+        /// 已收集的跨 session 未命中快取會保留到下次啟動使用，
+        /// 但主選單與遊戲期間的動態 XML 查詢必須一律交由原始方法處理。
+        /// </summary>
+        internal static void EndStartupCacheWindow()
         {
             patchEnabled = false;
             isXmlScanComplete = false;
             isCacheValidated = false;
             xmlPathsThisSession.Clear();
+        }
+
+        public static void DisableAndClear()
+        {
+            EndStartupCacheWindow();
             SessionCache.xmlPathsSinceLastSession.Clear();
         }
 

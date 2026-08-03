@@ -12,7 +12,6 @@ namespace FasterGameLoading
     {
         // loadedMods 僅在主執行緒存取。
         internal static readonly HashSet<ModContentPack> loadedMods = new HashSet<ModContentPack>();
-
         static ModContentPack_ReloadContentInt_Patch()
         {
             CacheResetter.Register(() => loadedMods.Clear());

@@ -28,7 +28,7 @@ Enabled by default:
 
 - **Load mod content early**: Processes pending mod content and type reflection during idle loading gaps before RimWorld's normal `ReloadContentInt` pass reaches those mods.
 - **Multi-threaded preloading**: Loads XML assets in parallel while preserving RimWorld's original load-folder override order.
-- **XPath caching**: Caches only XML queries that never matched in the observed startup session. Metadata validation scans Mod `Defs` and `Patches` in the background; its result is committed on the Unity main thread before persisted misses are used.
+- **XPath caching**: Caches only XML queries that never matched in the observed startup session. Metadata validation scans Mod `Defs` and `Patches` in the background; its result is committed on the Unity main thread before persisted misses are used. The cache is disabled after startup so runtime XML queries always use RimWorld's original lookup.
 
 Disabled by default:
 
@@ -38,12 +38,13 @@ Disabled by default:
 
 Manual tool:
 
-- **Downscale textures**: Downscales high-resolution textures into a separate cache. Original mod files are never modified. If you already use Image Opt, Graphics Settings+, or RimSort Optimize Texture, you usually do not need this.
+- **Downscale textures**: Downscales high-resolution textures into a separate cache. Original mod files are never modified. If you already use Graphics Settings+ or RimSort Optimize Texture, you usually do not need this.
 - **Clear texture cache**: Removes cached downscaled textures so original textures are used on the next startup.
 
 ## Notes
 
 - XPath caching may rebuild after the first launch, mod updates, or XML edits.
+- XPath caching applies only while RimWorld is starting; it does not intercept XML queries at the main menu or during gameplay.
 - Mod `Defs` and `Patches` XML edits are detected when file path, size, or modified time changes; Mod settings XML is ignored.
 - Brief startup unresponsiveness can be normal, especially with large mod lists.
 - Startup sound playback is temporarily held until deferred sound definitions finish resolving, then released automatically.
@@ -57,7 +58,6 @@ Compatibility handling exists for:
 - [Loading Progress](https://github.com/ilyvion/LoadingProgress)
 - [Missile Girl - Performance Mod](https://github.com/ViralReaction/MissileGirl)
 - [DefLoadCache](https://github.com/FluxxField/rimworld-defload-cache)
-- [Image Opt](https://steamcommunity.com/sharedfiles/filedetails/?id=3543873568)
 - [Graphics Settings+](https://github.com/RealTelefonmast/GraphicsSetter)
 - [HugsLib](https://github.com/UnlimitedHugs/RimworldHugsLib)
 - [XmlExtensions](https://github.com/15adhami/XmlExtensions)
@@ -69,8 +69,8 @@ Compatibility handling exists for:
 Important behavior:
 
 - When Missile Girl is active, XPath caching and background XML change scanning are disabled to avoid conflicting with its cache system.
-- When Image Opt, Graphics Settings+, or RimSort Optimize Texture is active, FGL's downscaled texture replacement steps aside.
-- Invalid Image Opt `.dds` / `.dds.zstd` cache files are cleaned from texture folders only.
+- [Image Opt](https://steamcommunity.com/sharedfiles/filedetails/?id=3543873568) compatibility is no longer maintained. When Faster Game Loading and Image Opt are enabled together, mods that depend on [Ancot Library](https://steamcommunity.com/sharedfiles/filedetails/?id=2988801276) may encounter graphical loading errors, missing textures, or black textures under some loading conditions. Using both mods together is not recommended.
+- Existing Image Opt safeguards, such as downscaled-texture bypass and invalid `.dds` / `.dds.zstd` cache cleanup, do not guarantee compatibility.
 - HAR and Ancot-related race mods skip some early-loading and atlas-baking paths to reduce bodyAddon, hair, ear, and multi-mask texture issues.
 
 ## Recommended Settings
@@ -80,7 +80,7 @@ Most players should start with the defaults.
 If loading is still slow:
 
 1. Keep **Load mod content early**, **Multi-threaded preloading**, and **XPath caching** enabled.
-2. For large texture-heavy mod lists, prefer Image Opt / Graphics Settings+ / RimSort Optimize Texture.
+2. For large texture-heavy mod lists, prefer Graphics Settings+ or RimSort Optimize Texture. Image Opt compatibility is no longer maintained.
 3. If you do not use an external texture tool, consider FGL's **Downscale textures** tool.
 4. Enable **Delay graphic and icon loading** or **Adaptive atlas baking** only if you are willing to troubleshoot compatibility issues.
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using NUnit.Framework;
 
@@ -14,11 +14,13 @@ namespace FasterGameLoading.Tests
         {
             tempDir = Path.Combine(Path.GetTempPath(), "FGL_ImageOpt_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tempDir);
+            ImageOptEarlyLoadCoordinator.ResetTestConfiguration();
         }
 
         [TearDown]
         public void TearDown()
         {
+            ImageOptEarlyLoadCoordinator.ResetTestConfiguration();
             if (Directory.Exists(tempDir))
             {
                 Directory.Delete(tempDir, true);
@@ -87,6 +89,106 @@ namespace FasterGameLoading.Tests
 
             Assert.AreEqual(0, deleted);
             Assert.IsTrue(File.Exists(corrupt));
+        }
+
+        [Test]
+        public void TestEarlyLoadSyncScope_RestoresFalseAfterSuccessExceptionAndNesting()
+        {
+            var started = false;
+            ConfigureCoordinator(() => started, value => started = value);
+
+            using (ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope())
+            {
+                Assert.IsTrue(started);
+                using (ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope())
+                {
+                    Assert.IsTrue(started);
+                }
+                Assert.IsTrue(started);
+            }
+            Assert.IsFalse(started);
+
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                using (ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope())
+                {
+                    Assert.IsTrue(started);
+                    throw new InvalidOperationException("test");
+                }
+            });
+            Assert.IsFalse(started);
+        }
+
+        [Test]
+        public void TestEarlyLoadSyncScope_DoesNotOverwriteStartedTrue()
+        {
+            var started = true;
+            var setterCalls = 0;
+            ConfigureCoordinator(
+                () => started,
+                value =>
+                {
+                    setterCalls++;
+                    started = value;
+                });
+
+            using (ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope())
+            {
+                Assert.IsTrue(started);
+            }
+
+            Assert.IsTrue(started);
+            Assert.AreEqual(0, setterCalls);
+        }
+
+        [Test]
+        public void TestEarlyLoadSyncScope_IsNoOpWhenCoordinationIsUnavailable()
+        {
+            var started = false;
+            ImageOptEarlyLoadCoordinator.ConfigureForTests(
+                () => started,
+                value => started = value,
+                false);
+
+            using (ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope())
+            {
+                Assert.IsFalse(started);
+            }
+            Assert.IsFalse(started);
+        }
+
+        [Test]
+        public void TestEarlyLoadSyncScope_ResetRestoresOriginalValue()
+        {
+            var started = false;
+            ConfigureCoordinator(() => started, value => started = value);
+
+            var scope = ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope();
+            Assert.IsTrue(started);
+
+            ImageOptEarlyLoadCoordinator.ResetScopeForTests();
+            Assert.IsFalse(started);
+            scope.Dispose();
+            Assert.IsFalse(started);
+        }
+
+        [Test]
+        public void TestInstallFailure_IsFailOpenAndWarnsOnlyOnce()
+        {
+            var warningCalls = 0;
+            ImageOptEarlyLoadCoordinator.SetWarningSinkForTests((message, ex) => warningCalls++);
+            ImageOptEarlyLoadCoordinator.ReportInstallFailureForTests(new MissingMemberException("first"));
+            ImageOptEarlyLoadCoordinator.ReportInstallFailureForTests(new MissingMemberException("second"));
+
+            Assert.IsFalse(ImageOptEarlyLoadCoordinator.IsInstalled);
+            Assert.IsTrue(ImageOptEarlyLoadCoordinator.WarningLogged);
+            Assert.AreEqual(1, ImageOptEarlyLoadCoordinator.WarningLogCount);
+            Assert.AreEqual(1, warningCalls);
+        }
+
+        private static void ConfigureCoordinator(Func<bool> getter, Action<bool> setter)
+        {
+            ImageOptEarlyLoadCoordinator.ConfigureForTests(getter, setter);
         }
     }
 }

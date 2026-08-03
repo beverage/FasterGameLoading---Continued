@@ -242,6 +242,37 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
+        public void TestXmlNode_SelectSingleNode_Patch_EndStartupCacheWindow_BypassesCachedMissingNode()
+        {
+            const string xpath = "/root/missing";
+            SessionCache.xmlPathsSinceLastSession.TryAdd(xpath, 0);
+            XmlNode_SelectSingleNode_Patch.xmlPathsThisSession.TryAdd(xpath, false);
+
+            XmlNode_SelectSingleNode_Patch.EndStartupCacheWindow();
+
+            var doc = new XmlDocument();
+            doc.LoadXml("<root><missing>exists</missing></root>");
+
+            Assert.IsNotNull(doc.SelectSingleNode(xpath),
+                "Runtime XML queries must bypass the startup-only XPath cache.");
+            Assert.IsTrue(SessionCache.xmlPathsSinceLastSession.ContainsKey(xpath),
+                "Disabling runtime interception must preserve the next-startup cache.");
+            Assert.IsEmpty(XmlNode_SelectSingleNode_Patch.xmlPathsThisSession,
+                "The current-session observations must be released after startup.");
+        }
+
+        [Test]
+        public void TestXmlNode_SelectSingleNode_Patch_DisableAndClear_RemovesPersistentCache()
+        {
+            const string xpath = "/root/missing";
+            SessionCache.xmlPathsSinceLastSession.TryAdd(xpath, 0);
+
+            XmlNode_SelectSingleNode_Patch.DisableAndClear();
+
+            Assert.IsFalse(SessionCache.xmlPathsSinceLastSession.ContainsKey(xpath));
+        }
+
+        [Test]
         public void TestXmlNode_SelectSingleNode_Patch_BypassesWhenXmlExtensionsActive()
         {
             // 1. 模擬跨 session 快取記錄：/root/missing 節點是不存在的 (false)
@@ -682,16 +713,27 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
-        public void TestEarlyModContentLoader_DoesNotBypassWhenImageOptActive()
+        public void TestEarlyModContentLoader_UsesImageOptSynchronousScopeWithoutGlobalBypass()
         {
             var update = typeof(EarlyModContentLoader).GetMethod(nameof(EarlyModContentLoader.Update));
             var imageOptActiveGetter = typeof(ImageOptCompat)
                 .GetProperty(nameof(ImageOptCompat.IsActive))
                 .GetGetMethod();
+            var enterSyncScope = typeof(ImageOptEarlyLoadCoordinator)
+                .GetMethod("EnterEarlyLoadSyncScope", BindingFlags.NonPublic | BindingFlags.Static);
+            var imageOptInstalledGetter = typeof(ImageOptEarlyLoadCoordinator)
+                .GetProperty("IsInstalled", BindingFlags.NonPublic | BindingFlags.Static)
+                .GetGetMethod(true);
 
+            Assert.IsTrue(
+                MethodBodyContainsMetadataToken(update, enterSyncScope),
+                "FGL early content loading should enter the ImageOpt synchronous scope.");
+            Assert.IsTrue(
+                MethodBodyContainsMetadataToken(update, imageOptInstalledGetter),
+                "FGL should cache whether the ImageOpt synchronous scope is required.");
             Assert.IsFalse(
                 MethodBodyContainsMetadataToken(update, imageOptActiveGetter),
-                "Image Opt should only bypass FGL texture replacement, not early content loading.");
+                "ImageOpt should not globally disable FGL early content loading.");
         }
 
         [Test]
