@@ -64,6 +64,14 @@ namespace FasterGameLoading.Tests
             // 手動啟用 XML 掃描完成標記，以便測試快取攔截邏輯
             XmlNode_SelectSingleNode_Patch.isXmlScanComplete = true;
 
+            // 持久化 miss 快取現在還需掃描成功驗證（fail-closed，issue #6），
+            // 因此同樣手動標記，維持既有攔截測試的前提條件。
+            //
+            // The persisted miss cache now also requires a successful validation
+            // scan (fail-closed, issue #6), so mark it validated here to preserve
+            // the precondition the existing interception tests rely on.
+            XmlNode_SelectSingleNode_Patch.isCacheValidated = true;
+
             // 重設 Settings 以防其他測試修改
             FasterGameLoadingSettings.XPathCaching = true;
 
