@@ -121,7 +121,9 @@ namespace FasterGameLoading
                 Assert.AreEqual(false, missileGirlField.GetValue(null));
                 var first = XmlChangeDetector.ScanXmlMetadata(new List<string> { modPath }, configPath);
                 System.IO.File.WriteAllText(configFile, "<settings>changed</settings>");
-                System.IO.File.SetLastWriteTimeUtc(configFile, System.DateTime.UtcNow.AddSeconds(5));
+                System.IO.File.SetLastWriteTimeUtc(
+                    configFile,
+                    new System.DateTime(2026, 1, 1, 0, 0, 5, System.DateTimeKind.Utc));
                 var second = XmlChangeDetector.ScanXmlMetadata(new List<string> { modPath }, configPath);
 
                 Assert.AreEqual(first.MetadataHashes[modPath.ToLowerInvariant()], second.MetadataHashes[modPath.ToLowerInvariant()]);

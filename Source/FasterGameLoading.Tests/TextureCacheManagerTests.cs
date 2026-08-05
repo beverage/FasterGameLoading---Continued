@@ -28,9 +28,9 @@ namespace FasterGameLoading.Tests
                     Directory.Delete(tempDir, true);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore cleanup errors in tests
+                Assert.Fail($"清理測試暫存目錄失敗：{tempDir}\n{ex}");
             }
         }
 
@@ -49,22 +49,23 @@ namespace FasterGameLoading.Tests
         public void TestCacheKeyInvalidation_WhenFileChanges()
         {
             string originalPath = Path.Combine(tempDir, "original.png");
+            var baseTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
             // 1. 檔案不存在時，使用純路徑作為 Key
             string path1 = manager.GetCachePath(originalPath);
 
             // 2. 建立檔案並寫入初始內容，設定明確的最後修改時間 (-5 分鐘)
             File.WriteAllBytes(originalPath, new byte[] { 1, 2, 3 });
-            File.SetLastWriteTimeUtc(originalPath, DateTime.UtcNow.AddMinutes(-5));
+            File.SetLastWriteTimeUtc(originalPath, baseTime);
             string path2 = manager.GetCachePath(originalPath);
 
             // 3. 修改檔案大小，並設定明確的最後修改時間 (-4 分鐘)
             File.WriteAllBytes(originalPath, new byte[] { 1, 2, 3, 4, 5 });
-            File.SetLastWriteTimeUtc(originalPath, DateTime.UtcNow.AddMinutes(-4));
+            File.SetLastWriteTimeUtc(originalPath, baseTime.AddMinutes(1));
             string path3 = manager.GetCachePath(originalPath);
 
             // 4. 不修改大小，但修改最後修改時間 (-3 分鐘)
-            File.SetLastWriteTimeUtc(originalPath, DateTime.UtcNow.AddMinutes(-3));
+            File.SetLastWriteTimeUtc(originalPath, baseTime.AddMinutes(2));
             string path4 = manager.GetCachePath(originalPath);
 
             // 驗證來源身分包含長度與 UTC 修改時間；相同大小的替換檔案也必須失效。
@@ -78,13 +79,14 @@ namespace FasterGameLoading.Tests
         {
             string originalPath = Path.Combine(tempDir, "original.png");
             string cachePath = Path.Combine(tempDir, "cached_dxt.png");
+            var baseTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
             File.WriteAllBytes(originalPath, new byte[] { 1 });
             File.WriteAllBytes(cachePath, new byte[] { 2 });
 
             // 確保快取檔案的修改時間大於等於原始檔案
-            File.SetLastWriteTimeUtc(originalPath, DateTime.UtcNow.AddMinutes(-1));
-            File.SetLastWriteTimeUtc(cachePath, DateTime.UtcNow);
+            File.SetLastWriteTimeUtc(originalPath, baseTime);
+            File.SetLastWriteTimeUtc(cachePath, baseTime.AddMinutes(1));
 
             manager.SetCacheEntry(originalPath, cachePath);
 
@@ -100,13 +102,14 @@ namespace FasterGameLoading.Tests
         {
             string originalPath = Path.Combine(tempDir, "original.png");
             string cachePath = Path.Combine(tempDir, "cached_dxt.png");
+            var baseTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
             File.WriteAllBytes(originalPath, new byte[] { 1 });
             File.WriteAllBytes(cachePath, new byte[] { 2 });
 
             // 故意使原始檔案比快取檔案更新，模擬快取過期
-            File.SetLastWriteTimeUtc(originalPath, DateTime.UtcNow);
-            File.SetLastWriteTimeUtc(cachePath, DateTime.UtcNow.AddMinutes(-1));
+            File.SetLastWriteTimeUtc(originalPath, baseTime.AddMinutes(1));
+            File.SetLastWriteTimeUtc(cachePath, baseTime);
 
             manager.SetCacheEntry(originalPath, cachePath);
 
@@ -133,7 +136,7 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
-        public void ReplaceTextureCacheDirectory_MissingStagingPreservesExistingCache()
+        public void TestReplaceTextureCacheDirectory_MissingStagingPreservesExistingCache()
         {
             Directory.CreateDirectory(manager.CacheDirectory);
             string retainedFile = Path.Combine(manager.CacheDirectory, "retained.png");
@@ -146,7 +149,7 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
-        public void TestCleanupObsoleteCacheFiles()
+        public void TestCleanupObsoleteCacheFiles_RemovesUnreferencedFiles()
         {
             // 1. 建立測試環境：一個存在的原始檔案，一個不存在的原始檔案
             string originalExist = Path.Combine(tempDir, "exist.png");

@@ -146,7 +146,7 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
-        public void TestXmlNode_NoPatch()
+        public void TestXmlNode_WithPatch_ReturnsExistingNode()
         {
             var doc = new XmlDocument();
             doc.LoadXml("<root><missing>exists</missing></root>");
@@ -413,7 +413,9 @@ namespace FasterGameLoading.Tests
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
 
                 // 稍微延遲並更新 LastWriteTime 確保變更
-                System.IO.File.SetLastWriteTimeUtc(xmlFile, DateTime.UtcNow.AddSeconds(5));
+                System.IO.File.SetLastWriteTimeUtc(
+                    xmlFile,
+                    new DateTime(2026, 1, 1, 0, 0, 5, DateTimeKind.Utc));
                 System.IO.File.WriteAllText(xmlFile, "<Defs><ThingDef>mock_modified</ThingDef></Defs>");
 
                 XmlChangeDetector.ScanXmlFiles(new List<string> { tempDir });
@@ -627,7 +629,7 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
-        public void TestBuildableDef_PostLoad_Patch_RoutesIconCallbacksToDelayedHandler()
+        public void TestBuildableDef_PostLoad_Patch_PrepareAndTranspilerMatchDeferredQueue()
         {
             var patchType = typeof(ThingDef_PostLoad_Patch).Assembly.GetType("FasterGameLoading.BuildableDef_PostLoad_Patch");
             Assert.IsNotNull(patchType, "BuildableDef.PostLoad patch should feed the deferred icon queue.");
@@ -665,7 +667,7 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
-        public void TestTexturePathReverseLookup_UsesSavedTexturePath()
+        public void TestTextureReverseCache_UsesWeakReferencesAndSavedPath()
         {
             var texture = (Texture2D)FormatterServices.GetUninitializedObject(typeof(Texture2D));
             const string path = @"C:\Mods\Test\Textures\Thing.png";
@@ -680,7 +682,10 @@ namespace FasterGameLoading.Tests
                 Assert.IsTrue(ModContentLoaderTexture2D_LoadTexture_Patch.TryGetSavedTexturePath(texture, out var foundPath));
                 Assert.AreEqual(path, foundPath);
             }
-            finally { }
+            finally
+            {
+                ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures.Clear();
+            }
         }
 
         [Test]

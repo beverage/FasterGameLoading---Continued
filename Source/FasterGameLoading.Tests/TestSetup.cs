@@ -20,6 +20,21 @@ namespace FasterGameLoading.Tests
             {
                 var assemblyName = new AssemblyName(args.Name).Name;
 
+                // 測試專案輸出的套件（例如 System.ValueTuple）優先從目前 testhost 目錄載入。
+                var localPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, assemblyName + ".dll");
+                if (File.Exists(localPath))
+                {
+                    try
+                    {
+                        return Assembly.LoadFrom(localPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        TestContext.Progress.WriteLine(
+                            $"Assembly load failed for local dependency '{localPath}': {ex}");
+                    }
+                }
+
                 // 本地 RimWorld Managed 檔案夾路徑；可透過環境變數 RIMWORLD_MANAGED_DIR 覆寫，
                 // 方便在不同機器或 CI 環境中執行測試而不需修改程式碼。
                 var managedDir = Environment.GetEnvironmentVariable("RIMWORLD_MANAGED_DIR")
@@ -32,9 +47,10 @@ namespace FasterGameLoading.Tests
                     {
                         return Assembly.LoadFrom(path);
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // 忽略個別檔案載入失敗
+                        TestContext.Progress.WriteLine(
+                            $"Assembly load failed for '{path}': {ex}");
                     }
                 }
                 return null;
