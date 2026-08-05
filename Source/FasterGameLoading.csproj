@@ -53,6 +53,7 @@
   <PropertyGroup>
     <!-- Disable automatic generation of assembly attributes -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <BaseOutputPath>~\Assemblies\</BaseOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />
