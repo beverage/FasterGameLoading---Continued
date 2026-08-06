@@ -79,9 +79,18 @@ namespace FasterGameLoading
             }
             catch (System.Exception ex)
             {
-                FGLLog.Warning("Failed to start XML file scan:", ex);
-                // 萬一出錯，確保快取攔截功能不會被永久關閉
+                // 掃描無法啟動：標記完成以免流程永久懸置，但不驗證快取
+                // （isCacheValidated 保持 false），並清空持久化 miss 快取，
+                // 以冷啟動語義運作（fail-closed）。安全動作先於記錄執行。
+                //
+                // The scan could not start: mark it complete so nothing waits
+                // forever, but do NOT validate the cache (isCacheValidated stays
+                // false) and clear the persisted misses, so this session behaves as
+                // a cold start (fail-closed). Safety actions precede logging.
+                XmlNode_SelectSingleNode_Patch.isCacheValidated = false;
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = true;
+                SessionCache.xmlPathsSinceLastSession.Clear();
+                FGLLog.Warning("Failed to start XML file scan:", ex);
             }
 
         }
