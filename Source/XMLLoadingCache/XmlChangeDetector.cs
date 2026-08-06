@@ -38,18 +38,56 @@ namespace FasterGameLoading
             }
         }
 
-        public static void ScanXmlFiles(List<string> modPaths, string configPath = null)
+        /// <summary>
+        /// 單一 Mod 的掃描目標：識別鍵，加上該 Mod 實際被載入的所有內容根目錄。
+        /// Roots 應由引擎的 ModContentPack.foldersToLoadDescendingOrder 提供 —
+        /// 該清單已解析版本資料夾、Common，以及 LoadFolders.xml 宣告的任意深度路徑，
+        /// 因此掃描器不需要（也不應該）自行猜測 Mod 的目錄佈局。
+        ///
+        /// One mod's scan target: an identity key plus every content root the
+        /// engine actually loads that mod from. Roots should come from the
+        /// engine's ModContentPack.foldersToLoadDescendingOrder, which has
+        /// already resolved versioned folders, Common, and arbitrarily deep
+        /// LoadFolders.xml paths — so the scanner does not need to guess a
+        /// mod's directory layout, and must not try to.
+        /// </summary>
+        public sealed class ModScanTarget
         {
-            CommitXmlScanResult(ScanXmlMetadata(modPaths, configPath));
+            public readonly string Key;
+            public readonly List<string> Roots;
+
+            public ModScanTarget(string key, IEnumerable<string> roots)
+            {
+                Key = key;
+                Roots = roots == null ? new List<string>() : new List<string>(roots);
+            }
         }
 
-        public static void StartScanAsync(List<string> modPaths, string configPath, Action<Action> enqueueMainThreadAction)
+        public static void ScanXmlFiles(List<ModScanTarget> targets, string configPath = null)
+        {
+            CommitXmlScanResult(ScanXmlMetadata(targets, configPath));
+        }
+
+        /// <summary>
+        /// 便利多載：每個路徑視為僅有單一內容根目錄的 Mod。
+        /// 呼叫端若未解析 LoadFolders，子資料夾中的內容將不會被看見。
+        ///
+        /// Convenience overload: each path is treated as a mod with a single
+        /// content root. A caller that has not resolved LoadFolders will not
+        /// see content held in subfolders.
+        /// </summary>
+        public static void ScanXmlFiles(List<string> modPaths, string configPath = null)
+        {
+            CommitXmlScanResult(ScanXmlMetadata(TargetsFromPaths(modPaths), configPath));
+        }
+
+        public static void StartScanAsync(List<ModScanTarget> targets, string configPath, Action<Action> enqueueMainThreadAction)
         {
             if (enqueueMainThreadAction == null) throw new ArgumentNullException(nameof(enqueueMainThreadAction));
 
-            // 背景工作只保有不可變的路徑副本，絕不讀寫 Verse/SessionCache 狀態。
-            var pathCopy = modPaths == null ? new List<string>() : new List<string>(modPaths);
-            Task.Run(() => ScanXmlMetadata(pathCopy, configPath)).ContinueWith(task =>
+            // 背景工作只保有不可變的目標副本，絕不讀寫 Verse/SessionCache 狀態。
+            var targetCopy = targets == null ? new List<ModScanTarget>() : new List<ModScanTarget>(targets);
+            Task.Run(() => ScanXmlMetadata(targetCopy, configPath)).ContinueWith(task =>
             {
                 var result = task.Status == TaskStatus.RanToCompletion
                     ? task.Result
@@ -58,10 +96,28 @@ namespace FasterGameLoading
             });
         }
 
+        internal static List<ModScanTarget> TargetsFromPaths(List<string> modPaths)
+        {
+            var targets = new List<ModScanTarget>();
+            if (modPaths == null) return targets;
+
+            foreach (var modPath in modPaths)
+            {
+                if (string.IsNullOrEmpty(modPath)) continue;
+                targets.Add(new ModScanTarget(modPath.ToLowerInvariant(), new[] { modPath }));
+            }
+            return targets;
+        }
+
         internal static XmlScanResult ScanXmlMetadata(List<string> modPaths, string configPath = null)
         {
+            return ScanXmlMetadata(TargetsFromPaths(modPaths), configPath);
+        }
+
+        internal static XmlScanResult ScanXmlMetadata(List<ModScanTarget> targets, string configPath = null)
+        {
             var stopwatch = Stopwatch.StartNew();
-            if (Utils.IsMissileGirlActive || ((modPaths == null || modPaths.Count == 0) && string.IsNullOrEmpty(configPath)))
+            if (Utils.IsMissileGirlActive || ((targets == null || targets.Count == 0) && string.IsNullOrEmpty(configPath)))
             {
                 return new XmlScanResult(null, 0, stopwatch.ElapsedMilliseconds, bypassed: true);
             }
@@ -72,32 +128,52 @@ namespace FasterGameLoading
                 int totalXmlCount = 0;
 
                 // 1. 掃描所有 Mod
-                if (modPaths != null)
+                if (targets != null)
                 {
-                    foreach (var modPath in modPaths)
+                    foreach (var target in targets)
                     {
-                        if (string.IsNullOrEmpty(modPath) || !Directory.Exists(modPath))
+                        if (target == null || string.IsNullOrEmpty(target.Key))
                             continue;
 
-                        var key = modPath.ToLowerInvariant();
                         long metadataHash = 0;
                         int xmlCount = 0;
 
-                        // 掃描 Defs 目錄
-                        var defsPath = Path.Combine(modPath, FGLConsts.DefsDirName);
-                        if (Directory.Exists(defsPath))
+                        // 逐一掃描引擎解析出的每個內容根目錄。
+                        // 去重並以 Ordinal 排序，使折疊順序不受呼叫端或檔案系統
+                        // 列舉順序影響 — 與 ScanDirectoryMetadata 的檔案排序及
+                        // CombineMetadataHashes 的 Mod 排序採用同一個比較器。
+                        //
+                        // Scan each content root the engine resolved for this mod.
+                        // Deduplicated and sorted ordinally so the order-sensitive
+                        // fold cannot vary with caller or filesystem enumeration
+                        // order — the same comparer already used for files in
+                        // ScanDirectoryMetadata and for mods in CombineMetadataHashes.
+                        var roots = new HashSet<string>(StringComparer.Ordinal);
+                        foreach (var root in target.Roots)
                         {
-                            ScanDirectoryMetadata(defsPath, ref metadataHash, ref xmlCount);
+                            if (!string.IsNullOrEmpty(root)) roots.Add(root);
                         }
 
-                        // 掃描 Patches 目錄
-                        var patchesPath = Path.Combine(modPath, FGLConsts.PatchesDirName);
-                        if (Directory.Exists(patchesPath))
+                        foreach (var root in roots.OrderBy(r => r, StringComparer.Ordinal))
                         {
-                            ScanDirectoryMetadata(patchesPath, ref metadataHash, ref xmlCount);
+                            if (!Directory.Exists(root)) continue;
+
+                            // 掃描 Defs 目錄
+                            var defsPath = Path.Combine(root, FGLConsts.DefsDirName);
+                            if (Directory.Exists(defsPath))
+                            {
+                                ScanDirectoryMetadata(defsPath, ref metadataHash, ref xmlCount);
+                            }
+
+                            // 掃描 Patches 目錄
+                            var patchesPath = Path.Combine(root, FGLConsts.PatchesDirName);
+                            if (Directory.Exists(patchesPath))
+                            {
+                                ScanDirectoryMetadata(patchesPath, ref metadataHash, ref xmlCount);
+                            }
                         }
 
-                        nextMetadataHashes[key] = metadataHash;
+                        nextMetadataHashes[target.Key] = metadataHash;
                         totalXmlCount += xmlCount;
                     }
                 }
