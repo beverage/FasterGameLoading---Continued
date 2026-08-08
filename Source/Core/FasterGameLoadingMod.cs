@@ -66,16 +66,42 @@ namespace FasterGameLoading
             // XML metadata 僅在背景執行緒讀取；快取狀態由 Update 主執行緒提交。
             try
             {
-                var thirdPartyModPaths = new System.Collections.Generic.List<string>();
-                foreach (var m in ModsConfig.ActiveModsInLoadOrder)
+                // 掃描目標取自引擎已解析的內容根目錄清單
+                // (ModContentPack.foldersToLoadDescendingOrder)，而非自行探測目錄佈局：
+                // 該清單已涵蓋版本資料夾、Common，以及 LoadFolders.xml 宣告的任意深度
+                // 路徑，因此像 1.6/ModSupport/Royalty/Defs 這種兩層以上的內容也會被看見
+                // （issue #5）。此欄位由 ModContentPack 建構式填入，早於 CreateModClasses，
+                // 所以在本建構式執行時已就緒。
+                //
+                // Scan targets come from the engine's own resolved content-root list
+                // (ModContentPack.foldersToLoadDescendingOrder) rather than from
+                // probing the directory layout: that list already covers versioned
+                // folders, Common, and arbitrarily deep LoadFolders.xml paths, so
+                // content two or more levels down such as
+                // 1.6/ModSupport/Royalty/Defs is seen too (issue #5). The field is
+                // populated in the ModContentPack constructor, which runs before
+                // CreateModClasses, so it is ready by the time this constructor runs.
+                var scanTargets = new System.Collections.Generic.List<XmlChangeDetector.ModScanTarget>();
+                foreach (var contentPack in LoadedModManager.RunningMods)
                 {
-                    if (m != null && !m.Official && m.RootDir != null)
+                    if (contentPack == null || contentPack.IsOfficialMod || string.IsNullOrEmpty(contentPack.RootDir))
                     {
-                        thirdPartyModPaths.Add(m.RootDir.FullName);
+                        continue;
                     }
+
+                    var roots = contentPack.foldersToLoadDescendingOrder;
+                    if (roots == null || roots.Count == 0)
+                    {
+                        roots = new System.Collections.Generic.List<string> { contentPack.RootDir };
+                    }
+
+                    // 鍵沿用 Mod 根目錄，與先前版本一致，避免升級時整批快取失效。
+                    // Key stays the mod root directory, matching previous versions,
+                    // so upgrading does not needlessly invalidate every cache entry.
+                    scanTargets.Add(new XmlChangeDetector.ModScanTarget(contentPack.RootDir.ToLowerInvariant(), roots));
                 }
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
-                XmlChangeDetector.StartScanAsync(thirdPartyModPaths, null, delayedActions.EnqueueMainThreadAction);
+                XmlChangeDetector.StartScanAsync(scanTargets, null, delayedActions.EnqueueMainThreadAction);
             }
             catch (System.Exception ex)
             {
