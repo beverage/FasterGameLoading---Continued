@@ -230,6 +230,11 @@ namespace FasterGameLoading.Tests
             string xpath = "/root/missing";
             SessionCache.xmlPathsSinceLastSession.TryAdd(xpath, 0);
 
+            // 攔截的前提條件：基準已由一次成功的掃描驗證過（fail-closed，issue #6）。
+            // Interception precondition: the baseline has been validated by a
+            // successful scan (fail-closed, issue #6).
+            XmlNode_SelectSingleNode_Patch.isCacheValidated = true;
+
             // 2. 建立一個包含此節點的 XML 檔案（實際上它是存在的）
             var doc = new XmlDocument();
             doc.LoadXml("<root><missing>exists</missing></root>");

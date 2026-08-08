@@ -28,6 +28,21 @@ namespace FasterGameLoading
         public static volatile bool isXmlScanComplete = false;
 
         /// <summary>
+        /// 背景掃描是否成功完成並驗證了快取基準。
+        /// 掃描失敗或被略過時保持 false，持久化 miss 快取該 session 全程停用
+        /// （fail-closed）。此旗標在掃描開始、失敗、略過與啟動完成時都會明確重設，
+        /// 使每條路徑都能就地判讀，而非仰賴「先前不曾被設為 true」這個隱含前提。
+        ///
+        /// Whether the background scan completed successfully AND validated the
+        /// cache baseline. Stays false when the scan fails or is bypassed, which
+        /// disables the persisted miss cache for the whole session (fail-closed).
+        /// It is reset explicitly on scan start, failure, bypass and startup
+        /// completion, so every path is correct on inspection rather than
+        /// relying on the implicit premise that nothing set it true earlier.
+        /// </summary>
+        public static volatile bool isCacheValidated = false;
+
+        /// <summary>
         /// 標記當前執行緒是否處於補丁套用（PatchOperation.Apply）流程中。
         /// </summary>
         [ThreadStatic]
@@ -38,6 +53,7 @@ namespace FasterGameLoading
             CacheResetter.Register(() =>
             {
                 isXmlScanComplete = false;
+                isCacheValidated = false;
                 xmlPathsThisSession.Clear();
                 isXmlExtensionsActive = null;
             });
@@ -89,6 +105,7 @@ namespace FasterGameLoading
         {
             patchEnabled = false;
             isXmlScanComplete = false;
+            isCacheValidated = false;
             xmlPathsThisSession.Clear();
         }
 
@@ -141,7 +158,16 @@ namespace FasterGameLoading
 
         public static bool Prefix(string xpath, ref XmlNode __result)
         {
-            if (isInPatchOperation || !isXmlScanComplete || !patchEnabled || !FasterGameLoadingSettings.XPathCaching || IsXmlExtensionsActive || Utils.IsMissileGirlActive)
+            // isCacheValidated 必須與 isXmlScanComplete 一起檢查：掃描「結束」不等於
+            // 掃描「成功」。掃描失敗或被略過時基準未經驗證，此時沿用上次 session 的
+            // miss 快取等同於對已變更的 XML 回答舊答案。
+            //
+            // isCacheValidated must be checked alongside isXmlScanComplete: the scan
+            // having FINISHED is not the same as the scan having SUCCEEDED. When it
+            // failed or was bypassed the baseline is unverified, and honouring the
+            // previous session's misses would answer stale results against XML that
+            // may have changed.
+            if (isInPatchOperation || !isXmlScanComplete || !isCacheValidated || !patchEnabled || !FasterGameLoadingSettings.XPathCaching || IsXmlExtensionsActive || Utils.IsMissileGirlActive)
             {
                 return true;
             }

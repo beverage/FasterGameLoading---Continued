@@ -28,7 +28,7 @@ Enabled by default:
 
 - **Load mod content early**: Processes pending mod content and type reflection during idle loading gaps before RimWorld's normal `ReloadContentInt` pass reaches those mods.
 - **Multi-threaded preloading**: Loads XML assets in parallel while preserving RimWorld's original load-folder override order.
-- **XPath caching**: Caches only XML queries that never matched in the observed startup session. Metadata validation scans Mod `Defs` and `Patches` in the background; its result is committed on the Unity main thread before persisted misses are used. The cache is disabled after startup so runtime XML queries always use RimWorld's original lookup.
+- **XPath caching**: Caches only XML queries that never matched in the observed startup session. Metadata validation scans Mod `Defs` and `Patches` in the background; its result is committed on the Unity main thread before persisted misses are used. Persisted misses are trusted only after a scan actually commits a baseline; a scan that fails or never starts clears the persisted misses and falls back to RimWorld's original lookup. The cache is disabled after startup so runtime XML queries always use RimWorld's original lookup.
 
 Disabled by default:
 
