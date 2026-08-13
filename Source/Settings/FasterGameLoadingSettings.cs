@@ -12,11 +12,21 @@ namespace FasterGameLoading
     public class FasterGameLoadingSettings : ModSettings
     {
         /// <summary>詳細日誌記錄開關（預設關閉）</summary>
-        public static bool VerboseLogging = false;
+        private static bool verboseLogging;
+        public static bool VerboseLogging
+        {
+            get => verboseLogging;
+            set => verboseLogging = value;
+        }
 
 
         /// <summary>延遲非必要圖形/圖示載入（預設關閉）</summary>
-        public static bool DelayGraphicLoading = false;
+        private static bool delayGraphicLoading;
+        public static bool DelayGraphicLoading
+        {
+            get => delayGraphicLoading;
+            set => delayGraphicLoading = value;
+        }
 
         /// <summary>提早載入 Mod 內容（預設開啟）</summary>
         /// <remarks>
@@ -28,13 +38,28 @@ namespace FasterGameLoading
         public static bool earlyModContentLoading = true;
 
         /// <summary>自適應靜態圖集烘焙（預設關閉）</summary>
-        public static bool StaticAtlasesBaking = false;
+        private static bool staticAtlasesBaking;
+        public static bool StaticAtlasesBaking
+        {
+            get => staticAtlasesBaking;
+            set => staticAtlasesBaking = value;
+        }
 
         /// <summary>啟用多執行緒預載入（預設開啟）</summary>
-        public static bool EnableMultiThreading = true;
+        private static bool enableMultiThreading = true;
+        public static bool EnableMultiThreading
+        {
+            get => enableMultiThreading;
+            set => enableMultiThreading = value;
+        }
 
         /// <summary>XPath 快取（預設開啟）</summary>
-        public static bool XPathCaching = true;
+        private static bool xPathCaching = true;
+        public static bool XPathCaching
+        {
+            get => xPathCaching;
+            set => xPathCaching = value;
+        }
 
 
         private static Vector2 scrollPosition = Vector2.zero;
@@ -48,12 +73,12 @@ namespace FasterGameLoading
             var ls = new Listing_Standard();
             ls.Begin(viewRect);
             ls.CheckboxLabeled("FGL_EarlyModContentLoading".Translate(), ref earlyModContentLoading);
-            ls.CheckboxLabeled("FGL_MultiThreading".Translate(), ref EnableMultiThreading);
-            ls.CheckboxLabeled("FGL_XPathCaching".Translate(), ref XPathCaching);
-            ls.CheckboxLabeled("FGL_DelayGraphicLoading".Translate(), ref DelayGraphicLoading);
+            ls.CheckboxLabeled("FGL_MultiThreading".Translate(), ref enableMultiThreading);
+            ls.CheckboxLabeled("FGL_XPathCaching".Translate(), ref xPathCaching);
+            ls.CheckboxLabeled("FGL_DelayGraphicLoading".Translate(), ref delayGraphicLoading);
 
-            ls.CheckboxLabeled("FGL_StaticAtlasesBaking".Translate(), ref StaticAtlasesBaking);
-            ls.CheckboxLabeled("FGL_VerboseLogging".Translate(), ref VerboseLogging);
+            ls.CheckboxLabeled("FGL_StaticAtlasesBaking".Translate(), ref staticAtlasesBaking);
+            ls.CheckboxLabeled("FGL_VerboseLogging".Translate(), ref verboseLogging);
             ls.Gap(12f);
 
             // Texture resize explanation
@@ -101,12 +126,12 @@ namespace FasterGameLoading
             base.ExposeData();
 
             // 使用者設定
-            Scribe_Values.Look(ref StaticAtlasesBaking, "StaticAtlasesBaking", false);
-            Scribe_Values.Look(ref DelayGraphicLoading, "delayGraphicLoading", false);
+            Scribe_Values.Look(ref staticAtlasesBaking, "StaticAtlasesBaking", false);
+            Scribe_Values.Look(ref delayGraphicLoading, "delayGraphicLoading", false);
             Scribe_Values.Look(ref earlyModContentLoading, "earlyModContentLoading", true);
-            Scribe_Values.Look(ref EnableMultiThreading, "enableMultiThreading", true);
-            Scribe_Values.Look(ref XPathCaching, "XPathCaching", true);
-            Scribe_Values.Look(ref VerboseLogging, "verboseLogging", false);
+            Scribe_Values.Look(ref enableMultiThreading, "enableMultiThreading", true);
+            Scribe_Values.Look(ref xPathCaching, "XPathCaching", true);
+            Scribe_Values.Look(ref verboseLogging, "verboseLogging", false);
 
 
             // 紋理快取

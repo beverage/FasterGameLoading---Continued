@@ -9,6 +9,7 @@ _PublisherPlus.xml
 .omc/
 .claude
 docs
+.sonarqube
 
 #IDE state
 .vs/

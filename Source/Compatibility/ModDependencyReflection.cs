@@ -50,7 +50,7 @@ namespace FasterGameLoading
 
         private static IEnumerable GetDependencyList(object metaData)
         {
-            if (metaData == null) return null;
+            if (metaData == null) return Array.Empty<object>();
 
             foreach (var memberName in DependencyListMemberNames)
             {
@@ -59,7 +59,7 @@ namespace FasterGameLoading
                     return dependencies;
                 }
             }
-            return null;
+            return Array.Empty<object>();
         }
 
         private static string GetDependencyPackageId(object dependency)

@@ -20,7 +20,7 @@ namespace FasterGameLoading
     {
         // ── 每幀時間預算 ──
         /// <summary>遊戲中每幀最多佔用 8ms，主選單中最多 50ms。</summary>
-        public float MaxImpactThisFrame => Current.Game != null ? 0.008f : 0.05f;
+        public static float MaxImpactThisFrame => Current.Game != null ? 0.008f : 0.05f;
 
         // ── 延遲佇列 ──
         private readonly Queue<(ThingDef def, Action action)> graphicsToLoad = new();
@@ -127,9 +127,9 @@ namespace FasterGameLoading
 
         // ── 全域狀態旗標 ──
         /// <summary>所有延遲視覺效果是否已載入完成。</summary>
-        public static bool AllDeferredVisualsLoaded = false;
+        public static bool AllDeferredVisualsLoaded { get; set; }
         /// <summary>自適應靜態圖集烘焙是否失敗（fallback 到原始流程）。</summary>
-        public static bool AdaptiveStaticAtlasBakeFailed = false;
+        public static bool AdaptiveStaticAtlasBakeFailed { get; set; }
         /// <summary>靜態建構子：註冊快取重置時的回呼。</summary>
         static DelayedActions()
         {
@@ -141,8 +141,8 @@ namespace FasterGameLoading
         }
 
         // ── 提早載入狀態與處理器 ──
-        private Stopwatch stopwatch = new();
-        private EarlyModContentLoader earlyModContentLoader = new();
+        private readonly Stopwatch stopwatch = new();
+        private readonly EarlyModContentLoader earlyModContentLoader = new();
 
         public bool earlyLoadingComplete => earlyModContentLoader.EarlyLoadingComplete;
 

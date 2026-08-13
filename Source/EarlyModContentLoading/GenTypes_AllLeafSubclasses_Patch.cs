@@ -15,7 +15,7 @@ namespace FasterGameLoading
     public static class GenTypes_AllLeafSubclasses_Patch
     {
         // 使用 ConcurrentDictionary 確保多執行緒下的讀寫安全（Preload 在 Task.Run 背景執行緒中執行）
-        public static ConcurrentDictionary<Type, HashSet<Type>> keyValuePairs = new ConcurrentDictionary<Type, HashSet<Type>>();
+        public static ConcurrentDictionary<Type, HashSet<Type>> keyValuePairs { get; } = new ConcurrentDictionary<Type, HashSet<Type>>();
 
         static GenTypes_AllLeafSubclasses_Patch()
         {

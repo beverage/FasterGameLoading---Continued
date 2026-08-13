@@ -19,13 +19,18 @@ namespace FasterGameLoading
         /// 記錄本次 session 所有 XPath 查詢結果：true=節點存在、false=查無節點
         /// 使用 ConcurrentDictionary 以確保多執行緒環境下安全
         /// </summary>
-        public static ConcurrentDictionary<string, bool> xmlPathsThisSession = new ConcurrentDictionary<string, bool>();
+        public static ConcurrentDictionary<string, bool> xmlPathsThisSession { get; } = new ConcurrentDictionary<string, bool>();
         private static volatile bool patchEnabled = true;
 
         /// <summary>
         /// 背景 XML 檔案掃描與雜湊比對是否已完成。
         /// </summary>
-        public static volatile bool isXmlScanComplete = false;
+        private static volatile bool isXmlScanCompleteValue;
+        public static bool isXmlScanComplete
+        {
+            get => isXmlScanCompleteValue;
+            set => isXmlScanCompleteValue = value;
+        }
 
         /// <summary>
         /// 背景掃描是否成功完成並驗證了快取基準。
@@ -40,13 +45,23 @@ namespace FasterGameLoading
         /// completion, so every path is correct on inspection rather than
         /// relying on the implicit premise that nothing set it true earlier.
         /// </summary>
-        public static volatile bool isCacheValidated = false;
+        private static volatile bool isCacheValidatedValue;
+        public static bool isCacheValidated
+        {
+            get => isCacheValidatedValue;
+            set => isCacheValidatedValue = value;
+        }
 
         /// <summary>
         /// 標記當前執行緒是否處於補丁套用（PatchOperation.Apply）流程中。
         /// </summary>
         [ThreadStatic]
-        public static bool isInPatchOperation;
+        private static bool isInPatchOperationValue;
+        public static bool isInPatchOperation
+        {
+            get => isInPatchOperationValue;
+            set => isInPatchOperationValue = value;
+        }
 
         static XmlNode_SelectSingleNode_Patch()
         {

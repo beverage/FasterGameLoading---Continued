@@ -21,7 +21,7 @@ namespace FasterGameLoading
     {
         private static readonly ConcurrentQueue<LoadRequest> mainThreadLoadRequests = new ConcurrentQueue<LoadRequest>();
 
-        private class LoadRequest
+        private sealed class LoadRequest
         {
             public VirtualFile File;
             public Texture2D Result;
@@ -80,9 +80,9 @@ namespace FasterGameLoading
 
 
         /// <summary>本次 session 中所有已載入的紋理路徑映射。</summary>
-        public static ConcurrentDictionary<string, string> loadedTexturesThisSession = new ConcurrentDictionary<string, string>();
+        public static ConcurrentDictionary<string, string> loadedTexturesThisSession { get; } = new ConcurrentDictionary<string, string>();
         /// <summary>已非同步預載入至記憶體的降質快取紋理位元組數據。</summary>
-        public static readonly ConcurrentDictionary<string, byte[]> preloadedCacheBytes = new ConcurrentDictionary<string, byte[]>();
+        public static ConcurrentDictionary<string, byte[]> preloadedCacheBytes { get; } = new ConcurrentDictionary<string, byte[]>();
         /// <summary>以 WeakReference 快取已載入的 Texture2D，鍵為完整檔案路徑。</summary>
         public static ConcurrentDictionary<string, System.WeakReference<Texture2D>> savedTextures = new ConcurrentDictionary<string, System.WeakReference<Texture2D>>();
         /// <summary>
@@ -98,13 +98,23 @@ namespace FasterGameLoading
             public StringHolder(string value) { Value = value; }
         }
         /// <summary>排除烘焙的目標 Mod 紋理快取，用於 O(1) 快速查詢。</summary>
-        public static ConcurrentDictionary<Texture2D, bool> skippedBakingTextures = new ConcurrentDictionary<Texture2D, bool>();
+        public static ConcurrentDictionary<Texture2D, bool> skippedBakingTextures { get; } = new ConcurrentDictionary<Texture2D, bool>();
         /// <summary>排除烘焙的目標 Mod 紋理名稱快取，用於處理克隆實體時的反向比對。以 ConcurrentDictionary 實作執行緒安全。</summary>
-        public static ConcurrentDictionary<string, byte> skippedBakingTextureNames = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+        public static ConcurrentDictionary<string, byte> skippedBakingTextureNames { get; } = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         /// <summary>紋理快取命中次數。</summary>
-        public static int cacheLoadHits;
+        private static int cacheLoadHitsValue;
+        public static int cacheLoadHits
+        {
+            get => Volatile.Read(ref cacheLoadHitsValue);
+            set => Interlocked.Exchange(ref cacheLoadHitsValue, value);
+        }
         /// <summary>紋理快取失敗次數。</summary>
-        public static int cacheLoadFailures;
+        private static int cacheLoadFailuresValue;
+        public static int cacheLoadFailures
+        {
+            get => Volatile.Read(ref cacheLoadFailuresValue);
+            set => Interlocked.Exchange(ref cacheLoadFailuresValue, value);
+        }
 
         static ModContentLoaderTexture2D_LoadTexture_Patch()
         {
@@ -320,7 +330,7 @@ namespace FasterGameLoading
                             tex.Apply(true, true);
                             SaveTexturePath(fullPath, tex);
                             RegisterSkippedBakingTextureIfApplicable(fullPath, tex);
-                            Interlocked.Increment(ref cacheLoadHits);
+                            Interlocked.Increment(ref cacheLoadHitsValue);
                             __result = tex;
                             __state = false;
                             textureAccepted = true;
@@ -336,7 +346,7 @@ namespace FasterGameLoading
                     }
 
                     FasterGameLoadingMod.Instance.CacheManager.RemoveCachedTexturePath(fullPath);
-                    Interlocked.Increment(ref cacheLoadFailures);
+                    Interlocked.Increment(ref cacheLoadFailuresValue);
                 }
                 catch (Exception ex)
                 {
@@ -345,7 +355,7 @@ namespace FasterGameLoading
                         FGLLog.Warning($"Exception loading cached texture for: {fullPath}", ex);
                     }
                     FasterGameLoadingMod.Instance.CacheManager.RemoveCachedTexturePath(fullPath);
-                    Interlocked.Increment(ref cacheLoadFailures);
+                    Interlocked.Increment(ref cacheLoadFailuresValue);
                 }
             }
 

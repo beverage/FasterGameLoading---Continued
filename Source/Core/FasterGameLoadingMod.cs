@@ -14,9 +14,9 @@ namespace FasterGameLoading
     public class FasterGameLoadingMod : Mod
     {
         public static FasterGameLoadingMod Instance { get; private set; }
-        public static Harmony harmony;
-        public static FasterGameLoadingSettings settings;
-        public static DelayedActions delayedActions;
+        public static Harmony harmony { get; private set; }
+        public static FasterGameLoadingSettings settings { get; private set; }
+        public static DelayedActions delayedActions { get; private set; }
 
         public TextureCacheManager CacheManager { get; private set; }
         public TextureResize Resizer { get; private set; }
@@ -63,6 +63,12 @@ namespace FasterGameLoading
                 }
             });
 
+            StartXmlScan();
+
+        }
+
+        private static void StartXmlScan()
+        {
             // XML metadata 僅在背景執行緒讀取；快取狀態由 Update 主執行緒提交。
             try
             {
@@ -72,16 +78,7 @@ namespace FasterGameLoading
                 // 路徑，因此像 1.6/ModSupport/Royalty/Defs 這種兩層以上的內容也會被看見
                 // （issue #5）。此欄位由 ModContentPack 建構式填入，早於 CreateModClasses，
                 // 所以在本建構式執行時已就緒。
-                //
-                // Scan targets come from the engine's own resolved content-root list
-                // (ModContentPack.foldersToLoadDescendingOrder) rather than from
-                // probing the directory layout: that list already covers versioned
-                // folders, Common, and arbitrarily deep LoadFolders.xml paths, so
-                // content two or more levels down such as
-                // 1.6/ModSupport/Royalty/Defs is seen too (issue #5). The field is
-                // populated in the ModContentPack constructor, which runs before
-                // CreateModClasses, so it is ready by the time this constructor runs.
-                var scanTargets = new System.Collections.Generic.List<XmlChangeDetector.ModScanTarget>();
+                var scanTargets = new List<XmlChangeDetector.ModScanTarget>();
                 foreach (var contentPack in LoadedModManager.RunningMods)
                 {
                     if (contentPack == null || contentPack.IsOfficialMod || string.IsNullOrEmpty(contentPack.RootDir))
@@ -92,12 +89,10 @@ namespace FasterGameLoading
                     var roots = contentPack.foldersToLoadDescendingOrder;
                     if (roots == null || roots.Count == 0)
                     {
-                        roots = new System.Collections.Generic.List<string> { contentPack.RootDir };
+                        roots = new List<string> { contentPack.RootDir };
                     }
 
                     // 鍵沿用 Mod 根目錄，與先前版本一致，避免升級時整批快取失效。
-                    // Key stays the mod root directory, matching previous versions,
-                    // so upgrading does not needlessly invalidate every cache entry.
                     scanTargets.Add(new XmlChangeDetector.ModScanTarget(contentPack.RootDir.ToLowerInvariant(), roots));
                 }
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
@@ -108,17 +103,11 @@ namespace FasterGameLoading
                 // 掃描無法啟動：標記完成以免流程永久懸置，但不驗證快取
                 // （isCacheValidated 保持 false），並清空持久化 miss 快取，
                 // 以冷啟動語義運作（fail-closed）。安全動作先於記錄執行。
-                //
-                // The scan could not start: mark it complete so nothing waits
-                // forever, but do NOT validate the cache (isCacheValidated stays
-                // false) and clear the persisted misses, so this session behaves as
-                // a cold start (fail-closed). Safety actions precede logging.
                 XmlNode_SelectSingleNode_Patch.isCacheValidated = false;
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = true;
                 SessionCache.xmlPathsSinceLastSession.Clear();
                 FGLLog.Warning("Failed to start XML file scan:", ex);
             }
-
         }
 
         private static void StartCleanupInvalidImageOptCaches()

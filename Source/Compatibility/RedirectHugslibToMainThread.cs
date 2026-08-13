@@ -13,7 +13,7 @@ namespace FasterGameLoading
     [HarmonyPatch]
     public static class RedirectHugslibToMainThread
     {
-        public static MethodBase targetMethod = AccessTools.Method("HugsLib.HugsLibController:OnDefsLoaded");
+        public static MethodBase targetMethod { get; } = AccessTools.Method("HugsLib.HugsLibController:OnDefsLoaded");
         public static bool Prepare() => FasterGameLoadingSettings.DelayGraphicLoading
             && targetMethod != null;
         public static MethodBase TargetMethod() => targetMethod;

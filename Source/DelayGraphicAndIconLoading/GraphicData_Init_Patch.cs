@@ -18,7 +18,7 @@ namespace FasterGameLoading
         /// <summary>
         /// 以 texPath 為鍵的快取，值為所有使用該 texPath 的 GraphicData 列表。
         /// </summary>
-        internal static ConcurrentDictionary<string, List<GraphicData>> savedGraphics = new ConcurrentDictionary<string, List<GraphicData>>();
+        internal static ConcurrentDictionary<string, List<GraphicData>> savedGraphics { get; } = new ConcurrentDictionary<string, List<GraphicData>>();
 
         static GraphicData_Init_Patch()
         {

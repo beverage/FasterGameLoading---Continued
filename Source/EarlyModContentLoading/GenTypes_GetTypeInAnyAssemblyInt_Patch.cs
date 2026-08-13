@@ -14,8 +14,8 @@ namespace FasterGameLoading
     [HarmonyPatch(typeof(GenTypes), "GetTypeInAnyAssemblyInt")]
     public static class GenTypes_GetTypeInAnyAssemblyInt_Patch
     {
-        internal static ConcurrentDictionary<string, Type> cachedResults = new ConcurrentDictionary<string, Type>();
-        internal static ConcurrentDictionary<string, string> loadedTypesThisSession = new ConcurrentDictionary<string, string>();
+        internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new ConcurrentDictionary<string, Type>();
+        internal static ConcurrentDictionary<string, string> loadedTypesThisSession { get; } = new ConcurrentDictionary<string, string>();
 
         static GenTypes_GetTypeInAnyAssemblyInt_Patch()
         {
