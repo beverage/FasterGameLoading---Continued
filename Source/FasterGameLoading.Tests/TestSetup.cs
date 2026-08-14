@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Reflection;
 using NUnit.Framework;
@@ -37,6 +37,12 @@ namespace FasterGameLoading.Tests
 
                 // 本地 RimWorld Managed 檔案夾路徑；可透過環境變數 RIMWORLD_MANAGED_DIR 覆寫，
                 // 方便在不同機器或 CI 環境中執行測試而不需修改程式碼。
+                if (assemblyName.StartsWith("System", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(assemblyName, "mscorlib", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
                 var managedDir = Environment.GetEnvironmentVariable("RIMWORLD_MANAGED_DIR")
                     ?? @"c:\Program Files (x86)\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed";
                 var path = Path.Combine(managedDir, assemblyName + ".dll");
