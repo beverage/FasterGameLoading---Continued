@@ -94,5 +94,28 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
             SoundStarter_Patch.ResetUnpatchedStatus();
             Assert.That((bool)unpatchedField.GetValue(null), Is.False);
         }
+
+        private static bool ThrowingUnpatchCategoryPrefix() =>
+            throw new InvalidOperationException("Simulated UnpatchCategory failure for testing");
+
+        [Test]
+        public void Unpatch_WhenUnpatchCategoryThrows_CatchesExceptionAndStillMarksUnpatched()
+        {
+            // 讓 Harmony.UnpatchCategory 拋例外，驗證 Unpatch() 的 try/catch 會安全吞掉例外並記錄警告，
+            // 不影響 unpatched 狀態的設定。
+            var unpatchCategoryMethod = AccessTools.Method(typeof(Harmony), nameof(Harmony.UnpatchCategory), new[] { typeof(string) });
+            var metaHarmony = new Harmony("FasterGameLoadingMod.SoundStarter_PatchTests.Meta");
+            metaHarmony.Patch(unpatchCategoryMethod, prefix: new HarmonyMethod(
+                AccessTools.Method(typeof(SoundStarter_PatchTests), nameof(ThrowingUnpatchCategoryPrefix))));
+            try
+            {
+                Assert.DoesNotThrow(() => SoundStarter_Patch.Unpatch());
+                Assert.That((bool)unpatchedField.GetValue(null), Is.True);
+            }
+            finally
+            {
+                metaHarmony.UnpatchAll("FasterGameLoadingMod.SoundStarter_PatchTests.Meta");
+            }
+        }
     }
 }

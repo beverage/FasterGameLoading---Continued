@@ -205,5 +205,24 @@ namespace FasterGameLoading.Tests.Compatibility
 
             Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex, null), Is.True);
         }
+
+        [Test]
+        public void Prefix_WhenTextureNameGetterThrows_SafelyReturnsTrue()
+        {
+            // 暫時移除 transpiler mock，走真實 texture.name (ECall)，非 Unity 運行環境下會拋例外，
+            // IsTargetModTexture 需安全降級為 false，Prefix 因此放行（不跳過原方法）。
+            var isTargetModTexture = AccessTools.Method(typeof(AdaptiveBakingSkipList), "IsTargetModTexture");
+            harmony.Unpatch(isTargetModTexture, HarmonyPatchType.Transpiler, harmony.Id);
+            try
+            {
+                var tex = (Texture2D)FormatterServices.GetUninitializedObject(typeof(Texture2D));
+                Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex, null), Is.True);
+            }
+            finally
+            {
+                var transpilerMethod = AccessTools.Method(typeof(MockTextureHelper), nameof(MockTextureHelper.Transpiler));
+                harmony.Patch(isTargetModTexture, transpiler: new HarmonyMethod(transpilerMethod));
+            }
+        }
     }
 }
