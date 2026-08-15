@@ -1,4 +1,5 @@
-﻿using System;
+#pragma warning disable MA0141, MA0142
+using System;
 using System.Collections;
 using HarmonyLib;
 
@@ -110,3 +111,5 @@ namespace FasterGameLoading
         }
     }
 }
+
+#pragma warning restore MA0141, MA0142

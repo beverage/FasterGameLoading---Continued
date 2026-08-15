@@ -9,10 +9,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
     public class ModContentPack_ReloadContentInt_PatchTests
     {
         private static Harmony harmony;
-        private static bool mockIsInMainThread = true;
         private static bool tryDrainCalled;
-
-        private static bool MockIsInMainThread() => mockIsInMainThread;
 
         private static bool MockTryDrainMainThreadRequests()
         {
@@ -25,12 +22,8 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         {
             harmony = new Harmony("FasterGameLoading.Tests.ModContentPack_ReloadContentInt_PatchTests");
 
-            var isInMainThreadGetter = AccessTools.PropertyGetter(typeof(UnityData), nameof(UnityData.IsInMainThread));
-            if (isInMainThreadGetter != null)
-            {
-                harmony.Patch(isInMainThreadGetter, prefix: new HarmonyMethod(AccessTools.Method(typeof(ModContentPack_ReloadContentInt_PatchTests), nameof(MockIsInMainThread))));
-            }
-
+            // 注意：UnityData.IsInMainThread 已由 TestSetup(GlobalSetup) 全域 stub（Prefix_TrueStub 先執行），
+            // 測試需透過 TestSetup.IsInMainThreadOverride 控制其回傳值，而非 patch getter。
             var tryDrainMethod = AccessTools.Method(typeof(ModContentLoaderTexture2D_LoadTexture_Patch), nameof(ModContentLoaderTexture2D_LoadTexture_Patch.TryDrainMainThreadRequests));
             if (tryDrainMethod != null)
             {
@@ -41,6 +34,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [OneTimeTearDown]
         public void OneTimeTearDown()
         {
+            TestSetup.IsInMainThreadOverride = null;
             harmony?.UnpatchAll("FasterGameLoading.Tests.ModContentPack_ReloadContentInt_PatchTests");
         }
 
@@ -48,7 +42,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         public void SetUp()
         {
             ModContentPack_ReloadContentInt_Patch.loadedMods.Clear();
-            mockIsInMainThread = true;
+            TestSetup.IsInMainThreadOverride = () => true;
             tryDrainCalled = false;
         }
 
@@ -56,7 +50,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         public void TearDown()
         {
             ModContentPack_ReloadContentInt_Patch.loadedMods.Clear();
-            mockIsInMainThread = true;
+            TestSetup.IsInMainThreadOverride = null;
             tryDrainCalled = false;
         }
 
@@ -68,7 +62,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [Test]
         public void Prefix_WhenInMainThread_CallsTryDrainMainThreadRequests()
         {
-            mockIsInMainThread = true;
+            TestSetup.IsInMainThreadOverride = () => true;
             tryDrainCalled = false;
             var mod = CreateMockMod();
 
@@ -81,7 +75,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [Test]
         public void Prefix_WhenNotInMainThread_DoesNotCallTryDrainMainThreadRequests()
         {
-            mockIsInMainThread = false;
+            TestSetup.IsInMainThreadOverride = () => false;
             tryDrainCalled = false;
             var mod = CreateMockMod();
 

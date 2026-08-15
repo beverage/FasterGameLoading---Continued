@@ -35,11 +35,16 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
                 harmony.Patch(emitMethod, prefix: new HarmonyMethod(AccessTools.Method(typeof(World_FinalizeInit_PatchTests), nameof(PrefixSkip))));
             }
 
-            var execWhenFinished = AccessTools.Method(typeof(LongEventHandler), nameof(LongEventHandler.ExecuteWhenFinished));
-            if (execWhenFinished != null)
+            // Patch LongEventHandler.ExecuteWhenFinished (may fail if ECall, guard with try/catch)
+            try
             {
-                harmony.Patch(execWhenFinished, prefix: new HarmonyMethod(AccessTools.Method(typeof(World_FinalizeInit_PatchTests), nameof(MockExecuteWhenFinished))));
+                var execWhenFinished = AccessTools.Method(typeof(LongEventHandler), nameof(LongEventHandler.ExecuteWhenFinished));
+                if (execWhenFinished != null)
+                {
+                    harmony.Patch(execWhenFinished, prefix: new HarmonyMethod(AccessTools.Method(typeof(World_FinalizeInit_PatchTests), nameof(MockExecuteWhenFinished))));
+                }
             }
+            catch { }
 
             var fglModHarmonyProp = typeof(FasterGameLoadingMod).GetProperty(
                 nameof(FasterGameLoadingMod.harmony), BindingFlags.Public | BindingFlags.Static);

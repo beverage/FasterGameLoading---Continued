@@ -7,12 +7,10 @@
     <RootNamespace>FasterGameLoading</RootNamespace>
     <AssemblyName>FasterGameLoading</AssemblyName>
     <LangVersion>latest</LangVersion>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
   <!-- Debug configuration -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
     <Optimize>false</Optimize>
-    <OutputPath>..\Assemblies\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>portable</DebugType>
   </PropertyGroup>
@@ -20,9 +18,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
     <Optimize>true</Optimize>
     <OutputPath>..\Assemblies\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <DebugType>none</DebugType>
   </PropertyGroup>
+  <Target Name="CopyAssemblies" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="..\Assemblies\" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="..\Assemblies\" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+  </Target>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -43,7 +46,7 @@
       <ExcludeAssets>runtime</ExcludeAssets>
       <IncludeAssets>compile; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="coverlet.msbuild">
+    <PackageReference Include="Meziantou.Analyzer">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -51,6 +54,7 @@
   <PropertyGroup>
     <!-- Disable automatic generation of assembly attributes -->
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableNETAnalyzers>False</EnableNETAnalyzers>
   </PropertyGroup>
   <ItemGroup>
     <Publicize Include="Assembly-CSharp" />

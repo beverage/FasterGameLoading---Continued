@@ -19,7 +19,7 @@ namespace FasterGameLoading
         /// 記錄本次 session 所有 XPath 查詢結果：true=節點存在、false=查無節點
         /// 使用 ConcurrentDictionary 以確保多執行緒環境下安全
         /// </summary>
-        public static ConcurrentDictionary<string, bool> xmlPathsThisSession { get; } = new ConcurrentDictionary<string, bool>();
+        public static ConcurrentDictionary<string, bool> xmlPathsThisSession { get; } = new ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
         private static volatile bool patchEnabled = true;
 
         /// <summary>
@@ -63,7 +63,9 @@ namespace FasterGameLoading
             set => isInPatchOperationValue = value;
         }
 
+        #pragma warning disable MA0158 // System.Threading.Lock 僅存在於 .NET 9+，本專案 target net472
         private static readonly object xmlExtensionsLock = RegisterCallbacks();
+#pragma warning restore MA0158
         private static bool? isXmlExtensionsActive;
 
         private static object RegisterCallbacks()

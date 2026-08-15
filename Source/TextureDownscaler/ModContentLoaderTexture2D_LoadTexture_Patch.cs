@@ -80,9 +80,9 @@ namespace FasterGameLoading
 
 
         /// <summary>本次 session 中所有已載入的紋理路徑映射。</summary>
-        public static ConcurrentDictionary<string, string> loadedTexturesThisSession { get; } = new ConcurrentDictionary<string, string>();
+public static ConcurrentDictionary<string, string> loadedTexturesThisSession { get; } = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
         /// <summary>已非同步預載入至記憶體的降質快取紋理位元組數據。</summary>
-        public static ConcurrentDictionary<string, byte[]> preloadedCacheBytes { get; } = new ConcurrentDictionary<string, byte[]>();
+        public static ConcurrentDictionary<string, byte[]> preloadedCacheBytes { get; } = new ConcurrentDictionary<string, byte[]>(StringComparer.Ordinal);
         /// <summary>以 WeakReference 快取已載入的 Texture2D，鍵為完整檔案路徑。</summary>
         public static ConcurrentDictionary<string, System.WeakReference<Texture2D>> savedTextures = new ConcurrentDictionary<string, System.WeakReference<Texture2D>>();
         /// <summary>

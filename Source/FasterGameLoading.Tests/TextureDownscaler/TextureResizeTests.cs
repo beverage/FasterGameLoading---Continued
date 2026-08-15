@@ -23,9 +23,11 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             building.building = Uninitialized<BuildingProperties>();
 
             var weapon = Uninitialized<ThingDef>();
+            weapon.category = ThingCategory.Item;
             weapon.tools = new List<Tool> { Uninitialized<Tool>() };
 
             var apparel = Uninitialized<ThingDef>();
+            apparel.category = ThingCategory.Item;
             apparel.apparel = Uninitialized<ApparelProperties>();
 
             var plant = Uninitialized<ThingDef>();
@@ -79,7 +81,8 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         {
             var def = Uninitialized<ThingDef>();
             def.apparel = Uninitialized<ApparelProperties>();
-            def.apparel.layers = new List<ApparelLayerDef> { ApparelLayerDefOf.Shell };
+            var nonUtilityLayer = Uninitialized<ApparelLayerDef>();
+            def.apparel.layers = new List<ApparelLayerDef> { nonUtilityLayer };
 
             Assert.That(TextureResize.RenderAsPack(def), Is.False);
         }

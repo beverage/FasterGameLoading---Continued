@@ -1,4 +1,5 @@
-﻿using System;
+#pragma warning disable MA0141, MA0142
+using System;
 using System.IO;
 using System.Xml;
 using Verse;
@@ -21,7 +22,11 @@ namespace FasterGameLoading
         {
             try
             {
-                var modContentPack = LoadedModManager.GetMod<FasterGameLoadingMod>().Content;
+                var mod = LoadedModManager.GetMod<FasterGameLoadingMod>();
+                if (mod?.Content == null)
+                    return;
+
+                var modContentPack = mod.Content;
                 var languageDataDir = Path.Combine(modContentPack.RootDir, "LanguageData");
                 if (!Directory.Exists(languageDataDir))
                     return;
@@ -109,3 +114,5 @@ namespace FasterGameLoading
         }
     }
 }
+
+#pragma warning restore MA0141, MA0142

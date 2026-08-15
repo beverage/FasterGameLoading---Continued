@@ -50,7 +50,12 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             var texture = Uninitialized<Texture2D>();
             var expectedPath = "Mods/MyMod/Textures/FromSaved.png";
 
-            ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures[expectedPath] = new System.WeakReference<Texture2D>(texture);
+            // SaveTexturePath 同時維護 savedTextures（弱引用字典）與 savedTexturePathsByTexture
+            // （弱鍵反查表）；TryGetSavedTexturePath 實際查詢的是後者。
+            var saveTexturePath = typeof(ModContentLoaderTexture2D_LoadTexture_Patch)
+                .GetMethod("SaveTexturePath", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(saveTexturePath, Is.Not.Null);
+            saveTexturePath.Invoke(null, new object[] { expectedPath, texture });
 
             var result = scanner.TryGetTexturePath(texture, out var path);
 
@@ -66,7 +71,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
 
             Assert.DoesNotThrow(() => scanner.BuildTextureScanData());
 
-            foreach (TextureResize.TextureType type in Enum.GetValues(typeof(TextureResize.TextureType)))
+            foreach (TextureResize.TextureType type in Enum.GetValues<TextureResize.TextureType>())
             {
                 Assert.That(scanner.textures.ContainsKey(type), Is.True);
                 Assert.That(scanner.textures[type], Is.Not.Null);
@@ -99,6 +104,35 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             var scanner = new TextureScanner();
 
             Assert.DoesNotThrow(() => scanner.ClearTextureScanData());
+        }
+
+        [Test]
+        public void CacheLoadCounters_GetterSetter_RoundTripPreservesValue()
+        {
+            // cacheLoadHits / cacheLoadFailures 是公開靜態計數器，供 Prefix 在命中/失敗時遞增，
+            // 並在摘要訊息中讀取。此測試驗證 getter 與 setter 能正確往返數值。
+            ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits = 7;
+            ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadFailures = 3;
+
+            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits, Is.EqualTo(7));
+            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadFailures, Is.EqualTo(3));
+
+            // 清理，避免污染其他測試
+            ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits = 0;
+            ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadFailures = 0;
+        }
+
+        [Test]
+        public void CacheLoadCounters_ResetToZero_ClearsPreviousValues()
+        {
+            ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits = 11;
+            ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadFailures = 5;
+
+            ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits = 0;
+            ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadFailures = 0;
+
+            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits, Is.EqualTo(0));
+            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadFailures, Is.EqualTo(0));
         }
     }
 }

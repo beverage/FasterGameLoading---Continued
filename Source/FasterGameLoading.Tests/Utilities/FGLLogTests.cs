@@ -61,6 +61,10 @@ namespace FasterGameLoading.Tests.Utilities
             capturedMessages.Clear();
             capturedWarnings.Clear();
             capturedErrors.Clear();
+            TestSetup.OnLogMessage = text => capturedMessages.Add(text);
+            TestSetup.OnLogWarning = text => capturedWarnings.Add(text);
+            TestSetup.OnLogError = text => capturedErrors.Add(text);
+            TestSetup.IsInMainThreadOverride = () => !forceBackgroundThread;
             forceBackgroundThread = false;
             ClearPendingQueue();
         }
@@ -68,6 +72,10 @@ namespace FasterGameLoading.Tests.Utilities
         [TearDown]
         public void TearDown()
         {
+            TestSetup.OnLogMessage = null;
+            TestSetup.OnLogWarning = null;
+            TestSetup.OnLogError = null;
+            TestSetup.IsInMainThreadOverride = null;
             ClearPendingQueue();
             forceBackgroundThread = false;
         }

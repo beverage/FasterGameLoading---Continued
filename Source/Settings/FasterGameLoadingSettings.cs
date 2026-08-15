@@ -111,21 +111,21 @@ namespace FasterGameLoading
             base.ExposeData();
 
             // 使用者設定
-            var staticAtlasesBaking = StaticAtlasesBaking;
-            Scribe_Values.Look(ref staticAtlasesBaking, "StaticAtlasesBaking", false);
+var staticAtlasesBaking = StaticAtlasesBaking;
+            Scribe_Values.Look(ref staticAtlasesBaking, "StaticAtlasesBaking", defaultValue: false);
             StaticAtlasesBaking = staticAtlasesBaking;
             var delayGraphicLoading = DelayGraphicLoading;
-            Scribe_Values.Look(ref delayGraphicLoading, "delayGraphicLoading", false);
+            Scribe_Values.Look(ref delayGraphicLoading, "delayGraphicLoading", defaultValue: false);
             DelayGraphicLoading = delayGraphicLoading;
-            Scribe_Values.Look(ref earlyModContentLoading, "earlyModContentLoading", true);
+            Scribe_Values.Look(ref earlyModContentLoading, "earlyModContentLoading", defaultValue: true);
             var enableMultiThreading = EnableMultiThreading;
-            Scribe_Values.Look(ref enableMultiThreading, "enableMultiThreading", true);
+            Scribe_Values.Look(ref enableMultiThreading, "enableMultiThreading", defaultValue: true);
             EnableMultiThreading = enableMultiThreading;
             var xPathCaching = XPathCaching;
-            Scribe_Values.Look(ref xPathCaching, "XPathCaching", true);
+            Scribe_Values.Look(ref xPathCaching, "XPathCaching", defaultValue: true);
             XPathCaching = xPathCaching;
             var verboseLogging = VerboseLogging;
-            Scribe_Values.Look(ref verboseLogging, "verboseLogging", false);
+            Scribe_Values.Look(ref verboseLogging, "verboseLogging", defaultValue: false);
             VerboseLogging = verboseLogging;
 
 

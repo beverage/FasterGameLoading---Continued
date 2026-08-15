@@ -73,6 +73,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         public void TryGetResizeTarget_WeaponUsesWeaponTarget()
         {
             var def = Uninitialized<ThingDef>();
+            def.category = ThingCategory.Item;
             def.tools = new List<Tool> { Uninitialized<Tool>() };
             def.graphicData = Uninitialized<GraphicData>();
             def.graphicData.drawSize = new Vector2(1.5f, 1.5f);

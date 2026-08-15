@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 using HarmonyLib;
 using Verse;
@@ -35,7 +35,9 @@ namespace FasterGameLoading
         private const string PauseFieldName = "_pauseFasterGameLoading_DelayedActions_LateUpdate";
         private const string EarlyLoadingFinishedPropertyName = "FasterGameLoadingEarlyModContentLoadingIsFinished";
 
-        private static readonly Func<bool> GetIsPaused;
+        // 刻意保留為可變且不公開：此欄位由 static constructor 依運行時型別動態建立委派，
+        // 且測試需經由反射重設以模擬各種狀態；private 避免外部任意覆寫 (S2223)。
+        private static Func<bool> GetIsPaused;
 
         static FGLProgressReporter()
         {

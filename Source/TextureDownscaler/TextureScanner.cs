@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
@@ -234,10 +234,10 @@ namespace FasterGameLoading
         /// </summary>
         public bool TryGetTexturePath(Texture texture, out string fullPath)
         {
-            if (texture != null && texturesByPaths.TryGetValue(texture, out fullPath))
+            if (!ReferenceEquals(texture, null) && texturesByPaths.TryGetValue(texture, out fullPath))
                 return true;
 
-            if (texture != null)
+            if (!ReferenceEquals(texture, null))
             {
                 if (ModContentLoaderTexture2D_LoadTexture_Patch.TryGetSavedTexturePath(texture, out fullPath))
                 {

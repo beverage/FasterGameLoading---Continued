@@ -19,11 +19,18 @@ namespace FasterGameLoading.Tests.Settings
         {
             harmony = new Harmony("FasterGameLoading.Tests.Settings.SessionCacheTests");
 
-            var activeModsGetter = AccessTools.PropertyGetter(typeof(ModsConfig), nameof(ModsConfig.ActiveModsInLoadOrder));
-            if (activeModsGetter != null)
+            try
             {
-                harmony.Patch(activeModsGetter, prefix: new HarmonyMethod(AccessTools.Method(typeof(SessionCacheTests), nameof(MockActiveModsInLoadOrder))));
+                var modsConfigType = AccessTools.TypeByName("Verse.ModsConfig");
+                var activeModsGetter = modsConfigType != null
+                    ? AccessTools.PropertyGetter(modsConfigType, "ActiveModsInLoadOrder")
+                    : null;
+                if (activeModsGetter != null)
+                {
+                    harmony.Patch(activeModsGetter, prefix: new HarmonyMethod(AccessTools.Method(typeof(SessionCacheTests), nameof(MockActiveModsInLoadOrder))));
+                }
             }
+            catch { }
         }
 
         [OneTimeTearDown]

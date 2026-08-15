@@ -9,6 +9,10 @@ namespace FasterGameLoading.Tests.Core
     [TestFixture]
     public class StartupTests
     {
+        // 期望值陣列：避免每個斷言反覆建立常數陣列 (CA1861)
+        private static readonly int[] ExpectedFullOrder = { 1, 2, 3 };
+        private static readonly int[] ExpectedOrderAfterThrow = { 1, 3 };
+
         private FieldInfo callbacksField;
 
         [SetUp]
@@ -43,7 +47,7 @@ namespace FasterGameLoading.Tests.Core
 
             Startup.Postfix();
 
-            Assert.That(executionOrder, Is.EqualTo(new[] { 1, 2, 3 }));
+            Assert.That(executionOrder, Is.EqualTo(ExpectedFullOrder));
         }
 
         [Test]
@@ -57,7 +61,7 @@ namespace FasterGameLoading.Tests.Core
 
             Assert.DoesNotThrow(() => Startup.Postfix());
 
-            Assert.That(executionOrder, Is.EqualTo(new[] { 1, 3 }));
+            Assert.That(executionOrder, Is.EqualTo(ExpectedOrderAfterThrow));
         }
 
         [Test]

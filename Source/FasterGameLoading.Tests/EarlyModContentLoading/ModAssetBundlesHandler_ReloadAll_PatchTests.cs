@@ -7,7 +7,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
     [TestFixture]
     public class ModAssetBundlesHandler_ReloadAll_PatchTests
     {
-        private ModAssetBundlesHandler CreateMockHandler()
+        private static ModAssetBundlesHandler CreateMockHandler()
         {
             return (ModAssetBundlesHandler)FormatterServices.GetUninitializedObject(typeof(ModAssetBundlesHandler));
         }

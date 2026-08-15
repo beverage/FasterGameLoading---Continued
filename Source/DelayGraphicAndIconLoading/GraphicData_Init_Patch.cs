@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using HarmonyLib;
 using Verse;
@@ -18,7 +19,7 @@ namespace FasterGameLoading
         /// <summary>
         /// 以 texPath 為鍵的快取，值為所有使用該 texPath 的 GraphicData 列表。
         /// </summary>
-        internal static ConcurrentDictionary<string, List<GraphicData>> savedGraphics { get; } = new ConcurrentDictionary<string, List<GraphicData>>();
+        internal static ConcurrentDictionary<string, List<GraphicData>> savedGraphics { get; } = new ConcurrentDictionary<string, List<GraphicData>>(StringComparer.Ordinal);
 
         static GraphicData_Init_Patch()
         {

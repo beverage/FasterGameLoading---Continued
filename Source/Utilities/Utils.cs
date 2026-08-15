@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+#pragma warning disable MA0141, MA0142
+using System.Collections.Generic;
 using RimWorld;
 using Verse;
 
@@ -30,7 +31,8 @@ namespace FasterGameLoading
             List<Thing> outThings = new List<Thing>();
             foreach (var def in defs)
             {
-                if (listerThings.listsByDef.TryGetValue(def, out var things))
+                var things = listerThings.ThingsOfDef(def);
+                if (things != null && things.Count > 0)
                 {
                     outThings.AddRange(things);
                 }
@@ -140,3 +142,5 @@ namespace FasterGameLoading
 }
 
 
+
+#pragma warning restore MA0141, MA0142

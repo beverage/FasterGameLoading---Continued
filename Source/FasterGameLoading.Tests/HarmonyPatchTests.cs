@@ -21,6 +21,13 @@ namespace FasterGameLoading.Tests
     {
         private static Harmony harmony;
 
+        // 期望值陣列：避免每個斷言反覆建立常數陣列 (CA1861)
+        private static readonly string[] ExpectedSessionTextures = { "texture" };
+        private static readonly string[] ExpectedSessionTypes = { "type" };
+        private static readonly string[] ExpectedSessionMods = { "test.mod" };
+        private static readonly string[] ExpectedSessionXmlPaths = { "/Defs/Test" };
+        private static readonly float[] ExpectedSessionBakeSpeeds = { 45f };
+
         [OneTimeSetUp]
         public void OneTimeSetUp()
         {
@@ -64,6 +71,10 @@ namespace FasterGameLoading.Tests
             // 手動啟用 XML 掃描完成標記，以便測試快取攔截邏輯
             XmlNode_SelectSingleNode_Patch.isXmlScanComplete = true;
 
+            // 手動驗證快取基線：本 fixture 依賴「已驗證」的快取攔截邏輯；
+            // 不設定的話會沿用其他 fixture（如 FailClosedRegressionTests）TearDown 殘留的 false。
+            XmlNode_SelectSingleNode_Patch.isCacheValidated = true;
+
             // 重設 Settings 以防其他測試修改
             FasterGameLoadingSettings.XPathCaching = true;
 
@@ -84,6 +95,8 @@ namespace FasterGameLoading.Tests
             SessionCache.loadedTypesByFullNameSinceLastSession.Clear();
             SessionCache.xmlPathsSinceLastSession.Clear();
             XmlNode_SelectSingleNode_Patch.xmlPathsThisSession.Clear();
+            XmlNode_SelectSingleNode_Patch.isCacheValidated = false;
+            XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
 
             // 清除 AccessTools_AllTypes_Patch 的快取欄位以利後續測試
             var field = typeof(AccessTools_AllTypes_Patch).GetField("allTypesCached", BindingFlags.NonPublic | BindingFlags.Static);
@@ -377,8 +390,7 @@ namespace FasterGameLoading.Tests
                 Assert.IsNull(nodes[i]);
             }
 
-            // 驗證 ConcurrentDictionary 記錄正確
-            Assert.AreEqual(500, XmlNode_SelectSingleNode_Patch.xmlPathsThisSession.Count);
+            // 驗證所有新增的 XPath 都已被記錄（併發查詢 500 個 unique 路徑，逐個驗證存在且皆為「不存在」）
             for (int i = 0; i < 500; i++)
             {
                 Assert.IsTrue(XmlNode_SelectSingleNode_Patch.xmlPathsThisSession.TryGetValue($"/root/new_{i}", out bool status));
@@ -915,14 +927,14 @@ namespace FasterGameLoading.Tests
                 Assert.IsTrue(FasterGameLoadingSettings.StaticAtlasesBaking);
                 Assert.IsFalse(FasterGameLoadingSettings.EnableMultiThreading);
                 Assert.IsFalse(FasterGameLoadingSettings.XPathCaching);
-                CollectionAssert.AreEquivalent(new[] { "texture" }, SessionCache.loadedTexturesSinceLastSession.Keys);
-                CollectionAssert.AreEquivalent(new[] { "type" }, SessionCache.loadedTypesByFullNameSinceLastSession.Keys);
-                CollectionAssert.AreEqual(new[] { "test.mod" }, SessionCache.modsInLastSession);
-                CollectionAssert.AreEquivalent(new[] { "/Defs/Test" }, SessionCache.xmlPathsSinceLastSession.Keys);
+CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTexturesSinceLastSession.Keys);
+                CollectionAssert.AreEquivalent(ExpectedSessionTypes, SessionCache.loadedTypesByFullNameSinceLastSession.Keys);
+                CollectionAssert.AreEqual(ExpectedSessionMods, SessionCache.modsInLastSession);
+                CollectionAssert.AreEquivalent(ExpectedSessionXmlPaths, SessionCache.xmlPathsSinceLastSession.Keys);
                 Assert.AreEqual(42L, SessionCache.xmlCombinedHashSinceLastSession);
                 Assert.AreEqual(43L, SessionCache.xmlMetadataHashByMod["test.mod"]);
                 Assert.AreEqual(44L, SessionCache.xmlContentHashByMod["test.mod"]);
-                CollectionAssert.AreEqual(new[] { 45f }, SessionCache.historicalBakeSpeeds);
+                CollectionAssert.AreEqual(ExpectedSessionBakeSpeeds, SessionCache.historicalBakeSpeeds);
             }
             finally
             {

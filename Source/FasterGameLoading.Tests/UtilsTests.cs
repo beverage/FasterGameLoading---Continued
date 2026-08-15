@@ -96,6 +96,7 @@ namespace FasterGameLoading.Tests
             frameDef.entityDefToBuild = Uninitialized<ThingDef>();
             frameDef.category = ThingCategory.Building;
             frameDef.thingClass = typeof(Frame);
+            AccessTools.Field(typeof(ThingDef), "isFrameInt")?.SetValue(frameDef, true);
             Assert.That(frameDef.ShouldBeLoadedImmediately(), Is.True);
         }
 
@@ -141,10 +142,12 @@ namespace FasterGameLoading.Tests
         public void ShouldBeLoadedImmediately_WithWeaponOrApparel_ReturnsTrue()
         {
             var weaponDef = Uninitialized<ThingDef>();
+            weaponDef.category = ThingCategory.Item;
             weaponDef.tools = new List<Tool> { Uninitialized<Tool>() };
             Assert.That(weaponDef.ShouldBeLoadedImmediately(), Is.True);
 
             var apparelDef = Uninitialized<ThingDef>();
+            apparelDef.category = ThingCategory.Item;
             apparelDef.apparel = Uninitialized<ApparelProperties>();
             Assert.That(apparelDef.ShouldBeLoadedImmediately(), Is.True);
         }
@@ -210,8 +213,14 @@ namespace FasterGameLoading.Tests
             var defC = Uninitialized<ThingDef>();
 
             var thingA1 = Uninitialized<Thing>();
+            thingA1.thingIDNumber = 1;
+            thingA1.def = defA;
             var thingA2 = Uninitialized<Thing>();
+            thingA2.thingIDNumber = 2;
+            thingA2.def = defA;
             var thingB1 = Uninitialized<Thing>();
+            thingB1.thingIDNumber = 3;
+            thingB1.def = defB;
 
             var lister = Uninitialized<ListerThings>();
             var listsByDef = new Dictionary<ThingDef, List<Thing>>
@@ -226,9 +235,9 @@ namespace FasterGameLoading.Tests
             var result = lister.ThingsOfDefs(new[] { defA, defB, defC });
 
             Assert.That(result, Has.Count.EqualTo(3));
-            Assert.That(result, Contains.Item(thingA1));
-            Assert.That(result, Contains.Item(thingA2));
-            Assert.That(result, Contains.Item(thingB1));
+            Assert.That(result.Contains(thingA1), Is.True);
+            Assert.That(result.Contains(thingA2), Is.True);
+            Assert.That(result.Contains(thingB1), Is.True);
         }
     }
 }

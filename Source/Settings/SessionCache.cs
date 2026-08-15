@@ -20,12 +20,12 @@ namespace FasterGameLoading
         /// <summary>
         /// 上一次 session 中所有已載入的紋理路徑映射。
         /// </summary>
-        internal static Dictionary<string, string> loadedTexturesSinceLastSession { get; set; } = new();
+internal static Dictionary<string, string> loadedTexturesSinceLastSession { get; set; } = new(StringComparer.Ordinal);
 
         /// <summary>
         /// 上一次 session 中所有已查詢的完整型別名稱映射。
         /// </summary>
-        internal static ConcurrentDictionary<string, string> loadedTypesByFullNameSinceLastSession { get; set; } = new();
+        internal static ConcurrentDictionary<string, string> loadedTypesByFullNameSinceLastSession { get; set; } = new(StringComparer.Ordinal);
 
         /// <summary>
         /// 上一次 session 中啟用的 mod 列表（packageIdLowerCase）。
@@ -35,7 +35,7 @@ namespace FasterGameLoading
         /// <summary>
         /// 上一次 session 中所有 XPath 查詢結果（僅存缺失的 XPath 查詢）。
         /// </summary>
-        internal static ConcurrentDictionary<string, byte> xmlPathsSinceLastSession { get; set; } = new();
+        internal static ConcurrentDictionary<string, byte> xmlPathsSinceLastSession { get; set; } = new(StringComparer.Ordinal);
 
         /// <summary>
         /// 上一次 session 中所有第三方 Mod 的 XML 檔案的累積雜湊值。
@@ -45,19 +45,21 @@ namespace FasterGameLoading
         /// <summary>
         /// 上一次 session 中每個 Mod 所有 XML 檔案的 metadata 累積雜湊值。
         /// </summary>
-        internal static Dictionary<string, long> xmlMetadataHashByMod { get; set; } = new();
+        internal static Dictionary<string, long> xmlMetadataHashByMod { get; set; } = new(StringComparer.Ordinal);
 
         /// <summary>
         /// 舊版 XML 內容雜湊欄位。保留 Scribe 相容性，新版 metadata-only 掃描不再使用。
         /// </summary>
-        internal static Dictionary<string, long> xmlContentHashByMod { get; set; } = new();
+        internal static Dictionary<string, long> xmlContentHashByMod { get; set; } = new(StringComparer.Ordinal);
 
 
         /// <summary>
         /// 歷次靜態圖集烘焙速度記錄（用於自適應批次調整）。
         /// </summary>
-        internal static List<float> historicalBakeSpeeds { get; set; } = new();
+internal static List<float> historicalBakeSpeeds { get; set; } = new();
+#pragma warning disable MA0158 // System.Threading.Lock 僅存在於 .NET 9+，本專案 target net472
         private static readonly object loadedTexturesLock = new();
+#pragma warning restore MA0158
 
         /// <summary>
         /// 加權移動平均的權重。
@@ -128,7 +130,7 @@ namespace FasterGameLoading
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
-                loadedTexturesSinceLastSession ??= new Dictionary<string, string>();
+                loadedTexturesSinceLastSession ??= new Dictionary<string, string>(StringComparer.Ordinal);
 
                 if (tempTypes != null)
                 {

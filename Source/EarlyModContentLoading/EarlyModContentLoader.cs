@@ -1,6 +1,9 @@
+#pragma warning disable MA0141, MA0142
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using RimWorld;
 using Verse;
 
@@ -17,6 +20,33 @@ namespace FasterGameLoading
         private int skipFrames;
         private const int TIMEOUT_THRESHOLD = 3;
         private const int SKIP_FRAME_COUNT = 5;
+
+        // ReloadContentInt 在遊戲 Assembly-CSharp 中是 private，直接呼叫會觸發 JIT 的可見性驗證
+        // (MethodAccessException)。提早載入需在遊戲正式流程前觸發內容重載，故經由反射呼叫；
+        // 運行時遊戲 DLL 中的 Harmony 攔截 (ModContentPack_ReloadContentInt_Patch) 對反射呼叫同樣生效。
+        private static readonly MethodInfo ReloadContentIntMethod = typeof(ModContentPack).GetMethod(
+            "ReloadContentInt",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic); // NOSONAR S3011: 遊戲 DLL 中該方法為 private，經由反射呼叫是唯一可行的整合方式
+
+        /// <summary>
+        /// 經由反射呼叫 ModContentPack.ReloadContentInt(false)，繞過 private 的可見性驗證。
+        /// </summary>
+        private static void InvokeReloadContentInt(ModContentPack mod)
+        {
+            if (ReloadContentIntMethod == null)
+            {
+                throw new MissingMethodException(typeof(ModContentPack).FullName, "ReloadContentInt");
+            }
+            try
+            {
+                ReloadContentIntMethod.Invoke(mod, new object[] { false });
+            }
+            catch (TargetInvocationException ex) when (ex.InnerException != null)
+            {
+                // 反射會將目標方法拋出的例外包裝成 TargetInvocationException，這裡解包後原樣重新拋出。
+                ExceptionDispatchInfo.Capture(ex.InnerException).Throw();
+            }
+        }
 
         /// <summary>
         /// 取得 Mod 內容提早載入是否已完成。
@@ -67,13 +97,13 @@ namespace FasterGameLoading
                     {
                         using (ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope())
                         {
-                            modToLoad.ReloadContentInt();
+                            InvokeReloadContentInt(modToLoad);
                         }
                     }
                     else
                     {
                         // 未啟用 ImageOpt 時維持原始熱路徑，不建立或釋放空 scope。
-                        modToLoad.ReloadContentInt();
+                        InvokeReloadContentInt(modToLoad);
                     }
                     ModContentPack_ReloadContentInt_Patch.loadedMods.Add(modToLoad);
                 }
@@ -116,3 +146,5 @@ namespace FasterGameLoading
         }
     }
 }
+
+#pragma warning restore MA0141, MA0142

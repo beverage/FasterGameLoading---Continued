@@ -13,7 +13,7 @@ namespace FasterGameLoading
     public static class ModAssetBundlesHandler_ReloadAll_Patch
     {
         // 追蹤已完成 ReloadAll 的 handler，確保第一次呼叫一定放行
-        public static HashSet<ModAssetBundlesHandler> reloadedHandlers { get; } = new();
+        public static ISet<ModAssetBundlesHandler> reloadedHandlers { get; } = new HashSet<ModAssetBundlesHandler>();
 
         static ModAssetBundlesHandler_ReloadAll_Patch()
         {

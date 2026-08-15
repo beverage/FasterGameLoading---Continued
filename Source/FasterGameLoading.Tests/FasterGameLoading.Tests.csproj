@@ -1,11 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <RootNamespace>FasterGameLoading.Tests</RootNamespace>
     <AssemblyName>FasterGameLoading.Tests</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
     <DebugType>portable</DebugType>
+    <NoWarn>NU1701;NU1702;SYSLIB0050;SYSLIB0012</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,14 +16,21 @@
     <PackageReference Include="coverlet.collector">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="coverlet.msbuild">
+    <PackageReference Include="Lib.Harmony" />
+    <PackageReference Include="Meziantou.Analyzer">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Lib.Harmony" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\FasterGameLoading.csproj" />
   </ItemGroup>
+
+  <Target Name="CopyRimWorldManagedAssemblies" AfterTargets="Build">
+    <ItemGroup>
+      <ManagedAssemblies Include="c:\Program Files (x86)\Steam\steamapps\common\RimWorld\RimWorldWin64_Data\Managed\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ManagedAssemblies)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

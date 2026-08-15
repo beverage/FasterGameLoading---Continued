@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.Serialization;
 using HarmonyLib;
@@ -144,6 +145,40 @@ namespace FasterGameLoading.Tests.Compatibility
         public void ReloadContent_Prepare_MatchesTargetMethodPresence()
         {
             Assert.That(LoadingProgress_ReloadContent_Patch.Prepare(), Is.False);
+        }
+
+        [Test]
+        public void SettingsGetter_IsAccessibleWithoutThrowing()
+        {
+            // 驗證 FasterGameLoadingMod.settings 的 getter 可被安全讀取（未經建構子時為 null）
+            Assert.DoesNotThrow(() =>
+            {
+                var unused = FasterGameLoadingMod.settings;
+            });
+            Assert.That(FasterGameLoadingMod.settings, Is.Null);
+        }
+
+        [Test]
+        public void StartXmlScan_WithNoRunningMods_CompletesSafely()
+        {
+            // 反射呼叫 private static StartXmlScan()：RunningMods 為空時只建立空 scanTargets，
+            // 直接跳過迴圈並嘗試啟動掃描，不應拋出例外（覆蓋 L71/L81）。
+            var runningModsField = AccessTools.Field(typeof(LoadedModManager), "runningMods");
+            var originalRunningMods = runningModsField?.GetValue(null);
+            var originalDelayedActions = FasterGameLoadingMod.delayedActions;
+            try
+            {
+                runningModsField?.SetValue(null, new List<ModContentPack>());
+
+                var method = typeof(FasterGameLoadingMod).GetMethod("StartXmlScan",
+                    BindingFlags.NonPublic | BindingFlags.Static);
+                Assert.That(method, Is.Not.Null);
+                Assert.DoesNotThrow(() => method.Invoke(null, null));
+            }
+            finally
+            {
+                runningModsField?.SetValue(null, originalRunningMods);
+            }
         }
 
         private static DelayedActions CreateDelayedActions(bool earlyLoadingComplete)

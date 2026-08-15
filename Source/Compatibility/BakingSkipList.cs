@@ -221,8 +221,19 @@ namespace FasterGameLoading
                 return true;
             }
 
-            // 2. 實體不同時比對檔名
-            if (!string.IsNullOrEmpty(texture.name) && ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextureNames.ContainsKey(texture.name))
+            // 2. 實體不同時比對檔名。texture.name 走 UnityEngine.Object.get_name() (ECall)，
+            //    非 Unity 運行環境（如單元測試）下會拋例外；此時視為無檔名可比對，安全降級為 false。
+            string textureName;
+            try
+            {
+                textureName = texture.name;
+            }
+            catch
+            {
+                return false;
+            }
+            if (!string.IsNullOrEmpty(textureName)
+                && ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextureNames.ContainsKey(textureName))
             {
                 return true;
             }

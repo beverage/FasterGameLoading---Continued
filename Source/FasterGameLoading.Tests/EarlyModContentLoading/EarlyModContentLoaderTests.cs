@@ -236,6 +236,29 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         }
 
         [Test]
+        public void Update_WhenImageOptInstalled_ProcessesViaSyncScope()
+        {
+            // 模擬 ImageOpt 已安裝：Update 會走 sync scope 分支（L95-100）
+            var started = false;
+            ImageOptEarlyLoadCoordinator.ConfigureForTests(() => started, value => started = value, enabled: true);
+            try
+            {
+                var mod = CreateMockModContentPack("test.mod");
+                SetRunningMods(new List<ModContentPack> { mod });
+
+                loader.Update(delayedActions);
+
+                Assert.That(reloadedMods, Does.Contain(mod));
+                Assert.That(ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(mod), Is.True);
+                Assert.That(loader.EarlyLoadingComplete, Is.True);
+            }
+            finally
+            {
+                ImageOptEarlyLoadCoordinator.ResetTestConfiguration();
+            }
+        }
+
+        [Test]
         public void Reset_ClearsAllQueuesAndCounterState()
         {
             var mod = CreateMockModContentPack("test.mod");

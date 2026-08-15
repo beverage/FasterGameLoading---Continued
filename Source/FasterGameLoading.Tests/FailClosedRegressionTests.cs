@@ -167,5 +167,21 @@ namespace FasterGameLoading.Tests
             Assert.IsFalse(XmlNode_SelectSingleNode_Patch.isCacheValidated,
                 "Validation outlived the startup window; runtime queries could be answered from cache.");
         }
+
+        /// <summary>
+        /// The isInPatchOperation setter must persist the flag so the patch
+        /// pipeline can be marked while LoadPatches runs (and unmarked after).
+        /// </summary>
+        [Test]
+        public void IsInPatchOperation_SetterPersistsValue()
+        {
+            XmlNode_SelectSingleNode_Patch.isInPatchOperation = true;
+            Assert.IsTrue(XmlNode_SelectSingleNode_Patch.isInPatchOperation,
+                "Setting isInPatchOperation to true did not persist.");
+
+            XmlNode_SelectSingleNode_Patch.isInPatchOperation = false;
+            Assert.IsFalse(XmlNode_SelectSingleNode_Patch.isInPatchOperation,
+                "Setting isInPatchOperation to false did not persist.");
+        }
     }
 }

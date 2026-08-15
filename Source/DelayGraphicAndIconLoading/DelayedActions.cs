@@ -1,3 +1,4 @@
+#pragma warning disable MA0141, MA0142
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -276,3 +277,5 @@ namespace FasterGameLoading
 
     }
 }
+
+#pragma warning restore MA0141, MA0142

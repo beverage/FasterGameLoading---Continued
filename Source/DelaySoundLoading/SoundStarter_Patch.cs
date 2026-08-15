@@ -1,4 +1,5 @@
-﻿using HarmonyLib;
+using System;
+using HarmonyLib;
 using Verse;
 using Verse.Sound;
 
@@ -59,7 +60,15 @@ namespace FasterGameLoading
         {
             if (unpatched) return;
             unpatched = true;
-            FasterGameLoadingMod.harmony.UnpatchCategory("SoundStarter");
+            try
+            {
+                FasterGameLoadingMod.harmony?.UnpatchCategory("SoundStarter");
+            }
+            catch (Exception ex)
+            {
+                // Unpatch 失敗不影響遊戲功能，記錄後忽略，避免重複嘗試。
+                FGLLog.Warning("Failed to unpatch SoundStarter category:", ex);
+            }
         }
     }
 }
