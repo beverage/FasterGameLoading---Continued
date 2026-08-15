@@ -51,6 +51,46 @@ namespace FasterGameLoading.Tests.Language
             Assert.That(language.keyedReplacements["Farewell"].fileSource, Is.EqualTo(path));
         }
 
+        [Test]
+        public void LoadKeyedTranslationsFromFile_WithCorruptedXml_IsSafelyIgnoredAndDoesNotThrow()
+        {
+            var path = Path.Combine(tempDir, "Corrupt.xml");
+            File.WriteAllText(path, "<LanguageData><UnclosedTag>Content</LanguageData>");
+            var language = (LoadedLanguage)CreateLanguage();
+
+            Assert.DoesNotThrow(() => TranslationInjector.LoadKeyedTranslationsFromFile(path, language));
+            Assert.That(language.keyedReplacements, Is.Empty);
+        }
+
+        [Test]
+        public void LoadKeyedTranslationsFromFile_WithNonExistentFile_IsSafelyIgnored()
+        {
+            var path = Path.Combine(tempDir, "DoesNotExist.xml");
+            var language = (LoadedLanguage)CreateLanguage();
+
+            Assert.DoesNotThrow(() => TranslationInjector.LoadKeyedTranslationsFromFile(path, language));
+            Assert.That(language.keyedReplacements, Is.Empty);
+        }
+
+        [Test]
+        public void LoadKeyedTranslationsFromFile_WithCommentsAndWhitespace_OnlyExtractsElementNodes()
+        {
+            var path = Path.Combine(tempDir, "WithComments.xml");
+            File.WriteAllText(path, "<LanguageData>\n  <!-- Comment line -->\n  <OptionA>Alpha</OptionA>\n  <!-- Another comment -->\n</LanguageData>");
+            var language = (LoadedLanguage)CreateLanguage();
+
+            TranslationInjector.LoadKeyedTranslationsFromFile(path, language);
+
+            Assert.That(language.keyedReplacements, Has.Count.EqualTo(1));
+            Assert.That(language.keyedReplacements["OptionA"].value, Is.EqualTo("Alpha"));
+        }
+
+        [Test]
+        public void InjectTranslations_WhenLanguageDataMissing_ReturnsSafelyWithoutThrowing()
+        {
+            Assert.DoesNotThrow(() => TranslationInjector.InjectTranslations());
+        }
+
         private static object CreateLanguage()
         {
             var language = (LoadedLanguage)FormatterServices.GetUninitializedObject(typeof(LoadedLanguage));

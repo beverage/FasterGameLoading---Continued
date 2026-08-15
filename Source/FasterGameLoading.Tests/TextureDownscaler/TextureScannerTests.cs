@@ -1,13 +1,23 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 using NUnit.Framework;
 using UnityEngine;
+using Verse;
 
 namespace FasterGameLoading.Tests.TextureDownscaler
 {
     [TestFixture]
     public class TextureScannerTests
     {
+        private static T Uninitialized<T>() => (T)FormatterServices.GetUninitializedObject(typeof(T));
+
+        [TearDown]
+        public void TearDown()
+        {
+            ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures.Clear();
+        }
+
         [Test]
         public void TryGetTexturePath_WithNullTextureReturnsFalse()
         {
@@ -21,17 +31,60 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         }
 
         [Test]
+        public void TryGetTexturePath_WhenInTexturesByPaths_ReturnsTrueAndPath()
+        {
+            var scanner = new TextureScanner();
+            var texture = Uninitialized<Texture2D>();
+            scanner.texturesByPaths[texture] = "Mods/MyMod/Textures/Test.png";
+
+            var result = scanner.TryGetTexturePath(texture, out var path);
+
+            Assert.That(result, Is.True);
+            Assert.That(path, Is.EqualTo("Mods/MyMod/Textures/Test.png"));
+        }
+
+        [Test]
+        public void TryGetTexturePath_WhenInSavedTexturesPatch_FindsAndCachesPath()
+        {
+            var scanner = new TextureScanner();
+            var texture = Uninitialized<Texture2D>();
+            var expectedPath = "Mods/MyMod/Textures/FromSaved.png";
+
+            ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures[expectedPath] = new System.WeakReference<Texture2D>(texture);
+
+            var result = scanner.TryGetTexturePath(texture, out var path);
+
+            Assert.That(result, Is.True);
+            Assert.That(path, Is.EqualTo(expectedPath));
+            Assert.That(scanner.texturesByPaths.ContainsKey(texture), Is.True);
+        }
+
+        [Test]
+        public void BuildTextureScanData_InitializesAllTextureTypeContainers()
+        {
+            var scanner = new TextureScanner();
+
+            Assert.DoesNotThrow(() => scanner.BuildTextureScanData());
+
+            foreach (TextureResize.TextureType type in Enum.GetValues(typeof(TextureResize.TextureType)))
+            {
+                Assert.That(scanner.textures.ContainsKey(type), Is.True);
+                Assert.That(scanner.textures[type], Is.Not.Null);
+            }
+        }
+
+        [Test]
         public void ClearTextureScanData_ClearsAllIndexesAndTypeLists()
         {
             var scanner = new TextureScanner();
             scanner.textures[TextureResize.TextureType.UI] =
-                new List<KeyValuePair<Verse.BuildableDef, string>>();
+                new List<KeyValuePair<BuildableDef, string>>();
             scanner.textures[TextureResize.TextureType.UI].Add(
-                new KeyValuePair<Verse.BuildableDef, string>(null, "ui"));
-            var texture = (Texture2D)FormatterServices.GetUninitializedObject(typeof(Texture2D));
+                new KeyValuePair<BuildableDef, string>(null, "ui"));
+            var texture = Uninitialized<Texture2D>();
             scanner.texturesByPaths[texture] = "texture";
             scanner.texturesByDefs[texture] =
-                new KeyValuePair<Verse.BuildableDef, string>(null, "texture");
+                new KeyValuePair<BuildableDef, string>(null, "texture");
 
             scanner.ClearTextureScanData();
 

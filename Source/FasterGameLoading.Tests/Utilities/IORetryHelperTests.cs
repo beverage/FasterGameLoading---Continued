@@ -64,5 +64,31 @@ namespace FasterGameLoading.Tests.Utilities
             Assert.That(File.ReadAllText(path), Is.EqualTo("second"));
             Assert.That(File.Exists(path + ".tmp"), Is.False);
         }
+
+        [Test]
+        public void WriteAllBytesWithRetry_WhenDestinationDirectoryDoesNotExist_ThrowsAndCleansUpTemp()
+        {
+            var invalidPath = Path.Combine(tempDir, "non_existent_folder", "file.bin");
+
+            Assert.Throws<DirectoryNotFoundException>(() =>
+            {
+                IORetryHelper.WriteAllBytesWithRetry(invalidPath, new byte[] { 1, 2, 3 }, maxRetries: 1, delayMs: 0);
+            });
+
+            Assert.That(File.Exists(invalidPath + ".tmp"), Is.False);
+        }
+
+        [Test]
+        public void WriteAllTextWithRetry_WhenDestinationDirectoryDoesNotExist_ThrowsAndCleansUpTemp()
+        {
+            var invalidPath = Path.Combine(tempDir, "non_existent_folder", "file.txt");
+
+            Assert.Throws<DirectoryNotFoundException>(() =>
+            {
+                IORetryHelper.WriteAllTextWithRetry(invalidPath, "test content", maxRetries: 1, delayMs: 0);
+            });
+
+            Assert.That(File.Exists(invalidPath + ".tmp"), Is.False);
+        }
     }
 }
