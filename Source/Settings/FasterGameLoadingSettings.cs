@@ -12,21 +12,11 @@ namespace FasterGameLoading
     public class FasterGameLoadingSettings : ModSettings
     {
         /// <summary>詳細日誌記錄開關（預設關閉）</summary>
-        private static bool verboseLogging;
-        public static bool VerboseLogging
-        {
-            get => verboseLogging;
-            set => verboseLogging = value;
-        }
+        public static bool VerboseLogging { get; set; }
 
 
         /// <summary>延遲非必要圖形/圖示載入（預設關閉）</summary>
-        private static bool delayGraphicLoading;
-        public static bool DelayGraphicLoading
-        {
-            get => delayGraphicLoading;
-            set => delayGraphicLoading = value;
-        }
+        public static bool DelayGraphicLoading { get; set; }
 
         /// <summary>提早載入 Mod 內容（預設開啟）</summary>
         /// <remarks>
@@ -38,28 +28,13 @@ namespace FasterGameLoading
         public static bool earlyModContentLoading = true;
 
         /// <summary>自適應靜態圖集烘焙（預設關閉）</summary>
-        private static bool staticAtlasesBaking;
-        public static bool StaticAtlasesBaking
-        {
-            get => staticAtlasesBaking;
-            set => staticAtlasesBaking = value;
-        }
+        public static bool StaticAtlasesBaking { get; set; }
 
         /// <summary>啟用多執行緒預載入（預設開啟）</summary>
-        private static bool enableMultiThreading = true;
-        public static bool EnableMultiThreading
-        {
-            get => enableMultiThreading;
-            set => enableMultiThreading = value;
-        }
+        public static bool EnableMultiThreading { get; set; } = true;
 
         /// <summary>XPath 快取（預設開啟）</summary>
-        private static bool xPathCaching = true;
-        public static bool XPathCaching
-        {
-            get => xPathCaching;
-            set => xPathCaching = value;
-        }
+        public static bool XPathCaching { get; set; } = true;
 
 
         private static Vector2 scrollPosition = Vector2.zero;
@@ -73,12 +48,22 @@ namespace FasterGameLoading
             var ls = new Listing_Standard();
             ls.Begin(viewRect);
             ls.CheckboxLabeled("FGL_EarlyModContentLoading".Translate(), ref earlyModContentLoading);
+            var enableMultiThreading = EnableMultiThreading;
             ls.CheckboxLabeled("FGL_MultiThreading".Translate(), ref enableMultiThreading);
+            EnableMultiThreading = enableMultiThreading;
+            var xPathCaching = XPathCaching;
             ls.CheckboxLabeled("FGL_XPathCaching".Translate(), ref xPathCaching);
+            XPathCaching = xPathCaching;
+            var delayGraphicLoading = DelayGraphicLoading;
             ls.CheckboxLabeled("FGL_DelayGraphicLoading".Translate(), ref delayGraphicLoading);
+            DelayGraphicLoading = delayGraphicLoading;
 
+            var staticAtlasesBaking = StaticAtlasesBaking;
             ls.CheckboxLabeled("FGL_StaticAtlasesBaking".Translate(), ref staticAtlasesBaking);
+            StaticAtlasesBaking = staticAtlasesBaking;
+            var verboseLogging = VerboseLogging;
             ls.CheckboxLabeled("FGL_VerboseLogging".Translate(), ref verboseLogging);
+            VerboseLogging = verboseLogging;
             ls.Gap(12f);
 
             // Texture resize explanation
@@ -126,12 +111,22 @@ namespace FasterGameLoading
             base.ExposeData();
 
             // 使用者設定
+            var staticAtlasesBaking = StaticAtlasesBaking;
             Scribe_Values.Look(ref staticAtlasesBaking, "StaticAtlasesBaking", false);
+            StaticAtlasesBaking = staticAtlasesBaking;
+            var delayGraphicLoading = DelayGraphicLoading;
             Scribe_Values.Look(ref delayGraphicLoading, "delayGraphicLoading", false);
+            DelayGraphicLoading = delayGraphicLoading;
             Scribe_Values.Look(ref earlyModContentLoading, "earlyModContentLoading", true);
+            var enableMultiThreading = EnableMultiThreading;
             Scribe_Values.Look(ref enableMultiThreading, "enableMultiThreading", true);
+            EnableMultiThreading = enableMultiThreading;
+            var xPathCaching = XPathCaching;
             Scribe_Values.Look(ref xPathCaching, "XPathCaching", true);
+            XPathCaching = xPathCaching;
+            var verboseLogging = VerboseLogging;
             Scribe_Values.Look(ref verboseLogging, "verboseLogging", false);
+            VerboseLogging = verboseLogging;
 
 
             // 紋理快取

@@ -63,7 +63,10 @@ namespace FasterGameLoading
             set => isInPatchOperationValue = value;
         }
 
-        static XmlNode_SelectSingleNode_Patch()
+        private static readonly object xmlExtensionsLock = RegisterCallbacks();
+        private static bool? isXmlExtensionsActive;
+
+        private static object RegisterCallbacks()
         {
             CacheResetter.Register(() =>
             {
@@ -109,6 +112,8 @@ namespace FasterGameLoading
                     EndStartupCacheWindow();
                 }
             });
+
+            return new object();
         }
 
         /// <summary>
@@ -130,8 +135,6 @@ namespace FasterGameLoading
             SessionCache.xmlPathsSinceLastSession.Clear();
         }
 
-        private static readonly object xmlExtensionsLock = new object();
-        private static bool? isXmlExtensionsActive;
         public static bool IsXmlExtensionsActive
         {
             get

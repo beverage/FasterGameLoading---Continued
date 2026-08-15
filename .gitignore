@@ -10,6 +10,7 @@ _PublisherPlus.xml
 .claude
 docs
 .sonarqube
+.superpowers
 
 #IDE state
 .vs/

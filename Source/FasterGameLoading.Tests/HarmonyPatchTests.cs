@@ -868,5 +868,147 @@ namespace FasterGameLoading.Tests
             Assert.DoesNotThrow(() => executeDelayed.Invoke(null, new object[] { null, null }));
         }
 
+        [Test]
+        public void TestSettingsExposeData_PreservesSettingsAndSessionCacheOutsideScribe()
+        {
+            var originalScribeMode = Scribe.mode;
+            var originalVerboseLogging = FasterGameLoadingSettings.VerboseLogging;
+            var originalDelayGraphicLoading = FasterGameLoadingSettings.DelayGraphicLoading;
+            var originalEarlyModContentLoading = FasterGameLoadingSettings.earlyModContentLoading;
+            var originalStaticAtlasesBaking = FasterGameLoadingSettings.StaticAtlasesBaking;
+            var originalEnableMultiThreading = FasterGameLoadingSettings.EnableMultiThreading;
+            var originalXPathCaching = FasterGameLoadingSettings.XPathCaching;
+            var originalTextures = SessionCache.loadedTexturesSinceLastSession;
+            var originalTypes = SessionCache.loadedTypesByFullNameSinceLastSession;
+            var originalMods = SessionCache.modsInLastSession;
+            var originalXmlPaths = SessionCache.xmlPathsSinceLastSession;
+            var originalXmlHash = SessionCache.xmlCombinedHashSinceLastSession;
+            var originalMetadataHashes = SessionCache.xmlMetadataHashByMod;
+            var originalContentHashes = SessionCache.xmlContentHashByMod;
+            var originalBakeSpeeds = SessionCache.historicalBakeSpeeds;
+
+            try
+            {
+                Scribe.mode = LoadSaveMode.Inactive;
+                FasterGameLoadingSettings.VerboseLogging = true;
+                FasterGameLoadingSettings.DelayGraphicLoading = true;
+                FasterGameLoadingSettings.earlyModContentLoading = false;
+                FasterGameLoadingSettings.StaticAtlasesBaking = true;
+                FasterGameLoadingSettings.EnableMultiThreading = false;
+                FasterGameLoadingSettings.XPathCaching = false;
+                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string> { ["texture"] = "path" };
+                SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>();
+                SessionCache.loadedTypesByFullNameSinceLastSession.TryAdd("type", "System.String");
+                SessionCache.modsInLastSession = new List<string> { "test.mod" };
+                SessionCache.xmlPathsSinceLastSession = new ConcurrentDictionary<string, byte>();
+                SessionCache.xmlPathsSinceLastSession.TryAdd("/Defs/Test", 0);
+                SessionCache.xmlCombinedHashSinceLastSession = 42L;
+                SessionCache.xmlMetadataHashByMod = new Dictionary<string, long> { ["test.mod"] = 43L };
+                SessionCache.xmlContentHashByMod = new Dictionary<string, long> { ["test.mod"] = 44L };
+                SessionCache.historicalBakeSpeeds = new List<float> { 45f };
+
+                new FasterGameLoadingSettings().ExposeData();
+
+                Assert.IsTrue(FasterGameLoadingSettings.VerboseLogging);
+                Assert.IsTrue(FasterGameLoadingSettings.DelayGraphicLoading);
+                Assert.IsFalse(FasterGameLoadingSettings.earlyModContentLoading);
+                Assert.IsTrue(FasterGameLoadingSettings.StaticAtlasesBaking);
+                Assert.IsFalse(FasterGameLoadingSettings.EnableMultiThreading);
+                Assert.IsFalse(FasterGameLoadingSettings.XPathCaching);
+                CollectionAssert.AreEquivalent(new[] { "texture" }, SessionCache.loadedTexturesSinceLastSession.Keys);
+                CollectionAssert.AreEquivalent(new[] { "type" }, SessionCache.loadedTypesByFullNameSinceLastSession.Keys);
+                CollectionAssert.AreEqual(new[] { "test.mod" }, SessionCache.modsInLastSession);
+                CollectionAssert.AreEquivalent(new[] { "/Defs/Test" }, SessionCache.xmlPathsSinceLastSession.Keys);
+                Assert.AreEqual(42L, SessionCache.xmlCombinedHashSinceLastSession);
+                Assert.AreEqual(43L, SessionCache.xmlMetadataHashByMod["test.mod"]);
+                Assert.AreEqual(44L, SessionCache.xmlContentHashByMod["test.mod"]);
+                CollectionAssert.AreEqual(new[] { 45f }, SessionCache.historicalBakeSpeeds);
+            }
+            finally
+            {
+                Scribe.mode = originalScribeMode;
+                FasterGameLoadingSettings.VerboseLogging = originalVerboseLogging;
+                FasterGameLoadingSettings.DelayGraphicLoading = originalDelayGraphicLoading;
+                FasterGameLoadingSettings.earlyModContentLoading = originalEarlyModContentLoading;
+                FasterGameLoadingSettings.StaticAtlasesBaking = originalStaticAtlasesBaking;
+                FasterGameLoadingSettings.EnableMultiThreading = originalEnableMultiThreading;
+                FasterGameLoadingSettings.XPathCaching = originalXPathCaching;
+                SessionCache.loadedTexturesSinceLastSession = originalTextures;
+                SessionCache.loadedTypesByFullNameSinceLastSession = originalTypes;
+                SessionCache.modsInLastSession = originalMods;
+                SessionCache.xmlPathsSinceLastSession = originalXmlPaths;
+                SessionCache.xmlCombinedHashSinceLastSession = originalXmlHash;
+                SessionCache.xmlMetadataHashByMod = originalMetadataHashes;
+                SessionCache.xmlContentHashByMod = originalContentHashes;
+                SessionCache.historicalBakeSpeeds = originalBakeSpeeds;
+            }
+        }
+
+        [Test]
+        public void TestSettingsExposeData_SavesSessionCache()
+        {
+            var originalTextures = SessionCache.loadedTexturesSinceLastSession;
+            var originalTypes = SessionCache.loadedTypesByFullNameSinceLastSession;
+            var originalMods = SessionCache.modsInLastSession;
+            var originalXmlPaths = SessionCache.xmlPathsSinceLastSession;
+            var originalXmlHash = SessionCache.xmlCombinedHashSinceLastSession;
+            var originalMetadataHashes = SessionCache.xmlMetadataHashByMod;
+            var originalContentHashes = SessionCache.xmlContentHashByMod;
+            var originalBakeSpeeds = SessionCache.historicalBakeSpeeds;
+            var savePath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"FGL_Settings_{Guid.NewGuid():N}.xml");
+
+            try
+            {
+                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string> { ["texture"] = "path" };
+                SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>();
+                SessionCache.loadedTypesByFullNameSinceLastSession.TryAdd("type", "System.String");
+                SessionCache.modsInLastSession = new List<string> { "test.mod" };
+                SessionCache.xmlPathsSinceLastSession = new ConcurrentDictionary<string, byte>();
+                SessionCache.xmlPathsSinceLastSession.TryAdd("/Defs/Test", 0);
+                SessionCache.xmlCombinedHashSinceLastSession = 42L;
+                SessionCache.xmlMetadataHashByMod = new Dictionary<string, long> { ["test.mod"] = 43L };
+                SessionCache.xmlContentHashByMod = new Dictionary<string, long> { ["test.mod"] = 44L };
+                SessionCache.historicalBakeSpeeds = new List<float> { 45f };
+
+                Scribe.saver.InitSaving(savePath, "settings");
+                try
+                {
+                    new FasterGameLoadingSettings().ExposeData();
+                }
+                finally
+                {
+                    Scribe.saver.FinalizeSaving();
+                }
+
+                var savedXml = System.IO.File.ReadAllText(savePath);
+                StringAssert.Contains(FGLConsts.LoadedTexturesKey, savedXml);
+                StringAssert.Contains(FGLConsts.LoadedTypesKey, savedXml);
+                StringAssert.Contains(FGLConsts.XmlPathsKey, savedXml);
+                StringAssert.Contains("FGL_XmlCombinedHash", savedXml);
+                StringAssert.Contains(FGLConsts.HistoricalBakeSpeedsKey, savedXml);
+            }
+            finally
+            {
+                if (Scribe.mode != LoadSaveMode.Inactive)
+                {
+                    Scribe.ForceStop();
+                }
+
+                SessionCache.loadedTexturesSinceLastSession = originalTextures;
+                SessionCache.loadedTypesByFullNameSinceLastSession = originalTypes;
+                SessionCache.modsInLastSession = originalMods;
+                SessionCache.xmlPathsSinceLastSession = originalXmlPaths;
+                SessionCache.xmlCombinedHashSinceLastSession = originalXmlHash;
+                SessionCache.xmlMetadataHashByMod = originalMetadataHashes;
+                SessionCache.xmlContentHashByMod = originalContentHashes;
+                SessionCache.historicalBakeSpeeds = originalBakeSpeeds;
+
+                if (System.IO.File.Exists(savePath))
+                {
+                    System.IO.File.Delete(savePath);
+                }
+            }
+        }
+
     }
 }

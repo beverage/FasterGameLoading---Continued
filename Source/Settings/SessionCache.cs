@@ -20,83 +20,43 @@ namespace FasterGameLoading
         /// <summary>
         /// 上一次 session 中所有已載入的紋理路徑映射。
         /// </summary>
-        private static Dictionary<string, string> loadedTexturesSinceLastSessionValue = new();
-        internal static Dictionary<string, string> loadedTexturesSinceLastSession
-        {
-            get => loadedTexturesSinceLastSessionValue;
-            set => loadedTexturesSinceLastSessionValue = value;
-        }
+        internal static Dictionary<string, string> loadedTexturesSinceLastSession { get; set; } = new();
 
         /// <summary>
         /// 上一次 session 中所有已查詢的完整型別名稱映射。
         /// </summary>
-        private static ConcurrentDictionary<string, string> loadedTypesByFullNameSinceLastSessionValue = new();
-        internal static ConcurrentDictionary<string, string> loadedTypesByFullNameSinceLastSession
-        {
-            get => loadedTypesByFullNameSinceLastSessionValue;
-            set => loadedTypesByFullNameSinceLastSessionValue = value;
-        }
+        internal static ConcurrentDictionary<string, string> loadedTypesByFullNameSinceLastSession { get; set; } = new();
 
         /// <summary>
         /// 上一次 session 中啟用的 mod 列表（packageIdLowerCase）。
         /// </summary>
-        private static List<string> modsInLastSessionValue = new();
-        internal static List<string> modsInLastSession
-        {
-            get => modsInLastSessionValue;
-            set => modsInLastSessionValue = value;
-        }
+        internal static List<string> modsInLastSession { get; set; } = new();
 
         /// <summary>
         /// 上一次 session 中所有 XPath 查詢結果（僅存缺失的 XPath 查詢）。
         /// </summary>
-        private static ConcurrentDictionary<string, byte> xmlPathsSinceLastSessionValue = new();
-        internal static ConcurrentDictionary<string, byte> xmlPathsSinceLastSession
-        {
-            get => xmlPathsSinceLastSessionValue;
-            set => xmlPathsSinceLastSessionValue = value;
-        }
+        internal static ConcurrentDictionary<string, byte> xmlPathsSinceLastSession { get; set; } = new();
 
         /// <summary>
         /// 上一次 session 中所有第三方 Mod 的 XML 檔案的累積雜湊值。
         /// </summary>
-        private static long xmlCombinedHashSinceLastSessionValue;
-        internal static long xmlCombinedHashSinceLastSession
-        {
-            get => xmlCombinedHashSinceLastSessionValue;
-            set => xmlCombinedHashSinceLastSessionValue = value;
-        }
+        internal static long xmlCombinedHashSinceLastSession { get; set; }
 
         /// <summary>
         /// 上一次 session 中每個 Mod 所有 XML 檔案的 metadata 累積雜湊值。
         /// </summary>
-        private static Dictionary<string, long> xmlMetadataHashByModValue = new();
-        internal static Dictionary<string, long> xmlMetadataHashByMod
-        {
-            get => xmlMetadataHashByModValue;
-            set => xmlMetadataHashByModValue = value;
-        }
+        internal static Dictionary<string, long> xmlMetadataHashByMod { get; set; } = new();
 
         /// <summary>
         /// 舊版 XML 內容雜湊欄位。保留 Scribe 相容性，新版 metadata-only 掃描不再使用。
         /// </summary>
-        private static Dictionary<string, long> xmlContentHashByModValue = new();
-        internal static Dictionary<string, long> xmlContentHashByMod
-        {
-            get => xmlContentHashByModValue;
-            set => xmlContentHashByModValue = value;
-        }
+        internal static Dictionary<string, long> xmlContentHashByMod { get; set; } = new();
 
 
         /// <summary>
         /// 歷次靜態圖集烘焙速度記錄（用於自適應批次調整）。
         /// </summary>
-        private static List<float> historicalBakeSpeedsValue = new();
-        internal static List<float> historicalBakeSpeeds
-        {
-            get => historicalBakeSpeedsValue;
-            set => historicalBakeSpeedsValue = value;
-        }
+        internal static List<float> historicalBakeSpeeds { get; set; } = new();
         private static readonly object loadedTexturesLock = new();
 
         /// <summary>
@@ -126,7 +86,8 @@ namespace FasterGameLoading
         /// </summary>
         internal static void ExposeData()
         {
-            Scribe_Collections.Look(ref loadedTexturesSinceLastSessionValue, FGLConsts.LoadedTexturesKey, LookMode.Value, LookMode.Value);
+            var loadedTextures = loadedTexturesSinceLastSession;
+            Scribe_Collections.Look(ref loadedTextures, FGLConsts.LoadedTexturesKey, LookMode.Value, LookMode.Value);
 
             Dictionary<string, string> tempTypes = null;
             if (Scribe.mode == LoadSaveMode.Saving)
@@ -146,16 +107,28 @@ namespace FasterGameLoading
             }
             Scribe_Collections.Look(ref tempXmlPaths, FGLConsts.XmlPathsKey, LookMode.Value, LookMode.Value);
 
-            Scribe_Values.Look(ref xmlCombinedHashSinceLastSessionValue, "FGL_XmlCombinedHash", 0L);
-            Scribe_Collections.Look(ref xmlMetadataHashByModValue, "FGL_XmlMetadataHashByMod", LookMode.Value, LookMode.Value);
-            Scribe_Collections.Look(ref xmlContentHashByModValue, "FGL_XmlContentHashByMod", LookMode.Value, LookMode.Value);
-            Scribe_Collections.Look(ref modsInLastSessionValue, FGLConsts.ModsInLastSessionKey, LookMode.Value);
-            Scribe_Collections.Look(ref historicalBakeSpeedsValue, FGLConsts.HistoricalBakeSpeedsKey, LookMode.Value);
+            var xmlCombinedHash = xmlCombinedHashSinceLastSession;
+            Scribe_Values.Look(ref xmlCombinedHash, "FGL_XmlCombinedHash", 0L);
+            var xmlMetadataHash = xmlMetadataHashByMod;
+            Scribe_Collections.Look(ref xmlMetadataHash, "FGL_XmlMetadataHashByMod", LookMode.Value, LookMode.Value);
+            var xmlContentHash = xmlContentHashByMod;
+            Scribe_Collections.Look(ref xmlContentHash, "FGL_XmlContentHashByMod", LookMode.Value, LookMode.Value);
+            var mods = modsInLastSession;
+            Scribe_Collections.Look(ref mods, FGLConsts.ModsInLastSessionKey, LookMode.Value);
+            var bakeSpeeds = historicalBakeSpeeds;
+            Scribe_Collections.Look(ref bakeSpeeds, FGLConsts.HistoricalBakeSpeedsKey, LookMode.Value);
+
+            loadedTexturesSinceLastSession = loadedTextures;
+            xmlCombinedHashSinceLastSession = xmlCombinedHash;
+            xmlMetadataHashByMod = xmlMetadataHash;
+            xmlContentHashByMod = xmlContentHash;
+            modsInLastSession = mods;
+            historicalBakeSpeeds = bakeSpeeds;
 
 
             if (Scribe.mode == LoadSaveMode.PostLoadInit)
             {
-                loadedTexturesSinceLastSessionValue ??= new Dictionary<string, string>();
+                loadedTexturesSinceLastSession ??= new Dictionary<string, string>();
 
                 if (tempTypes != null)
                 {
