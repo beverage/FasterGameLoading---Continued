@@ -63,9 +63,7 @@ namespace FasterGameLoading
             set => isInPatchOperationValue = value;
         }
 
-        #pragma warning disable MA0158 // System.Threading.Lock 僅存在於 .NET 9+，本專案 target net472
         private static readonly object xmlExtensionsLock = RegisterCallbacks();
-#pragma warning restore MA0158
         private static bool? isXmlExtensionsActive;
 
         private static object RegisterCallbacks()

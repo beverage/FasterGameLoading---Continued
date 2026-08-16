@@ -31,7 +31,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 
         public static class MockTextureHelper
         {
-            public static readonly Dictionary<Texture2D, (int width, int height, string name, TextureFormat format, int mips)> TextureProps = new();
+            public static readonly IDictionary<Texture2D, (int width, int height, string name, TextureFormat format, int mips)> TextureProps = new Dictionary<Texture2D, (int width, int height, string name, TextureFormat format, int mips)>();
 
             public static Texture2D CreateTexture(int width = 256, int height = 256, string name = "TestTex", TextureFormat format = TextureFormat.RGBA32, int mips = 1)
             {
@@ -91,22 +91,22 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
                 {
                     if ((inst.opcode == OpCodes.Call || inst.opcode == OpCodes.Callvirt) && inst.operand is MethodInfo m)
                     {
-                        if (m.Name == "get_width")
+                        if (string.Equals(m.Name, "get_width", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockGetWidth);
                             continue;
                         }
-                        if (m.Name == "get_height")
+                        if (string.Equals(m.Name, "get_height", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockGetHeight);
                             continue;
                         }
-                        if (m.Name == "op_Equality")
+                        if (string.Equals(m.Name, "op_Equality", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockOpEquality);
                             continue;
                         }
-                        if (m.Name == "op_Inequality")
+                        if (string.Equals(m.Name, "op_Inequality", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockOpInequality);
                             continue;
@@ -219,7 +219,9 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
             float packDensity,
             ref bool __result)
         {
+#pragma warning disable MA0045 // 測試輔助工具的同步輸出，無需非同步
             TestContext.Progress.WriteLine($"PrefixTryBakeSingleBatch called! force={forceTryBakeSingleBatchFailure}");
+#pragma warning restore MA0045
             if (forceTryBakeSingleBatchFailure)
             {
                 __result = false;
@@ -287,7 +289,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
         {
             SessionCache.historicalBakeSpeeds.Clear();
 
-            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(null);
+            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(delayedActions: null);
             while (iterator.MoveNext()) { }
 
             Assert.That(SessionCache.historicalBakeSpeeds.Count, Is.EqualTo(1));
@@ -300,7 +302,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
             // Initial history with 1,000,000f
             SessionCache.historicalBakeSpeeds = new List<float> { 1_000_000f };
 
-            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(null);
+            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(delayedActions: null);
             while (iterator.MoveNext()) { }
 
             // With single history 1,000,000f, weighted average is 1,000,000f * 0.4 / 0.4 = 1,000,000f
@@ -311,7 +313,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
             // weightSum = 0.4 + 0.3 = 0.7
             // expected = 1,000,000 / 0.7 = 1428571.4f
             SessionCache.historicalBakeSpeeds = new List<float> { 1_000_000f, 2_000_000f };
-            var iterator2 = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(null);
+            var iterator2 = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(delayedActions: null);
             while (iterator2.MoveNext()) { }
 
             float expectedSpeed = (1_000_000f * SessionCache.WEIGHTS[0] + 2_000_000f * SessionCache.WEIGHTS[1]) / (SessionCache.WEIGHTS[0] + SessionCache.WEIGHTS[1]);
@@ -329,11 +331,11 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 
             var masks = new Dictionary<Texture2D, Texture2D>
             {
-                [mainTex] = null
+                [mainTex] = null,
             };
             BuildQueueMasksField.SetValue(null, masks);
 
-            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(null);
+            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(delayedActions: null);
             while (iterator.MoveNext()) { }
 
             var finalQueue = (IDictionary)BuildQueueField.GetValue(null);
@@ -360,11 +362,11 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
             var masks = new Dictionary<Texture2D, Texture2D>
             {
                 [mainTex1] = maskTex1,
-                [mainTex2] = maskTex2
+                [mainTex2] = maskTex2,
             };
             BuildQueueMasksField.SetValue(null, masks);
 
-            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(null);
+            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(delayedActions: null);
             while (iterator.MoveNext()) { }
 
             Assert.That(SessionCache.historicalBakeSpeeds.Count, Is.EqualTo(SessionCache.HISTORY_SIZE));
@@ -381,7 +383,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 
             forceTryBakeSingleBatchFailure = true;
 
-            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(null);
+            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(delayedActions: null);
             while (iterator.MoveNext()) { }
 
             Assert.That(DelayedActions.AdaptiveStaticAtlasBakeFailed, Is.True);

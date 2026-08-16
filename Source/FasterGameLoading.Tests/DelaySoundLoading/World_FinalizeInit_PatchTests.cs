@@ -48,7 +48,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
 
             var fglModHarmonyProp = typeof(FasterGameLoadingMod).GetProperty(
                 nameof(FasterGameLoadingMod.harmony), BindingFlags.Public | BindingFlags.Static);
-            fglModHarmonyProp?.SetValue(null, new Harmony("FasterGameLoadingMod.WorldFinalizeTestInstance"), null);
+            fglModHarmonyProp?.SetValue(null, new Harmony("FasterGameLoadingMod.WorldFinalizeTestInstance"), index: null);
         }
 
         [OneTimeTearDown]
@@ -65,7 +65,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
             SoundStarter_Patch.ResetUnpatchedStatus();
 
             var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
-            prop?.SetValue(null, delayedActions, null);
+            prop?.SetValue(null, delayedActions, index: null);
         }
 
         [TearDown]
@@ -74,7 +74,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
             delayedActions?.ClearQueues();
             SoundStarter_Patch.ResetUnpatchedStatus();
             var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
-            prop?.SetValue(null, null, null);
+            prop?.SetValue(null, value: null, index: null);
         }
 
         [Test]

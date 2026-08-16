@@ -154,7 +154,7 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         [Test]
         public void EnqueueMainThreadAction_IgnoresNullAndEnqueuesNonNull()
         {
-            delayedActions.EnqueueMainThreadAction(null);
+            delayedActions.EnqueueMainThreadAction(action: null);
 
             bool actionExecuted = false;
             delayedActions.EnqueueMainThreadAction(() => actionExecuted = true);

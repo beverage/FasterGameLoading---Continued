@@ -881,6 +881,7 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
+#pragma warning disable MA0051 // 涵蓋所有設定欄位往返驗證，拆分成多個方法會降低可讀性
         public void TestSettingsExposeData_PreservesSettingsAndSessionCacheOutsideScribe()
         {
             var originalScribeMode = Scribe.mode;
@@ -908,15 +909,15 @@ namespace FasterGameLoading.Tests
                 FasterGameLoadingSettings.StaticAtlasesBaking = true;
                 FasterGameLoadingSettings.EnableMultiThreading = false;
                 FasterGameLoadingSettings.XPathCaching = false;
-                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string> { ["texture"] = "path" };
-                SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>();
+                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string>(StringComparer.Ordinal) { ["texture"] = "path" };
+                SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
                 SessionCache.loadedTypesByFullNameSinceLastSession.TryAdd("type", "System.String");
                 SessionCache.modsInLastSession = new List<string> { "test.mod" };
-                SessionCache.xmlPathsSinceLastSession = new ConcurrentDictionary<string, byte>();
+                SessionCache.xmlPathsSinceLastSession = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
                 SessionCache.xmlPathsSinceLastSession.TryAdd("/Defs/Test", 0);
                 SessionCache.xmlCombinedHashSinceLastSession = 42L;
-                SessionCache.xmlMetadataHashByMod = new Dictionary<string, long> { ["test.mod"] = 43L };
-                SessionCache.xmlContentHashByMod = new Dictionary<string, long> { ["test.mod"] = 44L };
+                SessionCache.xmlMetadataHashByMod = new Dictionary<string, long>(StringComparer.Ordinal) { ["test.mod"] = 43L };
+                SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal) { ["test.mod"] = 44L };
                 SessionCache.historicalBakeSpeeds = new List<float> { 45f };
 
                 new FasterGameLoadingSettings().ExposeData();
@@ -955,8 +956,10 @@ CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTextu
                 SessionCache.historicalBakeSpeeds = originalBakeSpeeds;
             }
         }
+#pragma warning restore MA0051
 
         [Test]
+#pragma warning disable MA0051 // 涵蓋設定序列化往返之完整驗證，拆分成多個方法會降低可讀性
         public void TestSettingsExposeData_SavesSessionCache()
         {
             var originalTextures = SessionCache.loadedTexturesSinceLastSession;
@@ -971,15 +974,15 @@ CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTextu
 
             try
             {
-                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string> { ["texture"] = "path" };
-                SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>();
+                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string>(StringComparer.Ordinal) { ["texture"] = "path" };
+                SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
                 SessionCache.loadedTypesByFullNameSinceLastSession.TryAdd("type", "System.String");
                 SessionCache.modsInLastSession = new List<string> { "test.mod" };
-                SessionCache.xmlPathsSinceLastSession = new ConcurrentDictionary<string, byte>();
+                SessionCache.xmlPathsSinceLastSession = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
                 SessionCache.xmlPathsSinceLastSession.TryAdd("/Defs/Test", 0);
                 SessionCache.xmlCombinedHashSinceLastSession = 42L;
-                SessionCache.xmlMetadataHashByMod = new Dictionary<string, long> { ["test.mod"] = 43L };
-                SessionCache.xmlContentHashByMod = new Dictionary<string, long> { ["test.mod"] = 44L };
+                SessionCache.xmlMetadataHashByMod = new Dictionary<string, long>(StringComparer.Ordinal) { ["test.mod"] = 43L };
+                SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal) { ["test.mod"] = 44L };
                 SessionCache.historicalBakeSpeeds = new List<float> { 45f };
 
                 Scribe.saver.InitSaving(savePath, "settings");
@@ -1001,7 +1004,7 @@ CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTextu
             }
             finally
             {
-                if (Scribe.mode != LoadSaveMode.Inactive)
+                if (Scribe.mode is not LoadSaveMode.Inactive)
                 {
                     Scribe.ForceStop();
                 }
@@ -1021,6 +1024,7 @@ CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTextu
                 }
             }
         }
+#pragma warning restore MA0051
 
     }
 }

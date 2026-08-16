@@ -1,4 +1,3 @@
-#pragma warning disable MA0141, MA0142
 using System;
 using System.IO;
 using System.Xml;
@@ -115,4 +114,3 @@ namespace FasterGameLoading
     }
 }
 
-#pragma warning restore MA0141, MA0142

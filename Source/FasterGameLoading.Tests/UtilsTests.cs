@@ -96,7 +96,7 @@ namespace FasterGameLoading.Tests
             frameDef.entityDefToBuild = Uninitialized<ThingDef>();
             frameDef.category = ThingCategory.Building;
             frameDef.thingClass = typeof(Frame);
-            AccessTools.Field(typeof(ThingDef), "isFrameInt")?.SetValue(frameDef, true);
+            AccessTools.Field(typeof(ThingDef), "isFrameInt")?.SetValue(frameDef, value: true);
             Assert.That(frameDef.ShouldBeLoadedImmediately(), Is.True);
         }
 
@@ -109,7 +109,7 @@ namespace FasterGameLoading.Tests
             Assert.That(def.ShouldBeLoadedImmediately(), Is.True);
         }
 
-        public class Building_Pipe : Thing { }
+        public class Building_Pipe : Thing;
 
         [Test]
         public void ShouldBeLoadedImmediately_WithPipeClass_ReturnsTrue()
@@ -226,7 +226,7 @@ namespace FasterGameLoading.Tests
             var listsByDef = new Dictionary<ThingDef, List<Thing>>
             {
                 { defA, new List<Thing> { thingA1, thingA2 } },
-                { defB, new List<Thing> { thingB1 } }
+                { defB, new List<Thing> { thingB1 } },
             };
 
             var listsByDefField = AccessTools.Field(typeof(ListerThings), "listsByDef");

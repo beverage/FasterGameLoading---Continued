@@ -181,7 +181,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             var mods = new List<ModContentPack>();
             for (int i = 0; i < 5; i++)
             {
-                mods.Add(CreateMockModContentPack($"test.mod{i}"));
+                mods.Add(CreateMockModContentPack($"test.mod{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}"));
             }
             SetRunningMods(mods);
 

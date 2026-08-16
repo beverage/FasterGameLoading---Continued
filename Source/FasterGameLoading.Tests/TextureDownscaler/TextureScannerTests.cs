@@ -24,7 +24,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             var scanner = new TextureScanner();
             string path;
 
-            var result = scanner.TryGetTexturePath(null, out path);
+            var result = scanner.TryGetTexturePath(texture: null, fullPath: out path);
 
             Assert.That(result, Is.False);
             Assert.That(path, Is.Null);
@@ -85,11 +85,11 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             scanner.textures[TextureResize.TextureType.UI] =
                 new List<KeyValuePair<BuildableDef, string>>();
             scanner.textures[TextureResize.TextureType.UI].Add(
-                new KeyValuePair<BuildableDef, string>(null, "ui"));
+                new KeyValuePair<BuildableDef, string>(key: null, value: "ui"));
             var texture = Uninitialized<Texture2D>();
             scanner.texturesByPaths[texture] = "texture";
             scanner.texturesByDefs[texture] =
-                new KeyValuePair<BuildableDef, string>(null, "texture");
+                new KeyValuePair<BuildableDef, string>(key: null, value: "texture");
 
             scanner.ClearTextureScanData();
 

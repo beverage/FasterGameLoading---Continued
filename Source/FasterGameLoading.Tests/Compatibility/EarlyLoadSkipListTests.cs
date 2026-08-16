@@ -34,7 +34,7 @@ namespace FasterGameLoading.Tests.Compatibility
 
             Assert.That(EarlyLoadSkipList.ShouldSkip("Custom.RaceMod", metaDataWithHar), Is.True);
             Assert.That(EarlyLoadSkipList.ShouldSkip("Custom.RaceMod", metaDataWithoutHar), Is.False);
-            Assert.That(EarlyLoadSkipList.ShouldSkip("Custom.RaceMod", null), Is.False);
+            Assert.That(EarlyLoadSkipList.ShouldSkip("Custom.RaceMod", metaData: null), Is.False);
         }
 
         [Test]

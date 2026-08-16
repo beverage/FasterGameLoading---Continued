@@ -23,8 +23,8 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [Test]
         public void MakeCacheKey_FormatsStringCorrectly()
         {
-            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.MakeCacheKey(null, null), Is.EqualTo(string.Empty));
-            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.MakeCacheKey("MyType", null), Is.EqualTo("MyType"));
+            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.MakeCacheKey(typeName: null, namespaceIfAmbiguous: null), Is.EqualTo(string.Empty));
+            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.MakeCacheKey("MyType", namespaceIfAmbiguous: null), Is.EqualTo("MyType"));
             Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.MakeCacheKey("MyType", string.Empty), Is.EqualTo("MyType"));
             Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.MakeCacheKey("MyType", "Verse"), Is.EqualTo("MyType|ns|Verse"));
         }
@@ -41,7 +41,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
                 ref result,
                 out var state,
                 ref typeName,
-                null);
+                namespaceIfAmbiguous: null);
 
             Assert.That(shouldRunOriginal, Is.False);
             Assert.That(result, Is.EqualTo(typeof(string)));
@@ -62,7 +62,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
                 ref result,
                 out var state,
                 ref typeName,
-                null);
+                namespaceIfAmbiguous: null);
 
             Assert.That(shouldRunOriginal, Is.True);
             Assert.That(result, Is.Null);
@@ -94,7 +94,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [Test]
         public void Postfix_WhenNotCached_WritesToCachedResultsAndLoadedTypesThisSession()
         {
-            var state = (originalTypeName: "Int32", namespaceIfAmbiguous: (string)null, cacheKey: "Int32", isCached: false);
+            var state = (originalTypeName: "Int32", namespaceIfAmbiguous: null as string, cacheKey: "Int32", isCached: false);
 
             GenTypes_GetTypeInAnyAssemblyInt_Patch.Postfix(typeof(int), state);
 
@@ -125,7 +125,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [Test]
         public void Postfix_WhenAlreadyCached_DoesNotModifyCache()
         {
-            var state = (originalTypeName: "Int32", namespaceIfAmbiguous: (string)null, cacheKey: "Int32", isCached: true);
+            var state = (originalTypeName: "Int32", namespaceIfAmbiguous: null as string, cacheKey: "Int32", isCached: true);
 
             GenTypes_GetTypeInAnyAssemblyInt_Patch.Postfix(typeof(int), state);
 
@@ -137,9 +137,9 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [Test]
         public void Postfix_WhenResultIsNull_DoesNothing()
         {
-            var state = (originalTypeName: "NonExistentType", namespaceIfAmbiguous: (string)null, cacheKey: "NonExistentType", isCached: false);
+            var state = (originalTypeName: "NonExistentType", namespaceIfAmbiguous: null as string, cacheKey: "NonExistentType", isCached: false);
 
-            Assert.DoesNotThrow(() => GenTypes_GetTypeInAnyAssemblyInt_Patch.Postfix(null, state));
+            Assert.DoesNotThrow(() => GenTypes_GetTypeInAnyAssemblyInt_Patch.Postfix(__result: null, __state: state));
             Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults, Is.Empty);
             Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.loadedTypesThisSession, Is.Empty);
         }

@@ -64,7 +64,7 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
 
             // Set FasterGameLoadingMod.delayedActions
             var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
-            prop?.SetValue(null, delayedActions, null);
+            prop?.SetValue(null, delayedActions, index: null);
         }
 
         [TearDown]
@@ -72,7 +72,7 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         {
             delayedActions?.ClearQueues();
             var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
-            prop?.SetValue(null, null, null);
+            prop?.SetValue(null, value: null, index: null);
         }
 
         [Test]
@@ -103,7 +103,7 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             {
                 new CodeInstruction(OpCodes.Nop),
                 new CodeInstruction(OpCodes.Call, executeWhenFinished),
-                new CodeInstruction(OpCodes.Ret)
+                new CodeInstruction(OpCodes.Ret),
             };
 
             var output = ThingDef_PostLoad_Patch.Transpiler(instructions).ToList();

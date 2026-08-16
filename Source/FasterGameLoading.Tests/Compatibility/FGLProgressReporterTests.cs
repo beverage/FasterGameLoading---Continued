@@ -66,7 +66,7 @@ namespace FasterGameLoading.Tests.Compatibility
         public void Postfix_WhenGetIsPausedIsNull_LeavesOriginalResultUnchanged()
         {
             FasterGameLoadingSettings.earlyModContentLoading = true;
-            getIsPausedField?.SetValue(null, null);
+            getIsPausedField?.SetValue(null, value: null);
             var result = true;
 
             FGLProgressReporter.Postfix(ref result);
@@ -136,7 +136,7 @@ namespace FasterGameLoading.Tests.Compatibility
             var mockMod = (ModContentPack)FormatterServices.GetUninitializedObject(typeof(ModContentPack));
             var stateMachine = new MockStateMachine { modContentPack = mockMod };
 
-            LoadingProgress_ReloadContent_Patch.Postfix(stateMachine, false);
+            LoadingProgress_ReloadContent_Patch.Postfix(stateMachine, __result: false);
 
             Assert.That(ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(mockMod), Is.True);
         }
@@ -165,7 +165,7 @@ namespace FasterGameLoading.Tests.Compatibility
             // 直接跳過迴圈並嘗試啟動掃描，不應拋出例外（覆蓋 L71/L81）。
             var runningModsField = AccessTools.Field(typeof(LoadedModManager), "runningMods");
             var originalRunningMods = runningModsField?.GetValue(null);
-            var originalDelayedActions = FasterGameLoadingMod.delayedActions;
+            var capturedOriginalDelayedActions = FasterGameLoadingMod.delayedActions;
             try
             {
                 runningModsField?.SetValue(null, new List<ModContentPack>());
@@ -173,7 +173,7 @@ namespace FasterGameLoading.Tests.Compatibility
                 var method = typeof(FasterGameLoadingMod).GetMethod("StartXmlScan",
                     BindingFlags.NonPublic | BindingFlags.Static);
                 Assert.That(method, Is.Not.Null);
-                Assert.DoesNotThrow(() => method.Invoke(null, null));
+                Assert.DoesNotThrow(() => method.Invoke(obj: null, parameters: null));
             }
             finally
             {
@@ -198,7 +198,7 @@ namespace FasterGameLoading.Tests.Compatibility
         private static void SetDelayedActions(DelayedActions delayedActions)
         {
             var prop = AccessTools.Property(typeof(FasterGameLoadingMod), nameof(FasterGameLoadingMod.delayedActions));
-            prop?.SetValue(null, delayedActions, null);
+            prop?.SetValue(null, delayedActions, index: null);
         }
 
         private sealed class MockStateMachine

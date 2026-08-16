@@ -49,7 +49,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 
         public static class MockTextureHelper
         {
-            public static readonly Dictionary<Texture2D, (int width, int height, string name, TextureFormat format, int mips)> TextureProps = new();
+            public static readonly IDictionary<Texture2D, (int width, int height, string name, TextureFormat format, int mips)> TextureProps = new Dictionary<Texture2D, (int width, int height, string name, TextureFormat format, int mips)>();
 
             public static Texture2D CreateTexture(int width = 256, int height = 256, string name = "TestTex", TextureFormat format = TextureFormat.RGBA32, int mips = 1)
             {
@@ -99,7 +99,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
                 int h = GetHeight(tex);
                 TextureFormat fmt = GetFormat(tex);
                 int mips = GetMipmapCount(tex);
-                return $"{name} [{w}x{h}, {fmt}, mips={mips}]";
+                return $"{name} [{w.ToString(System.Globalization.CultureInfo.InvariantCulture)}x{h.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {fmt}, mips={mips.ToString(System.Globalization.CultureInfo.InvariantCulture)}]";
             }
 
             public static bool MockOpEquality(UnityEngine.Object x, UnityEngine.Object y)
@@ -127,42 +127,42 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
                 {
                     if ((inst.opcode == OpCodes.Call || inst.opcode == OpCodes.Callvirt) && inst.operand is MethodInfo m)
                     {
-                        if (m.Name == "get_width")
+                        if (string.Equals(m.Name, "get_width", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockGetWidth);
                             continue;
                         }
-                        if (m.Name == "get_height")
+                        if (string.Equals(m.Name, "get_height", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockGetHeight);
                             continue;
                         }
-                        if (m.Name == "get_name")
+                        if (string.Equals(m.Name, "get_name", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockGetName);
                             continue;
                         }
-                        if (m.Name == "get_format")
+                        if (string.Equals(m.Name, "get_format", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockGetFormat);
                             continue;
                         }
-                        if (m.Name == "get_mipmapCount")
+                        if (string.Equals(m.Name, "get_mipmapCount", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockGetMipmap);
                             continue;
                         }
-                        if (m.Name == "DescribeTexture")
+                        if (string.Equals(m.Name, "DescribeTexture", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockDescribe);
                             continue;
                         }
-                        if (m.Name == "op_Equality")
+                        if (string.Equals(m.Name, "op_Equality", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockOpEquality);
                             continue;
                         }
-                        if (m.Name == "op_Inequality")
+                        if (string.Equals(m.Name, "op_Inequality", StringComparison.Ordinal))
                         {
                             yield return new CodeInstruction(OpCodes.Call, mockOpInequality);
                             continue;
@@ -208,7 +208,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
         [Test]
         public void LogPotentialMaskIssues_WhenBuildQueueNullOrEmpty_ReturnsSafely()
         {
-            BuildQueueField.SetValue(null, null);
+            BuildQueueField.SetValue(null, value: null);
             Assert.DoesNotThrow(() => AtlasBakeDiagnostics.LogPotentialMaskIssues("test-null-queue"));
 
             var emptyQueue = new Dictionary<TextureAtlasGroupKey, (List<Texture2D>, HashSet<Texture2D>)>();
@@ -254,7 +254,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 
             var masks = new Dictionary<Texture2D, Texture2D>
             {
-                [mainTex2] = null // mask is null
+                [mainTex2] = null, // mask is null
                 // mainTex1 not in dictionary
             };
             BuildQueueMasksField.SetValue(null, masks);
@@ -275,7 +275,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 
             var masks = new Dictionary<Texture2D, Texture2D>
             {
-                [mainTex] = maskTex
+                [mainTex] = maskTex,
             };
             BuildQueueMasksField.SetValue(null, masks);
 
@@ -295,7 +295,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 
             var masks = new Dictionary<Texture2D, Texture2D>
             {
-                [mainTex] = maskTex
+                [mainTex] = maskTex,
             };
             BuildQueueMasksField.SetValue(null, masks);
 
@@ -312,7 +312,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
             BuildQueueField.SetValue(null, queue);
 
             // Setting buildQueueMasks to null will cause NullReferenceException inside loop when evaluating TryGetValue
-            BuildQueueMasksField.SetValue(null, null);
+            BuildQueueMasksField.SetValue(null, value: null);
 
             Assert.DoesNotThrow(() => AtlasBakeDiagnostics.LogPotentialMaskIssues("test-exception-handling"));
         }

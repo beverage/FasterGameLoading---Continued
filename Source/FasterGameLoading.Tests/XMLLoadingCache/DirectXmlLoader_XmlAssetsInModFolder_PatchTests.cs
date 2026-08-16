@@ -29,7 +29,7 @@ namespace FasterGameLoading.Tests.XMLLoadingCache
             FasterGameLoadingSettings.EnableMultiThreading = origEnableMultiThreading;
             try
             {
-                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
             }
             catch (Exception ex)
             {
@@ -53,7 +53,7 @@ namespace FasterGameLoading.Tests.XMLLoadingCache
             LoadableXmlAsset[] result = null;
 
             var ret = DirectXmlLoader_XmlAssetsInModFolder_Patch.Prefix(
-                ref result, null, "Defs", null);
+                ref result, mod: null, folderPath: "Defs", foldersToLoadDebug: null);
 
             Assert.That(ret, Is.True);
             Assert.That(result, Is.Null);
@@ -67,7 +67,7 @@ namespace FasterGameLoading.Tests.XMLLoadingCache
             LoadableXmlAsset[] result = null;
 
             var ret = DirectXmlLoader_XmlAssetsInModFolder_Patch.Prefix(
-                ref result, mod, "Defs", null);
+                ref result, mod, "Defs", foldersToLoadDebug: null);
 
             Assert.That(ret, Is.True);
             Assert.That(result, Is.Null);
@@ -81,7 +81,7 @@ namespace FasterGameLoading.Tests.XMLLoadingCache
             LoadableXmlAsset[] result = null;
 
             var ret = DirectXmlLoader_XmlAssetsInModFolder_Patch.Prefix(
-                ref result, mod, "Defs", null);
+                ref result, mod, "Defs", foldersToLoadDebug: null);
 
             Assert.That(ret, Is.True);
             Assert.That(result, Is.Null);

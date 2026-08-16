@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -70,12 +71,12 @@ namespace FasterGameLoading.Tests.Settings
 
         private static void ResetSessionCache()
         {
-            SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string>();
-            SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>();
-            SessionCache.xmlPathsSinceLastSession = new ConcurrentDictionary<string, byte>();
+            SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string>(StringComparer.Ordinal);
+            SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+            SessionCache.xmlPathsSinceLastSession = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
             SessionCache.modsInLastSession = new List<string>();
-            SessionCache.xmlMetadataHashByMod = new Dictionary<string, long>();
-            SessionCache.xmlContentHashByMod = new Dictionary<string, long>();
+            SessionCache.xmlMetadataHashByMod = new Dictionary<string, long>(StringComparer.Ordinal);
+            SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal);
             SessionCache.historicalBakeSpeeds = new List<float>();
             SessionCache.xmlCombinedHashSinceLastSession = 0;
         }

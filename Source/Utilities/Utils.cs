@@ -1,4 +1,3 @@
-#pragma warning disable MA0141, MA0142
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
@@ -143,4 +142,3 @@ namespace FasterGameLoading
 
 
 
-#pragma warning restore MA0141, MA0142

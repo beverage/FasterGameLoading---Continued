@@ -26,7 +26,7 @@ namespace FasterGameLoading.Tests.Compatibility
 
         public static class MockTextureHelper
         {
-            public static readonly Dictionary<Texture2D, string> TextureNames = new();
+            public static readonly IDictionary<Texture2D, string> TextureNames = new Dictionary<Texture2D, string>();
 
             public static Texture2D CreateTexture(string name)
             {
@@ -47,7 +47,7 @@ namespace FasterGameLoading.Tests.Compatibility
                 foreach (var inst in instructions)
                 {
                     if ((inst.opcode == OpCodes.Call || inst.opcode == OpCodes.Callvirt)
-                        && inst.operand is MethodInfo m && m.Name == "get_name")
+                        && inst.operand is MethodInfo m && string.Equals(m.Name, "get_name", StringComparison.Ordinal))
                     {
                         yield return new CodeInstruction(OpCodes.Call, mockGetName);
                         continue;
@@ -109,7 +109,7 @@ namespace FasterGameLoading.Tests.Compatibility
         {
             targetModRoots.Clear();
             targetModRoots.Add("C:/Steam/RimWorld/Mods/AlienRaces");
-            rootsInitializedField?.SetValue(null, true);
+            rootsInitializedField?.SetValue(null, value: true);
 
             // 正斜線與反斜線比對
             Assert.That(AdaptiveBakingSkipList.IsProtectedModTexturePath(@"C:\Steam\RimWorld\Mods\AlienRaces\Textures\Pawn.png"), Is.True);
@@ -133,7 +133,7 @@ namespace FasterGameLoading.Tests.Compatibility
         {
             targetModRoots.Clear();
             targetModRoots.Add("C:/Mods/TargetMod");
-            rootsInitializedField?.SetValue(null, true);
+            rootsInitializedField?.SetValue(null, value: true);
 
             FasterGameLoadingSettings.StaticAtlasesBaking = false;
             Assert.That(AdaptiveBakingSkipList.ShouldSkipBaking("C:/Mods/TargetMod/Textures/Body.png"), Is.False);
@@ -155,7 +155,7 @@ namespace FasterGameLoading.Tests.Compatibility
         [Test]
         public void Prefix_WhenTexturesAreNotInSkipList_ReturnsTrue()
         {
-            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, null, null), Is.True);
+            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, texture: null, mask: null), Is.True);
         }
 
         [Test]
@@ -167,13 +167,13 @@ namespace FasterGameLoading.Tests.Compatibility
             ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures[tex1] = true;
 
             // texture in skip list
-            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex1, null), Is.False);
+            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex1, mask: null), Is.False);
 
             // mask in skip list
-            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, null, tex1), Is.False);
+            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, texture: null, mask: tex1), Is.False);
 
             // neither in skip list
-            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex2, null), Is.True);
+            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex2, mask: null), Is.True);
         }
 
         [Test]
@@ -184,7 +184,7 @@ namespace FasterGameLoading.Tests.Compatibility
             var tex = MockTextureHelper.CreateTexture("TargetTexture.png");
             ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextureNames.TryAdd("TargetTexture.png", 0);
 
-            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex, null), Is.False);
+            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex, mask: null), Is.False);
         }
 
         [Test]
@@ -194,7 +194,7 @@ namespace FasterGameLoading.Tests.Compatibility
             var mask = MockTextureHelper.CreateTexture("TargetMask.png");
             ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextureNames.TryAdd("TargetMask.png", 0);
 
-            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, null, mask), Is.False);
+            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, texture: null, mask: mask), Is.False);
         }
 
         [Test]
@@ -203,7 +203,7 @@ namespace FasterGameLoading.Tests.Compatibility
             // 實體不在 skip list、名字也不命中 → IsTargetModTexture 回傳 false，Prefix 放行
             var tex = MockTextureHelper.CreateTexture("VanillaTex.png");
 
-            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex, null), Is.True);
+            Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex, mask: null), Is.True);
         }
 
         [Test]
@@ -216,7 +216,7 @@ namespace FasterGameLoading.Tests.Compatibility
             try
             {
                 var tex = (Texture2D)FormatterServices.GetUninitializedObject(typeof(Texture2D));
-                Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex, null), Is.True);
+                Assert.That(AdaptiveBakingSkipList.Prefix(TextureAtlasGroup.Building, tex, mask: null), Is.True);
             }
             finally
             {

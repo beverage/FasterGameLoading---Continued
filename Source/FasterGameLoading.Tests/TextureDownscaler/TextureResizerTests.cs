@@ -33,7 +33,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         {
             int targetSize;
             var result = TextureResizer.TryGetResizeTarget(
-                null, Uninitialized<TerrainDef>(), out targetSize);
+                texture: null, def: Uninitialized<TerrainDef>(), targetSize: out targetSize);
 
             Assert.That(result, Is.True);
             Assert.That(targetSize, Is.EqualTo(1024));
@@ -48,7 +48,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             def.graphicData.drawSize = new Vector2(4f, 4f); // 4 + 4 = 8 <= 8
             int targetSize;
 
-            var result = TextureResizer.TryGetResizeTarget(null, def, out targetSize);
+            var result = TextureResizer.TryGetResizeTarget(texture: null, def: def, targetSize: out targetSize);
 
             Assert.That(result, Is.True);
             Assert.That(targetSize, Is.EqualTo(256));
@@ -63,7 +63,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             def.graphicData.drawSize = new Vector2(1f, 1f);
             int targetSize;
 
-            var result = TextureResizer.TryGetResizeTarget(null, def, out targetSize);
+            var result = TextureResizer.TryGetResizeTarget(texture: null, def: def, targetSize: out targetSize);
 
             Assert.That(result, Is.True);
             Assert.That(targetSize, Is.EqualTo(128));
@@ -79,7 +79,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             def.graphicData.drawSize = new Vector2(1.5f, 1.5f);
             int targetSize;
 
-            var result = TextureResizer.TryGetResizeTarget(null, def, out targetSize);
+            var result = TextureResizer.TryGetResizeTarget(texture: null, def: def, targetSize: out targetSize);
 
             Assert.That(result, Is.True);
             Assert.That(targetSize, Is.EqualTo(128));
@@ -94,7 +94,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             def.graphicData.drawSize = new Vector2(1.5f, 1.5f);
             int targetSize;
 
-            var result = TextureResizer.TryGetResizeTarget(null, def, out targetSize);
+            var result = TextureResizer.TryGetResizeTarget(texture: null, def: def, targetSize: out targetSize);
 
             Assert.That(result, Is.True);
             Assert.That(targetSize, Is.EqualTo(256));
@@ -109,7 +109,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             def.graphicData.drawSize = new Vector2(1f, 1f);
             int targetSize;
 
-            var result = TextureResizer.TryGetResizeTarget(null, def, out targetSize);
+            var result = TextureResizer.TryGetResizeTarget(texture: null, def: def, targetSize: out targetSize);
 
             Assert.That(result, Is.True);
             Assert.That(targetSize, Is.EqualTo(128));
@@ -126,7 +126,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             def.graphicData.drawSize = new Vector2(1f, 1f);
             int targetSize;
 
-            var result = TextureResizer.TryGetResizeTarget(null, def, out targetSize);
+            var result = TextureResizer.TryGetResizeTarget(texture: null, def: def, targetSize: out targetSize);
 
             Assert.That(result, Is.True);
             Assert.That(targetSize, Is.EqualTo(128));
@@ -144,7 +144,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             def.graphicData.drawSize = new Vector2(2f, 2f);
             int targetSize;
 
-            var result = TextureResizer.TryGetResizeTarget(null, def, out targetSize);
+            var result = TextureResizer.TryGetResizeTarget(texture: null, def: def, targetSize: out targetSize);
 
             Assert.That(result, Is.True);
             Assert.That(targetSize, Is.EqualTo(256));
@@ -159,7 +159,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             def.graphicData.drawSize = new Vector2(5f, 4f); // 5 + 4 = 9 > 8
             int targetSize;
 
-            var result = TextureResizer.TryGetResizeTarget(null, def, out targetSize);
+            var result = TextureResizer.TryGetResizeTarget(texture: null, def: def, targetSize: out targetSize);
 
             Assert.That(result, Is.False);
             Assert.That(targetSize, Is.EqualTo(0));
@@ -171,7 +171,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             int targetSize;
 
             var result = TextureResizer.TryGetResizeTarget(
-                null, Uninitialized<ThingDef>(), out targetSize);
+                texture: null, def: Uninitialized<ThingDef>(), targetSize: out targetSize);
 
             Assert.That(result, Is.False);
             Assert.That(targetSize, Is.EqualTo(0));

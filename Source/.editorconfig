@@ -18,6 +18,12 @@ dotnet_diagnostic.IDE0002.severity = error
 # RimWorld 的 Mono mscorlib 雖有此型別，但僅提供 Acquire/Release，
 # 缺少 .NET 9 的 EnterScope/Scope 語意，改用後仍是 Monitor 鎖且會觸發 CS9216，故停用。
 dotnet_diagnostic.MA0158.severity = none
+# MA0141 / MA0142: 建議以模式比對取代 != null / == null。
+# UnityEngine.Object 重載了 == 運算子：已 Destroy 的物件 `== null` 為 true，
+# 但 `is null` 為 false。本專案大量處理 Texture2D 與圖集，套用此修正會取得
+# 已銷毀物件而崩潰，故全專案停用，統一使用 == null / != null。
+dotnet_diagnostic.MA0141.severity = none
+dotnet_diagnostic.MA0142.severity = none
 
 # ── C# 代碼風格偏好 (Code Style Preferences) ──
 # using 排序：System 命名空間置頂並按字母排序
@@ -55,3 +61,10 @@ dotnet_naming_symbols.private_fields.applicable_accessibilities = private
 
 dotnet_naming_style.camel_case_with_underscore.required_prefix = _
 dotnet_naming_style.camel_case_with_underscore.capitalization = camel_case
+
+# ── 測試專案專屬規則 ──
+[FasterGameLoading.Tests/**.cs]
+# MA0181: 不使用強制轉型。
+# 測試大量以反射取得私有欄位與方法回傳值後轉型，型別不符時應直接拋
+# InvalidCastException 讓測試失敗，而非以 as 轉成 null 造成誤判，故停用。
+dotnet_diagnostic.MA0181.severity = none

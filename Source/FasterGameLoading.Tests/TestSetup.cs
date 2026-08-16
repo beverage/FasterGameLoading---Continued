@@ -1,5 +1,5 @@
 using System;
-#pragma warning disable MA0141, MA0142, MA0148, MA0158, MA0002, MA0003, MA0016, MA0051, MA0106, MA0134, MA0032, MA0039, S3776, S3267, S3398, S108, CA1822, CA1859, S2486, S2701
+#pragma warning disable MA0148, MA0002, MA0003, MA0016, MA0051, MA0106, MA0134, MA0032, MA0039, S3776, S3267, S3398, S108, S2486, S2701
 using System.IO;
 using System.Reflection;
 using NUnit.Framework;
@@ -74,7 +74,7 @@ namespace FasterGameLoading.Tests
                 foreach (var cctorType in new System.Type[] {
                     typeof(Verse.ModsConfig),
                     typeof(Verse.ShaderDatabase),
-                    typeof(Verse.BaseContent)
+                    typeof(Verse.BaseContent),
                 })
                 {
                     try
@@ -337,7 +337,10 @@ namespace FasterGameLoading.Tests
                     }
                     catch (Exception ex)
                     {
+                        // AssemblyLoadContext.Resolving 事件處理常式必須同步回傳，無法改用非同步輸出
+#pragma warning disable MA0045
                         TestContext.Progress.WriteLine($"Assembly load failed for local '{localPath}': {ex}");
+#pragma warning restore MA0045
                     }
                 }
 
@@ -353,7 +356,10 @@ namespace FasterGameLoading.Tests
                     }
                     catch (Exception ex)
                     {
+                        // AssemblyLoadContext.Resolving 事件處理常式必須同步回傳，無法改用非同步輸出
+#pragma warning disable MA0045
                         TestContext.Progress.WriteLine($"Assembly load failed for '{path}': {ex}");
+#pragma warning restore MA0045
                     }
                 }
                 return null;
@@ -382,8 +388,11 @@ namespace FasterGameLoading.Tests
                     }
                     catch (Exception ex)
                     {
+                        // AppDomain.AssemblyResolve 事件處理常式必須同步回傳，無法改用非同步輸出
+#pragma warning disable MA0045
                         TestContext.Progress.WriteLine(
                             $"Assembly load failed for local dependency '{localPath}': {ex}");
+#pragma warning restore MA0045
                     }
                 }
 
@@ -410,31 +419,5 @@ namespace FasterGameLoading.Tests
             };
         }
     }
-
-    internal class MockResourcesAPI : UnityEngine.ResourcesAPI
-    {
-        protected override UnityEngine.Object[] LoadAll(string path, Type systemTypeInstance)
-        {
-            return Array.Empty<UnityEngine.Object>();
-        }
-
-        protected override UnityEngine.Object Load(string path, Type systemTypeInstance)
-        {
-            if (systemTypeInstance == typeof(UnityEngine.Shader))
-            {
-                return (UnityEngine.Shader)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(UnityEngine.Shader));
-            }
-            if (systemTypeInstance == typeof(UnityEngine.Texture2D))
-            {
-                return (UnityEngine.Texture2D)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(UnityEngine.Texture2D));
-            }
-            return null;
-        }
-
-        protected override UnityEngine.ResourceRequest LoadAsync(string path, Type systemTypeInstance)
-        {
-            return null;
-        }
-    }
 }
-#pragma warning restore MA0141, MA0142, MA0148, MA0158, MA0002, MA0003, MA0016, MA0051, MA0106, MA0134, MA0032, MA0039, S3776, S3267, S3398, S108, CA1822, CA1859, S2486, S2701
+#pragma warning restore MA0148, MA0002, MA0003, MA0016, MA0051, MA0106, MA0134, MA0032, MA0039, S3776, S3267, S3398, S108, S2486, S2701

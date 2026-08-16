@@ -69,7 +69,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
             capturedExecuteWhenFinishedAction = null;
 
             var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
-            prop?.SetValue(null, delayedActions, null);
+            prop?.SetValue(null, delayedActions, index: null);
         }
 
         [TearDown]
@@ -77,7 +77,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
         {
             delayedActions?.ClearQueues();
             var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
-            prop?.SetValue(null, null, null);
+            prop?.SetValue(null, value: null, index: null);
         }
 
         [Test]
@@ -92,7 +92,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
             {
                 new CodeInstruction(OpCodes.Nop),
                 new CodeInstruction(OpCodes.Call, executeWhenFinished),
-                new CodeInstruction(OpCodes.Ret)
+                new CodeInstruction(OpCodes.Ret),
             };
 
             var output = ((IEnumerable<CodeInstruction>)transpilerMethod.Invoke(null, new object[] { instructions })).ToList();
@@ -138,7 +138,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
         public void ExecuteDelayed_WhenDelayedActionsIsNull_DispatchesToLongEventHandler()
         {
             var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
-            prop?.SetValue(null, null, null);
+            prop?.SetValue(null, value: null, index: null);
 
             var sound = (SubSoundDef)FormatterServices.GetUninitializedObject(typeof(SubSoundDef));
             bool actionExecuted = false;

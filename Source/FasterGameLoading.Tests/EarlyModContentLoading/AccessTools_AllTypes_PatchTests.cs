@@ -65,7 +65,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         public void SetUp()
         {
             capturedExecuteWhenFinishedAction = null;
-            AllTypesCachedField?.SetValue(null, null);
+            AllTypesCachedField?.SetValue(obj: null, value: null);
             CachedAssembliesCountField?.SetValue(null, 0);
             GenTypes_GetTypeInAnyAssemblyInt_Patch.ClearCache();
         }
@@ -74,7 +74,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         public void TearDown()
         {
             capturedExecuteWhenFinishedAction = null;
-            AllTypesCachedField?.SetValue(null, null);
+            AllTypesCachedField?.SetValue(obj: null, value: null);
             CachedAssembliesCountField?.SetValue(null, 0);
             GenTypes_GetTypeInAnyAssemblyInt_Patch.ClearCache();
         }
@@ -98,7 +98,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [Test]
         public void Prefix_WhenCacheNullOrAssemblyCountDiffers_RebuildsCacheAndReturnsFalse()
         {
-            AllTypesCachedField.SetValue(null, null);
+            AllTypesCachedField.SetValue(obj: null, value: null);
             CachedAssembliesCountField.SetValue(null, 0);
 
             IEnumerable<Type> result = null;
@@ -147,7 +147,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             Assert.That(capturedExecuteWhenFinishedAction, Is.Not.Null);
 
             // Wait for the background task to populate allTypesCached
-            bool completed = SpinWait.SpinUntil(() => AllTypesCachedField.GetValue(null) != null, 3000);
+            bool completed = SpinWait.SpinUntil(() => AllTypesCachedField.GetValue(null) is not null, 3000);
             Assert.That(completed, Is.True, "Background task did not complete within timeout.");
 
             var cached = (List<Type>)AllTypesCachedField.GetValue(null);

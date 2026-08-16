@@ -25,7 +25,7 @@ namespace FasterGameLoading.Tests.Language
         {
             try
             {
-                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
             }
             catch (Exception ex)
             {
@@ -42,7 +42,7 @@ namespace FasterGameLoading.Tests.Language
             language.keyedReplacements["Greeting"] = new LoadedLanguage.KeyedReplacement
             {
                 key = "Greeting",
-                value = "Existing"
+                value = "Existing",
             };
 
             TranslationInjector.LoadKeyedTranslationsFromFile(path, language);

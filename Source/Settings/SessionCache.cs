@@ -57,9 +57,7 @@ internal static Dictionary<string, string> loadedTexturesSinceLastSession { get;
         /// 歷次靜態圖集烘焙速度記錄（用於自適應批次調整）。
         /// </summary>
 internal static List<float> historicalBakeSpeeds { get; set; } = new();
-#pragma warning disable MA0158 // System.Threading.Lock 僅存在於 .NET 9+，本專案 target net472
         private static readonly object loadedTexturesLock = new();
-#pragma warning restore MA0158
 
         /// <summary>
         /// 加權移動平均的權重。

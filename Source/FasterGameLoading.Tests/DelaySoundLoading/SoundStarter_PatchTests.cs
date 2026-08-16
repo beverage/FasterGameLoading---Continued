@@ -19,7 +19,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
 
             var fglModHarmonyProp = typeof(FasterGameLoadingMod).GetProperty(
                 nameof(FasterGameLoadingMod.harmony), BindingFlags.Public | BindingFlags.Static);
-            fglModHarmonyProp?.SetValue(null, new Harmony("FasterGameLoadingMod.SoundStarter_PatchTests"), null);
+            fglModHarmonyProp?.SetValue(null, new Harmony("FasterGameLoadingMod.SoundStarter_PatchTests"), index: null);
         }
 
         [SetUp]
@@ -40,7 +40,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
             var method = AccessTools.Method(typeof(SoundStarter_Patch), "PlayOneShotOnCamera_Patch");
             Assert.That(method, Is.Not.Null);
 
-            var result = method.Invoke(null, null);
+            var result = method.Invoke(null, parameters: null);
             Assert.That(result, Is.False);
         }
 
@@ -50,7 +50,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
             var method = AccessTools.Method(typeof(SoundStarter_Patch), "PlayOneShot_Patch");
             Assert.That(method, Is.Not.Null);
 
-            var result = method.Invoke(null, null);
+            var result = method.Invoke(null, parameters: null);
             Assert.That(result, Is.False);
         }
 
@@ -75,7 +75,7 @@ namespace FasterGameLoading.Tests.DelaySoundLoading
             var method = AccessTools.Method(typeof(SoundStarter_Patch), "TryPlay_Patch");
             Assert.That(method, Is.Not.Null);
 
-            var result = method.Invoke(null, null);
+            var result = method.Invoke(null, parameters: null);
             Assert.That(result, Is.False);
         }
 

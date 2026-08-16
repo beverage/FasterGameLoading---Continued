@@ -33,7 +33,7 @@ namespace FasterGameLoading.Tests.Core
         [Test]
         public void RegisterOnStartupCompleted_WithNull_DoesNotThrow()
         {
-            Assert.DoesNotThrow(() => Startup.RegisterOnStartupCompleted(null));
+            Assert.DoesNotThrow(() => Startup.RegisterOnStartupCompleted(callback: null));
         }
 
         [Test]

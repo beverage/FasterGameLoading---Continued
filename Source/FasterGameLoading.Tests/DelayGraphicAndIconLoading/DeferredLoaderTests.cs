@@ -29,7 +29,7 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             return false;
         }
 
-        private class TestGraphic : Graphic
+        private sealed class TestGraphic : Graphic
         {
             private readonly Material mat;
             public TestGraphic(Material mat) => this.mat = mat;
@@ -52,6 +52,7 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         }
 
         [OneTimeSetUp]
+#pragma warning disable MA0051 // 需依序初始化多個 Harmony mock patch，拆分成多個方法會降低可讀性
         public void OneTimeSetUp()
         {
             harmony = new Harmony("FasterGameLoading.Tests.DeferredLoaderTests");
@@ -110,8 +111,9 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
 
             // Initialize FasterGameLoadingMod.harmony for SoundStarter_Patch.Unpatch()
             var fglModHarmonyProp = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.harmony), BindingFlags.Public | BindingFlags.Static);
-            fglModHarmonyProp?.SetValue(null, new Harmony("FasterGameLoadingMod.TestInstance"), null);
+            fglModHarmonyProp?.SetValue(obj: null, value: new Harmony("FasterGameLoadingMod.TestInstance"), index: null);
         }
+#pragma warning restore MA0051
 
         [OneTimeTearDown]
         public void OneTimeTearDown()
@@ -184,7 +186,7 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             def.uiIconPath = null;
             def.graphicData = new GraphicData
             {
-                graphicClass = typeof(Graphic_Single)
+                graphicClass = typeof(Graphic_Single),
             };
             var graphicField = AccessTools.Field(typeof(GraphicData), "cachedGraphic");
             graphicField?.SetValue(def.graphicData, new TestGraphic(mockMaterial));
