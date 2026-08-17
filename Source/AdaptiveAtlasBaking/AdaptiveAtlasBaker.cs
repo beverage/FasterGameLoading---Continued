@@ -54,13 +54,18 @@ namespace FasterGameLoading
         /// 自適應靜態圖集烘焙主協程。
         /// </summary>
         /// <param name="delayedActions">延遲動作管理器實例，主要用來回報或獲取狀態。</param>
-        // MA0051: 速度估算、失敗收尾與提交階段都已抽出（見下方三個方法），剩下的
-        // 本體是一段以 yield 分段的線性敘事：逐 group 累積批次、滿一個 slice 就烘焙
-        // 並讓出一幀。要再縮短只能改成巢狀迭代器，那會改變編譯器產生的狀態機結構
-        // ——正是此處必須避免的——故就地抑制。
-#pragma warning disable MA0051
+        // MA0051（方法過長）與 S3776（認知複雜度）：速度估算、失敗收尾與提交階段
+        // 都已抽出（見下方三個方法），剩下的本體是一段以 yield 分段的線性敘事：
+        // 逐 group 累積批次、滿一個 slice 就烘焙並讓出一幀。
+        //
+        // 要再縮短只能把逐 group 的烘焙改成巢狀迭代器，而那會改變編譯器產生的
+        // 狀態機結構 —— 正是此處必須避免的：AdaptiveAtlasBakerTests 是靠對
+        // MoveNext 套用 Harmony 轉譯（使其以 skipVisibility 重新產生）才能存取
+        // GlobalTextureAtlasManager 的欄位，多一層狀態機就會讓該機制失效。
+        // 故兩條規則一併就地抑制。
+#pragma warning disable MA0051, S3776
         public static IEnumerator PerformAdaptiveStaticAtlasBake(DelayedActions delayedActions)
-#pragma warning restore MA0051
+#pragma warning restore MA0051, S3776
         {
             FGLLog.Message("Starting adaptive static atlas bake");
 

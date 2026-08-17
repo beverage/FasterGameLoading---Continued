@@ -30,14 +30,13 @@ dotnet_diagnostic.MA0142.severity = none
 # as / 模式比對對值型別不成立，套用後不是無法編譯就是會移除防溢位語意，
 # 故全專案停用。
 dotnet_diagnostic.MA0181.severity = none
-# S101 / MA0048 / MA0182: 類別命名需符合 PascalCase、檔名需與型別同名、
-# internal 型別未被實體化。
+# S101 / MA0048: 類別命名需符合 PascalCase、檔名需與型別同名。
 # Harmony 補丁類別依社群慣例命名為 <型別>_<方法>_Patch，名稱本身即是補丁目標的
 # 說明；且這些類別由 Harmony 於執行期透過特性掃描（PatchAll）探索並反射呼叫，
-# 分析器看不到任何呼叫端。改名或移除都會破壞可讀性與補丁探索，故全專案停用。
+# 分析器看不到任何呼叫端。改名會破壞可讀性與補丁探索，故全專案停用。
+# （同一批類別的 MA0182「internal 型別未被實體化」見下方 MA0182 條目。）
 dotnet_diagnostic.S101.severity = none
 dotnet_diagnostic.MA0048.severity = none
-dotnet_diagnostic.MA0182.severity = none
 # S3400: 方法僅回傳常值，應改為常數。
 # 命中處全為 Harmony prefix（回傳 false 以攔截原方法）與 Prepare/TargetMethod
 # 這類必須是「方法」的補丁進入點，無法改為常數，故全專案停用。
@@ -77,8 +76,11 @@ dotnet_diagnostic.MA0025.severity = none
 # 啟動了一項非同步工作。改名會破壞相容性，且無法真的改成回傳 Task ——
 # 呼叫端是 Mod 建構式這類必須同步回傳的進入點。
 dotnet_diagnostic.MA0138.severity = none
-# MA0182: 唯一命中在 NuGet 產生的 Krafs.Publicizer 檔案
-# (IgnoresAccessChecksToAttribute.cs)，非本倉庫原始碼，無法修改。
+# MA0182: internal 型別未被實體化。兩類命中都不成立：
+# (1) Harmony 補丁類別由 PatchAll 於執行期以特性掃描探索並反射呼叫，
+#     分析器看不到任何呼叫端；
+# (2) 唯一的非補丁命中在 NuGet 產生的 Krafs.Publicizer 檔案
+#     (IgnoresAccessChecksToAttribute.cs)，非本倉庫原始碼，無法修改。
 dotnet_diagnostic.MA0182.severity = none
 # S3963: 建議把靜態建構式改為欄位初始化。
 # 本專案的五個靜態建構式（Utils、ImageOptCompat、GraphicsSettingsCompat、
