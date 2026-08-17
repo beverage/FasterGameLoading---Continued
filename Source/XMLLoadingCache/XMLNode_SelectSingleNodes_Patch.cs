@@ -164,14 +164,16 @@ namespace FasterGameLoading
         {
             if (string.IsNullOrEmpty(xpath)) return false;
             // 含有屬性篩選的 XPath (如 [@...) 屬於補丁或特定定位，不安全，不應進行快取
-            if (xpath.Contains("[@")) return false;
+            if (xpath.IndexOf("[@", StringComparison.Ordinal) >= 0) return false;
 
             // 只有包含 '/'，或者以 'Defs'、'/'、'[' 開頭的 XPath 查詢才被認為是定位用的 XPath，可以安全地進行快取。
             // 避免誤快取像是 'settingsKey', 'match', 'nomatch', 'value', 'xpath' 這樣的局部子節點欄位名稱。
-            return xpath.Contains("/") ||
+            // 一律指定 Ordinal：StartsWith(string) 預設為文化相關比對，在部分語系下對
+            // XPath 這類 ASCII 語法字串會得到非預期結果。
+            return xpath.IndexOf('/') >= 0 ||
                    xpath.StartsWith("Defs", StringComparison.OrdinalIgnoreCase) ||
-                   xpath.StartsWith("/") ||
-                   xpath.StartsWith("[");
+                   xpath.StartsWith("/", StringComparison.Ordinal) ||
+                   xpath.StartsWith("[", StringComparison.Ordinal);
         }
 
         public static bool Prefix(string xpath, ref XmlNode __result)

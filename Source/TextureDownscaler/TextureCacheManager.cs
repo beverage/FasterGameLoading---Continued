@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -14,12 +15,12 @@ namespace FasterGameLoading
     public class TextureCacheManager
     {
         /// <summary>原始路徑 → 降質快取路徑的對照表（會透過 Scribe 持久化）。</summary>
-        internal Dictionary<string, string> resizedTextureCache = new Dictionary<string, string>();
+        internal Dictionary<string, string> resizedTextureCache = new Dictionary<string, string>(StringComparer.Ordinal);
 
         /// <summary>原始路徑 → 降質快取路徑的對照表。</summary>
         public Dictionary<string, string> ResizedTextureCache => resizedTextureCache;
         private readonly object cacheLock = new object();
-        private readonly ConcurrentDictionary<string, string> md5HashCache = new ConcurrentDictionary<string, string>();
+        private readonly ConcurrentDictionary<string, string> md5HashCache = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
         /// <summary>
         /// 每執行緒重用的 MD5 實例。MD5 非執行緒安全，故以 ThreadLocal 隔離；
         /// 重用避免每次 GetCachePath（首次某路徑時計算雜湊）都 allocate 新 MD5 與其原生資源。
@@ -96,7 +97,11 @@ namespace FasterGameLoading
                 var file = new FileInfo(originalPath);
                 if (file.Exists)
                 {
-                    return originalPath.NormalizePath() + "|" + file.Length + "|" + file.LastWriteTimeUtc.Ticks;
+                    // 快取鍵必須與執行時語系無關，故數值一律以 InvariantCulture 格式化，
+                    // 否則不同語系下同一檔案會產生不同的鍵而重複降質。
+                    return originalPath.NormalizePath()
+                        + "|" + file.Length.ToString(CultureInfo.InvariantCulture)
+                        + "|" + file.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture);
                 }
             }
             catch (IOException ex)
@@ -329,7 +334,7 @@ namespace FasterGameLoading
                 Directory.Move(stagingDirectory, CacheDirectory);
                 movedStagingCache = true;
 
-                var updatedCacheMap = new Dictionary<string, string>();
+                var updatedCacheMap = new Dictionary<string, string>(StringComparer.Ordinal);
                 lock (cacheLock)
                 {
                     foreach (var kvp in resizedTextureCache)
@@ -383,7 +388,7 @@ namespace FasterGameLoading
         {
             lock (cacheLock)
             {
-                return new Dictionary<string, string>(resizedTextureCache);
+                return new Dictionary<string, string>(resizedTextureCache, StringComparer.Ordinal);
             }
         }
 
@@ -511,7 +516,7 @@ namespace FasterGameLoading
 
                 if (keysToRemove.Count > 0 || deletedObsoleteFiles > 0 || deletedUnreferencedFiles > 0)
                 {
-                    FGLLog.Message($"Cache cleanup completed. Removed {keysToRemove.Count} obsolete cache map entries, deleted {deletedObsoleteFiles} obsolete files and {deletedUnreferencedFiles} unreferenced files.");
+                    FGLLog.Message($"Cache cleanup completed. Removed {keysToRemove.Count.ToString(CultureInfo.InvariantCulture)} obsolete cache map entries, deleted {deletedObsoleteFiles.ToString(CultureInfo.InvariantCulture)} obsolete files and {deletedUnreferencedFiles.ToString(CultureInfo.InvariantCulture)} unreferenced files.");
                 }
             }
             catch (Exception ex)

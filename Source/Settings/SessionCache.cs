@@ -92,14 +92,14 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
             Dictionary<string, string> tempTypes = null;
             if (Scribe.mode == LoadSaveMode.Saving)
             {
-                tempTypes = new Dictionary<string, string>(loadedTypesByFullNameSinceLastSession);
+                tempTypes = new Dictionary<string, string>(loadedTypesByFullNameSinceLastSession, StringComparer.Ordinal);
             }
             Scribe_Collections.Look(ref tempTypes, FGLConsts.LoadedTypesKey, LookMode.Value, LookMode.Value);
 
             Dictionary<string, bool> tempXmlPaths = null;
             if (Scribe.mode == LoadSaveMode.Saving)
             {
-                tempXmlPaths = new Dictionary<string, bool>();
+                tempXmlPaths = new Dictionary<string, bool>(StringComparer.Ordinal);
                 foreach (var kvp in xmlPathsSinceLastSession)
                 {
                     tempXmlPaths[kvp.Key] = false;
@@ -132,11 +132,11 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
 
                 if (tempTypes != null)
                 {
-                    loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(tempTypes);
+                    loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(tempTypes, StringComparer.Ordinal);
                 }
-                loadedTypesByFullNameSinceLastSession ??= new ConcurrentDictionary<string, string>();
+                loadedTypesByFullNameSinceLastSession ??= new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
 
-                xmlPathsSinceLastSession ??= new ConcurrentDictionary<string, byte>();
+                xmlPathsSinceLastSession ??= new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
                 if (tempXmlPaths != null)
                 {
                     xmlPathsSinceLastSession.Clear();
@@ -145,10 +145,10 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
                         if (!kvp.Value && XmlNode_SelectSingleNode_Patch.IsCacheableXpath(kvp.Key))
                         {
                             // 排除之前因 Bug 錯誤快取的 Ayameduki/WRelicK 相關補丁 XPath，或是包含定位符的 XPath
-                            if (kvp.Key.Contains("AT_Tag_") ||
-                                kvp.Key.Contains("KeyedSettings") ||
-                                kvp.Key.Contains("FactionDef") ||
-                                kvp.Key.Contains("[@"))
+                            if (kvp.Key.IndexOf("AT_Tag_", StringComparison.Ordinal) >= 0 ||
+                                kvp.Key.IndexOf("KeyedSettings", StringComparison.Ordinal) >= 0 ||
+                                kvp.Key.IndexOf("FactionDef", StringComparison.Ordinal) >= 0 ||
+                                kvp.Key.IndexOf("[@", StringComparison.Ordinal) >= 0)
                             {
                                 continue;
                             }
@@ -158,8 +158,8 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
                 }
 
                 modsInLastSession ??= new List<string>();
-                xmlMetadataHashByMod ??= new Dictionary<string, long>();
-                xmlContentHashByMod ??= new Dictionary<string, long>();
+                xmlMetadataHashByMod ??= new Dictionary<string, long>(StringComparer.Ordinal);
+                xmlContentHashByMod ??= new Dictionary<string, long>(StringComparer.Ordinal);
                 historicalBakeSpeeds ??= new List<float>();
 
                 // 零分配偵測 mod 組合變更，避免 GetHashCode 隨機雜湊種子碰撞與 MD5 重複記憶體配發
@@ -174,7 +174,7 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
                     for (int i = 0; i < modsInLastSession.Count; i++)
                     {
                         // currentActiveMods[i] 可能為 null（Mod 載入異常時），跳過避免 NRE
-                        if (currentActiveMods[i] == null || currentActiveMods[i].packageIdLowerCase != modsInLastSession[i])
+                        if (currentActiveMods[i] == null || !string.Equals(currentActiveMods[i].packageIdLowerCase, modsInLastSession[i], StringComparison.Ordinal))
                         {
                             modsChanged = true;
                             break;

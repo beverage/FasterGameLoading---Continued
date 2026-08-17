@@ -23,7 +23,7 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
 
             Startup.RegisterOnStartupCompleted(() =>
             {
-                SessionCache.loadedTypesByFullNameSinceLastSession = new System.Collections.Concurrent.ConcurrentDictionary<string, string>(loadedTypesThisSession);
+                SessionCache.loadedTypesByFullNameSinceLastSession = new System.Collections.Concurrent.ConcurrentDictionary<string, string>(loadedTypesThisSession, StringComparer.Ordinal);
             });
         }
 
@@ -72,7 +72,7 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
                 if (__state.isCached is false)
                 {
                     cachedResults[__state.cacheKey] = __result;
-                    if (fullName != __state.originalTypeName)
+                    if (!string.Equals(fullName, __state.originalTypeName, StringComparison.Ordinal))
                     {
                         cachedResults[MakeCacheKey(fullName, null)] = __result;
                         if (!string.IsNullOrEmpty(__state.namespaceIfAmbiguous))
@@ -81,7 +81,7 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
                         }
                     }
                 }
-                if (__state.originalTypeName != fullName)
+                if (!string.Equals(__state.originalTypeName, fullName, StringComparison.Ordinal))
                 {
                     loadedTypesThisSession[__state.cacheKey] = fullName;
                 }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using HarmonyLib;
@@ -129,7 +130,7 @@ namespace FasterGameLoading
                 var deleted = ImageOptCompat.CleanupInvalidDdsZstdCaches(roots);
                 if (deleted > 0)
                 {
-                    FGLLog.Message($"Removed invalid ImageOpt DDS cache files: {deleted}");
+                    FGLLog.Message($"Removed invalid ImageOpt DDS cache files: {deleted.ToString(CultureInfo.InvariantCulture)}");
                 }
             });
         }

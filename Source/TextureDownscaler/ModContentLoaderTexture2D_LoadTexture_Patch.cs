@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -84,7 +85,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
         /// <summary>已非同步預載入至記憶體的降質快取紋理位元組數據。</summary>
         public static ConcurrentDictionary<string, byte[]> preloadedCacheBytes { get; } = new ConcurrentDictionary<string, byte[]>(StringComparer.Ordinal);
         /// <summary>以 WeakReference 快取已載入的 Texture2D，鍵為完整檔案路徑。</summary>
-        public static ConcurrentDictionary<string, System.WeakReference<Texture2D>> savedTextures = new ConcurrentDictionary<string, System.WeakReference<Texture2D>>();
+        public static ConcurrentDictionary<string, System.WeakReference<Texture2D>> savedTextures = new ConcurrentDictionary<string, System.WeakReference<Texture2D>>(StringComparer.Ordinal);
         /// <summary>
         /// O(1) 反向查找表：Texture2D → 路徑。ConditionalWeakTable 以弱鍵追蹤，Texture2D 被 GC 時自動移除條目，
         /// 不會強引用留住 Unity 貼圖。
@@ -132,12 +133,12 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
 
             Startup.RegisterOnStartupCompleted(() =>
             {
-                SessionCache.loadedTexturesSinceLastSession = new System.Collections.Generic.Dictionary<string, string>(loadedTexturesThisSession);
+                SessionCache.loadedTexturesSinceLastSession = new System.Collections.Generic.Dictionary<string, string>(loadedTexturesThisSession, StringComparer.Ordinal);
                 if (cacheLoadHits > 0
                     || cacheLoadFailures > 0
                     || FasterGameLoadingMod.Instance.CacheManager.CacheCount > 0)
                 {
-                    FGLLog.Message($"Texture downscale cache hits: {cacheLoadHits}, failures: {cacheLoadFailures}, configured entries: {FasterGameLoadingMod.Instance.CacheManager.CacheCount}");
+                    FGLLog.Message($"Texture downscale cache hits: {cacheLoadHits.ToString(CultureInfo.InvariantCulture)}, failures: {cacheLoadFailures.ToString(CultureInfo.InvariantCulture)}, configured entries: {FasterGameLoadingMod.Instance.CacheManager.CacheCount.ToString(CultureInfo.InvariantCulture)}");
                 }
             });
         }
@@ -317,7 +318,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                     {
                         data = File.ReadAllBytes(cachePath);
                     }
-                    bool useMipmaps = !fullPath.NormalizePath().Contains(FGLConsts.UIDirSlash);
+                    bool useMipmaps = fullPath.NormalizePath().IndexOf(FGLConsts.UIDirSlash, StringComparison.Ordinal) < 0;
                     var tex = new Texture2D(FGLConsts.PlaceholderTextureSize, FGLConsts.PlaceholderTextureSize, TextureFormat.RGBA32, useMipmaps);
                     var textureAccepted = false;
 
@@ -362,7 +363,9 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
             // 沒有快取命中，讓原始方法載入紋理
             __state = true;
             var searchPath = fullPath.Replace('\\', '/');
-            var index = searchPath.IndexOf(FGLConsts.TexturesDirSlash);
+            // 必須用 Ordinal：IndexOf(string) 預設為文化相關比對，某些語系會忽略特定字元
+            // 而回傳錯誤的位移，導致後續路徑切片取到錯誤片段。
+            var index = searchPath.IndexOf(FGLConsts.TexturesDirSlash, StringComparison.Ordinal);
             if (index >= 0)
             {
                 var path = fullPath.Substring(index);

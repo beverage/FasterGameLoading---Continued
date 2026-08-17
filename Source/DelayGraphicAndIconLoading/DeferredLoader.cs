@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -21,7 +22,7 @@ namespace FasterGameLoading
         public static IEnumerator LoadDeferredGraphicsCoroutine(DelayedActions delayedActions, List<ThingDef> loadedDefs)
         {
             delayedActions.RestartStopwatch();
-            FGLLog.Message($"Starting deferred graphics: {delayedActions.GraphicsToLoadCount}");
+            FGLLog.Message($"Starting deferred graphics: {delayedActions.GraphicsToLoadCount.ToString(CultureInfo.InvariantCulture)}");
             while (delayedActions.GraphicsToLoadCount > 0)
             {
                 // 協程只在主執行緒被恢復執行，此檢查僅為防禦性保護。
@@ -128,7 +129,7 @@ namespace FasterGameLoading
         public static IEnumerator LoadDeferredIconsCoroutine(DelayedActions delayedActions)
         {
             delayedActions.RestartStopwatch();
-            FGLLog.Message($"Starting deferred icons: {delayedActions.IconsToLoadCount}");
+            FGLLog.Message($"Starting deferred icons: {delayedActions.IconsToLoadCount.ToString(CultureInfo.InvariantCulture)}");
             while (delayedActions.IconsToLoadCount > 0)
             {
                 if (UnityData.IsInMainThread is false)
@@ -173,7 +174,7 @@ namespace FasterGameLoading
         public static IEnumerator ResolveSubSoundDefsCoroutine(DelayedActions delayedActions)
         {
             delayedActions.RestartStopwatch();
-            FGLLog.Message($"Starting SubSoundDef resolution: {delayedActions.SubSoundDefToResolveCount}");
+            FGLLog.Message($"Starting SubSoundDef resolution: {delayedActions.SubSoundDefToResolveCount.ToString(CultureInfo.InvariantCulture)}");
             while (delayedActions.SubSoundDefToResolveCount > 0)
             {
                 while (delayedActions.SubSoundDefToResolveCount > 0 && !delayedActions.IsOverBudget)

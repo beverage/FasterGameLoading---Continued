@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using RimWorld;
@@ -201,12 +202,13 @@ namespace FasterGameLoading
 
         private void LogResizeSummary(int resizedCount)
         {
-            FGLLog.Message($"Texture downscale summary: resized={resizedCount}, sourcePixels={lastOriginalPixelCount}, downscaledPixels={lastDownscaledPixelCount}, estimatedSaved={FormatBytes((lastOriginalPixelCount - lastDownscaledPixelCount) * 4)}");
+            FGLLog.Message($"Texture downscale summary: resized={resizedCount.ToString(CultureInfo.InvariantCulture)}, sourcePixels={lastOriginalPixelCount.ToString(CultureInfo.InvariantCulture)}, downscaledPixels={lastDownscaledPixelCount.ToString(CultureInfo.InvariantCulture)}, estimatedSaved={FormatBytes((lastOriginalPixelCount - lastDownscaledPixelCount) * 4)}");
         }
 
         private static string FormatBytes(long bytes)
         {
-            return (bytes / 1024f / 1024f).ToString("F1") + " MiB";
+            // 診斷日誌為英文，數值一律以 InvariantCulture 格式化，避免部分語系輸出逗號小數點。
+            return (bytes / 1024f / 1024f).ToString("F1", CultureInfo.InvariantCulture) + " MiB";
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -231,8 +233,8 @@ namespace FasterGameLoading
                 return false;
             }
             string path = ((def.apparel.LastLayer != ApparelLayerDefOf.Overhead && def.apparel.LastLayer != ApparelLayerDefOf.EyeCover
-                && !RenderAsPack(def) && !(wornGraphicPath == BaseContent.PlaceholderImagePath)
-                && !(wornGraphicPath == BaseContent.PlaceholderGearImagePath)) ? (wornGraphicPath + "_" + bodyType.defName)
+                && !RenderAsPack(def) && !string.Equals(wornGraphicPath, BaseContent.PlaceholderImagePath, StringComparison.Ordinal)
+                && !string.Equals(wornGraphicPath, BaseContent.PlaceholderGearImagePath, StringComparison.Ordinal)) ? (wornGraphicPath + "_" + bodyType.defName)
                 : wornGraphicPath);
             Shader shader = ShaderDatabase.Cutout;
             if (def.apparel.useWornGraphicMask)

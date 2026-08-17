@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Linq;
 using UnityEngine;
 using Verse;
@@ -94,13 +95,13 @@ namespace FasterGameLoading
                 }
 
                 FGLLog.Message(
-                    $"[AtlasDiag/{context}] Scan complete: groups {groupCount}, main textures with mask {textureCount}, " +
-                    $"successfully paired masks {maskCount}, suspicious items detected {issueCount}.");
+                    $"[AtlasDiag/{context}] Scan complete: groups {groupCount.ToString(CultureInfo.InvariantCulture)}, main textures with mask {textureCount.ToString(CultureInfo.InvariantCulture)}, " +
+                    $"successfully paired masks {maskCount.ToString(CultureInfo.InvariantCulture)}, suspicious items detected {issueCount.ToString(CultureInfo.InvariantCulture)}.");
 
                 if (issueCount > 0)
                 {
                     FGLLog.Warning(
-                        $"[AtlasDiag/{context}] Detected {issueCount} suspicious mask(s); if a native crash follows in " +
+                        $"[AtlasDiag/{context}] Detected {issueCount.ToString(CultureInfo.InvariantCulture)} suspicious mask(s); if a native crash follows in " +
                         $"BuildMaskAtlas / CopyTexture, it is very likely caused by the content mod owning one of the textures above.");
                 }
             }
@@ -119,7 +120,7 @@ namespace FasterGameLoading
             }
 
             string name = string.IsNullOrEmpty(tex.name) ? "<no name>" : tex.name;
-            return $"{name} [{tex.width}x{tex.height}, {tex.format}, mips={tex.mipmapCount}]";
+            return $"{name} [{tex.width.ToString(CultureInfo.InvariantCulture)}x{tex.height.ToString(CultureInfo.InvariantCulture)}, {tex.format}, mips={tex.mipmapCount.ToString(CultureInfo.InvariantCulture)}]";
         }
 
         private static string DescribeKey(TextureAtlasGroupKey key)

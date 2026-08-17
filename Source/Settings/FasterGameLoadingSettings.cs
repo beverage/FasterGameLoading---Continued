@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using Verse;
@@ -136,7 +137,7 @@ var staticAtlasesBaking = StaticAtlasesBaking;
                 Scribe_Collections.Look(ref cacheManager.resizedTextureCache, "resizedTextureCache", LookMode.Value, LookMode.Value);
                 if (cacheManager.resizedTextureCache == null)
                 {
-                    cacheManager.resizedTextureCache = new Dictionary<string, string>();
+                    cacheManager.resizedTextureCache = new Dictionary<string, string>(StringComparer.Ordinal);
                 }
             }
 

@@ -48,7 +48,7 @@ namespace FasterGameLoading
                 // 不可寫入短名稱的是 WarmupTypeCache 的「預先填充」路徑
                 // （列舉順序與解析順序可能不同，見 AccessTools_AllTypes_Patch.cs WarmupTypeCache 備註）。
                 GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults[__state.originalName] = __result;
-                if (__result.FullName != __state.originalName)
+                if (!string.Equals(__result.FullName, __state.originalName, StringComparison.Ordinal))
                 {
                     // 記錄短名稱→完整名稱的對照到 session 快取供下次查詢加速
                     SessionCache.loadedTypesByFullNameSinceLastSession[__state.originalName] = __result.FullName;

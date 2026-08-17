@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
@@ -71,12 +72,12 @@ namespace FasterGameLoading
             if (thingDef.graphicData != null && thingDef.graphicData.Linked)
                 return true;
 
-            if (thingDef.thingClass != null && thingDef.thingClass.Name == FGLConsts.BuildingPipe)
+            if (thingDef.thingClass != null && string.Equals(thingDef.thingClass.Name, FGLConsts.BuildingPipe, StringComparison.Ordinal))
                 return true;
 
             // 醫療用品
             if (typeof(Medicine).IsAssignableFrom(thingDef.thingClass)
-                || thingDef.orderedTakeGroup?.defName == FGLConsts.MedicineDefName)
+                || string.Equals(thingDef.orderedTakeGroup?.defName, FGLConsts.MedicineDefName, StringComparison.Ordinal))
                 return true;
 
             // 武器和裝備 - 殖民者常用物品
@@ -99,7 +100,7 @@ namespace FasterGameLoading
                     var catDefName = thingDef.thingCategories[i].defName;
                     for (int j = 0; j < FGLConsts.FurnitureKeywords.Length; j++)
                     {
-                        if (catDefName.Contains(FGLConsts.FurnitureKeywords[j]))
+                        if (catDefName.IndexOf(FGLConsts.FurnitureKeywords[j], StringComparison.Ordinal) >= 0)
                             return true;
                     }
                 }

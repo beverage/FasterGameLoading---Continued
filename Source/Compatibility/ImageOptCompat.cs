@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Verse;
@@ -85,7 +86,7 @@ namespace FasterGameLoading
 
         private static IEnumerable<string> TextureDirs(string root)
         {
-            var seen = new HashSet<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
             IEnumerable<string> childDirs;
             try
             {

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -30,7 +31,7 @@ namespace FasterGameLoading
 
             public XmlScanResult(Dictionary<string, long> metadataHashes, int fileCount, long elapsedMilliseconds = 0, Exception exception = null, bool bypassed = false)
             {
-                MetadataHashes = metadataHashes ?? new Dictionary<string, long>();
+                MetadataHashes = metadataHashes ?? new Dictionary<string, long>(StringComparer.Ordinal);
                 FileCount = fileCount;
                 ElapsedMilliseconds = elapsedMilliseconds;
                 Exception = exception;
@@ -132,7 +133,7 @@ namespace FasterGameLoading
 
             try
             {
-                var nextMetadataHashes = new Dictionary<string, long>();
+                var nextMetadataHashes = new Dictionary<string, long>(StringComparer.Ordinal);
                 int totalXmlCount = 0;
 
                 // 1. 掃描所有 Mod
@@ -232,11 +233,11 @@ namespace FasterGameLoading
                 long combinedHash = CombineMetadataHashes(result.MetadataHashes);
 
                 SessionCache.xmlMetadataHashByMod = result.MetadataHashes;
-                SessionCache.xmlContentHashByMod = new Dictionary<string, long>();
+                SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal);
 
                 if (FasterGameLoadingSettings.VerboseLogging)
                 {
-                    FGLLog.Message($"XML scan complete. Files: {result.FileCount}, elapsed: {result.ElapsedMilliseconds}ms, combined metadata hash: {combinedHash}, last saved hash: {SessionCache.xmlCombinedHashSinceLastSession}");
+                    FGLLog.Message($"XML scan complete. Files: {result.FileCount.ToString(CultureInfo.InvariantCulture)}, elapsed: {result.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms, combined metadata hash: {combinedHash.ToString(CultureInfo.InvariantCulture)}, last saved hash: {SessionCache.xmlCombinedHashSinceLastSession.ToString(CultureInfo.InvariantCulture)}");
                 }
 
                 if (SessionCache.xmlCombinedHashSinceLastSession != combinedHash || metadataChanged)

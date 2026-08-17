@@ -69,7 +69,7 @@ namespace FasterGameLoading
         private static List<FileInfo> XmlFilesInVanillaOrder(ModContentPack mod, string folderPath, List<string> foldersToLoadDebug)
         {
             var folders = foldersToLoadDebug ?? mod.foldersToLoadDescendingOrder;
-            var filesByRelativePath = new Dictionary<string, FileInfo>();
+            var filesByRelativePath = new Dictionary<string, FileInfo>(StringComparer.Ordinal);
 
             for (int i = 0; i < folders.Count; i++)
             {
@@ -82,7 +82,9 @@ namespace FasterGameLoading
 
                 foreach (var fileInfo in directory.EnumerateFiles("*.xml", SearchOption.AllDirectories))
                 {
-                    if (fileInfo.Name.StartsWith("._", StringComparison.Ordinal) || fileInfo.Name.StartsWith(".", StringComparison.Ordinal))
+                    // 以 '.' 開頭即涵蓋 macOS 的 "._" 資源分叉檔；net472 無 StartsWith(char) 多載，
+                    // 直接比對首字元既正確又省去一次字串比對。
+                    if (fileInfo.Name.Length > 0 && fileInfo.Name[0] == '.')
                     {
                         continue;
                     }
