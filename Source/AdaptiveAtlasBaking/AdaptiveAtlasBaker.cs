@@ -17,45 +17,67 @@ namespace FasterGameLoading
     public static class AdaptiveAtlasBaker
     {
         /// <summary>
+        /// 自適應烘焙的可變狀態：目前測得的烘焙速度，以及依此推導的下個 slice 大小。
+        /// 每烘完一批就地更新，故以 ref 傳遞。
+        /// </summary>
+        private struct AdaptiveBakeState
+        {
+            public float MeasuredBakeSpeed;
+            public int AdaptivePixelsPerSlice;
+        }
+
+        /// <summary>
+        /// 自適應烘焙的調校常數。整個協程期間不變，故以 in 傳遞避免複製。
+        /// </summary>
+        private readonly struct AdaptiveBakeTuning
+        {
+            public readonly float TargetBakeTime;
+            public readonly float AdaptationFactor;
+            public readonly int MinPixelsPerSlice;
+            public readonly int MaxPixelsPerSlice;
+            public readonly float PackDensity;
+
+            public AdaptiveBakeTuning(float targetBakeTime, float adaptationFactor, int minPixelsPerSlice, int maxPixelsPerSlice, float packDensity)
+            {
+                TargetBakeTime = targetBakeTime;
+                AdaptationFactor = adaptationFactor;
+                MinPixelsPerSlice = minPixelsPerSlice;
+                MaxPixelsPerSlice = maxPixelsPerSlice;
+                PackDensity = packDensity;
+            }
+        }
+
+        /// <summary>
         /// 自適應靜態圖集烘焙主協程。
         /// </summary>
         /// <param name="delayedActions">延遲動作管理器實例，主要用來回報或獲取狀態。</param>
+        // MA0051: 速度估算、失敗收尾與提交階段都已抽出（見下方三個方法），剩下的
+        // 本體是一段以 yield 分段的線性敘事：逐 group 累積批次、滿一個 slice 就烘焙
+        // 並讓出一幀。要再縮短只能改成巢狀迭代器，那會改變編譯器產生的狀態機結構
+        // ——正是此處必須避免的——故就地抑制。
+#pragma warning disable MA0051
         public static IEnumerator PerformAdaptiveStaticAtlasBake(DelayedActions delayedActions)
+#pragma warning restore MA0051
         {
             FGLLog.Message("Starting adaptive static atlas bake");
 
-            const float TARGET_BAKE_TIME_SECONDS = 0.008f;
-            const float ADAPTATION_FACTOR = 0.2f;
             // 初始保守估計：256×256 像素。這是時間切片大小，不是圖集最終尺寸。
             const int INITIAL_PIXELS_PER_SLICE = 256 * 256;
-            const int MIN_PIXELS_PER_SLICE = 64 * 64;
-            // 高效能 GPU 的上限
-            const int MAX_PIXELS_PER_SLICE = 4096 * 4096;
-            // 0.7–0.9 可減少圖集中的空白區域
-            const float PACK_DENSITY = 0.8f;
+            var tuning = new AdaptiveBakeTuning(
+                targetBakeTime: 0.008f,
+                adaptationFactor: 0.2f,
+                minPixelsPerSlice: 64 * 64,
+                // 高效能 GPU 的上限
+                maxPixelsPerSlice: 4096 * 4096,
+                // 0.7–0.9 可減少圖集中的空白區域
+                packDensity: 0.8f);
 
-            // ── 計算預估烘焙速度 ──
-            float measuredBakeSpeed_PixelsPerSecond;
-            if (SessionCache.historicalBakeSpeeds.Count is 0)
+            var state = new AdaptiveBakeState
             {
-                // 初次執行：使用保守估計值
-                measuredBakeSpeed_PixelsPerSecond = 2_000_000f;
-            }
-            else
-            {
-                // 從歷史記錄計算加權移動平均
-                float weightedSum = 0f;
-                float weightSum = 0f;
-                int count = Math.Min(SessionCache.historicalBakeSpeeds.Count, SessionCache.WEIGHTS.Length);
-                for (int i = 0; i < count; i++)
-                {
-                    weightedSum += SessionCache.historicalBakeSpeeds[i] * SessionCache.WEIGHTS[i];
-                    weightSum += SessionCache.WEIGHTS[i];
-                }
-                measuredBakeSpeed_PixelsPerSecond = weightedSum / weightSum;
-            }
+                MeasuredBakeSpeed = EstimateInitialBakeSpeed(),
+                AdaptivePixelsPerSlice = INITIAL_PIXELS_PER_SLICE,
+            };
 
-            int adaptivePixelsPerSlice = INITIAL_PIXELS_PER_SLICE;
             var bakeStopwatch = new Stopwatch();
             InsertVanillaStaticAtlasEntries();
             var buildQueueSnapshot = GlobalTextureAtlasManager.buildQueue.ToList();
@@ -82,17 +104,12 @@ namespace FasterGameLoading
                     // 使用 long 乘積避免大尺寸紋理造成 int 溢位
                     pixelsInCurrentSlice += (long)texture.width * texture.height;
 
-                    if (pixelsInCurrentSlice >= adaptivePixelsPerSlice)
+                    if (pixelsInCurrentSlice >= state.AdaptivePixelsPerSlice)
                     {
                         if (!TryBakeSingleBatch(key, batchForNextBake, bakedAtlasesForGroup,
-                                bakeStopwatch, pixelsInCurrentSlice,
-                                ref measuredBakeSpeed_PixelsPerSecond, ref adaptivePixelsPerSlice,
-                                TARGET_BAKE_TIME_SECONDS, ADAPTATION_FACTOR,
-                                MIN_PIXELS_PER_SLICE, MAX_PIXELS_PER_SLICE, PACK_DENSITY))
+                                bakeStopwatch, pixelsInCurrentSlice, ref state, in tuning))
                         {
-                            DestroyAtlases(atlasesToCommit);
-                            DestroyAtlases(bakedAtlasesForGroup);
-                            DelayedActions.AdaptiveStaticAtlasBakeFailed = true;
+                            AbortBake(atlasesToCommit, bakedAtlasesForGroup);
                             yield break;
                         }
 
@@ -106,14 +123,9 @@ namespace FasterGameLoading
                 if (batchForNextBake.Count > 0)
                 {
                     if (!TryBakeSingleBatch(key, batchForNextBake, bakedAtlasesForGroup,
-                            bakeStopwatch, pixelsInCurrentSlice,
-                            ref measuredBakeSpeed_PixelsPerSecond, ref adaptivePixelsPerSlice,
-                            TARGET_BAKE_TIME_SECONDS, ADAPTATION_FACTOR,
-                            MIN_PIXELS_PER_SLICE, MAX_PIXELS_PER_SLICE, PACK_DENSITY))
+                            bakeStopwatch, pixelsInCurrentSlice, ref state, in tuning))
                     {
-                        DestroyAtlases(atlasesToCommit);
-                        DestroyAtlases(bakedAtlasesForGroup);
-                        DelayedActions.AdaptiveStaticAtlasBakeFailed = true;
+                        AbortBake(atlasesToCommit, bakedAtlasesForGroup);
                         yield break;
                     }
                     yield return null;
@@ -126,23 +138,63 @@ namespace FasterGameLoading
                 }
             }
 
-            // 提交所有烘焙完成的圖集
+            CommitBakedAtlases(atlasesToCommit, state.MeasuredBakeSpeed);
+            FGLLog.Message("Adaptive static atlas bake complete");
+        }
+
+        /// <summary>
+        /// 以歷史記錄的加權移動平均推估本次的起始烘焙速度（像素／秒）；
+        /// 初次執行時回傳保守估計值。
+        /// </summary>
+        private static float EstimateInitialBakeSpeed()
+        {
+            if (SessionCache.historicalBakeSpeeds.Count is 0)
+            {
+                // 初次執行：使用保守估計值
+                return 2_000_000f;
+            }
+
+            float weightedSum = 0f;
+            float weightSum = 0f;
+            int count = Math.Min(SessionCache.historicalBakeSpeeds.Count, SessionCache.WEIGHTS.Length);
+            for (int i = 0; i < count; i++)
+            {
+                weightedSum += SessionCache.historicalBakeSpeeds[i] * SessionCache.WEIGHTS[i];
+                weightSum += SessionCache.WEIGHTS[i];
+            }
+            return weightedSum / weightSum;
+        }
+
+        /// <summary>
+        /// 烘焙失敗時的收尾：銷毀已產生的所有圖集紋理並豎起失敗旗標，
+        /// 由呼叫端接手 fallback 到原版烘焙流程。
+        /// </summary>
+        private static void AbortBake(List<StaticTextureAtlas> atlasesToCommit, List<StaticTextureAtlas> bakedAtlasesForGroup)
+        {
+            DestroyAtlases(atlasesToCommit);
+            DestroyAtlases(bakedAtlasesForGroup);
+            DelayedActions.AdaptiveStaticAtlasBakeFailed = true;
+        }
+
+        /// <summary>
+        /// 提交所有烘焙完成的圖集、記錄本次速度供下次啟動參考，
+        /// 並清空原始 buildQueue 防止 vanilla 重複處理。
+        /// </summary>
+        private static void CommitBakedAtlases(List<StaticTextureAtlas> atlasesToCommit, float measuredBakeSpeed)
+        {
             foreach (var staticTextureAtlas in atlasesToCommit)
             {
                 GlobalTextureAtlasManager.staticTextureAtlases.Add(staticTextureAtlas);
             }
 
-            // 將本次 session 的最終速度記錄到歷史
-            SessionCache.historicalBakeSpeeds.Insert(0, measuredBakeSpeed_PixelsPerSecond);
+            SessionCache.historicalBakeSpeeds.Insert(0, measuredBakeSpeed);
             if (SessionCache.historicalBakeSpeeds.Count > SessionCache.HISTORY_SIZE)
             {
                 SessionCache.historicalBakeSpeeds.RemoveAt(SessionCache.HISTORY_SIZE);
             }
 
-            // 清除原始 buildQueue，防止 vanilla 重複處理
             GlobalTextureAtlasManager.buildQueue.Clear();
             GlobalTextureAtlasManager.buildQueueMasks.Clear();
-            FGLLog.Message("Adaptive static atlas bake complete");
         }
 
         private static void InsertVanillaStaticAtlasEntries()
@@ -157,13 +209,8 @@ namespace FasterGameLoading
             List<StaticTextureAtlas> bakedAtlases,
             Stopwatch bakeStopwatch,
             long pixelsInThisSlice,
-            ref float measuredBakeSpeed,
-            ref int adaptivePixelsPerSlice,
-            float targetBakeTime,
-            float adaptationFactor,
-            int minPixelsPerSlice,
-            int maxPixelsPerSlice,
-            float packDensity)
+            ref AdaptiveBakeState state,
+            in AdaptiveBakeTuning tuning)
         {
             try
             {
@@ -204,12 +251,12 @@ namespace FasterGameLoading
                 if (secondsElapsed > 0)
                 {
                     float latestBakeSpeed = (float)(pixelsInThisSlice / secondsElapsed);
-                    measuredBakeSpeed = Mathf.Lerp(measuredBakeSpeed, latestBakeSpeed, adaptationFactor);
-                    float newSliceSize = measuredBakeSpeed * targetBakeTime;
-                    int adjusted = (int)(newSliceSize * packDensity);
-                    adaptivePixelsPerSlice = Mathf.Clamp(
+                    state.MeasuredBakeSpeed = Mathf.Lerp(state.MeasuredBakeSpeed, latestBakeSpeed, tuning.AdaptationFactor);
+                    float newSliceSize = state.MeasuredBakeSpeed * tuning.TargetBakeTime;
+                    int adjusted = (int)(newSliceSize * tuning.PackDensity);
+                    state.AdaptivePixelsPerSlice = Mathf.Clamp(
                         adjusted.FloorToPowerOfTwo(),
-                        minPixelsPerSlice, maxPixelsPerSlice);
+                        tuning.MinPixelsPerSlice, tuning.MaxPixelsPerSlice);
                 }
 
                 return true;

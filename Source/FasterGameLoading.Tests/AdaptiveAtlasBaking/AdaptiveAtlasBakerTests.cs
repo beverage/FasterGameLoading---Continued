@@ -183,12 +183,28 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
             }
 
             // 5. Transpile the iterator MoveNext to safely replace texture width/height
-            var iteratorType = typeof(AdaptiveAtlasBaker).GetNestedType("<PerformAdaptiveStaticAtlasBake>d__0", BindingFlags.NonPublic);
+            // 以前綴比對定位協程狀態機型別，而非寫死 d__0：
+            // 編譯器產生的序號是該迭代器方法在型別中的序位，只要在它之前新增
+            // 任何巢狀型別或迭代器就會位移，寫死序號會讓補丁靜默失效。
+            var iteratorType = Array.Find(
+                typeof(AdaptiveAtlasBaker).GetNestedTypes(BindingFlags.NonPublic),
+                t => t.Name.StartsWith("<PerformAdaptiveStaticAtlasBake>d__", StringComparison.Ordinal));
+            var transpilerMethod = AccessTools.Method(typeof(MockTextureHelper), nameof(MockTextureHelper.Transpiler));
             if (iteratorType != null)
             {
                 var moveNext = AccessTools.Method(iteratorType, "MoveNext");
-                var transpilerMethod = AccessTools.Method(typeof(MockTextureHelper), nameof(MockTextureHelper.Transpiler));
                 harmony.Patch(moveNext, transpiler: new HarmonyMethod(transpilerMethod));
+            }
+
+            // 6. CommitBakedAtlases 會存取 GlobalTextureAtlasManager 的欄位。
+            // Krafs.Publicizer 只在編譯期把它們開放，執行期載入的仍是原始 Verse 組件，
+            // 直接存取會拋 FieldAccessException。經 Harmony 轉譯的方法會以
+            // skipVisibility 的 DynamicMethod 重新產生，才得以繞過該檢查 ——
+            // 協程 MoveNext 一直是靠這個機制運作，方法抽出後同樣需要掛上。
+            var commitBaked = AccessTools.Method(typeof(AdaptiveAtlasBaker), "CommitBakedAtlases");
+            if (commitBaked != null)
+            {
+                harmony.Patch(commitBaked, transpiler: new HarmonyMethod(transpilerMethod));
             }
         }
 
@@ -204,20 +220,10 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
             return false;
         }
 
-        private static bool PrefixTryBakeSingleBatch(
-            TextureAtlasGroupKey key,
-            List<(Texture2D main, Texture2D mask)> batch,
-            List<StaticTextureAtlas> bakedAtlases,
-            System.Diagnostics.Stopwatch bakeStopwatch,
-            long pixelsInThisSlice,
-            ref float measuredBakeSpeed,
-            ref int adaptivePixelsPerSlice,
-            float targetBakeTime,
-            float adaptationFactor,
-            int minPixelsPerSlice,
-            int maxPixelsPerSlice,
-            float packDensity,
-            ref bool __result)
+        // 只宣告 __result：此 prefix 不需要讀取目標方法的任何引數，
+        // 逐一列出反而會讓測試綁死 TryBakeSingleBatch 的私有簽章
+        // （Harmony 依名稱比對參數，簽章一變更即無法套用補丁）。
+        private static bool PrefixTryBakeSingleBatch(ref bool __result)
         {
 #pragma warning disable MA0045 // 測試輔助工具的同步輸出，無需非同步
             TestContext.Progress.WriteLine($"PrefixTryBakeSingleBatch called! force={forceTryBakeSingleBatchFailure}");
