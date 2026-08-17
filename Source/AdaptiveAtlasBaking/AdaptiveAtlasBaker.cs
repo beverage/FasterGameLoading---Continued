@@ -36,7 +36,7 @@ namespace FasterGameLoading
 
             // ── 計算預估烘焙速度 ──
             float measuredBakeSpeed_PixelsPerSecond;
-            if (SessionCache.historicalBakeSpeeds.Count == 0)
+            if (SessionCache.historicalBakeSpeeds.Count is 0)
             {
                 // 初次執行：使用保守估計值
                 measuredBakeSpeed_PixelsPerSecond = 2_000_000f;
@@ -173,7 +173,7 @@ namespace FasterGameLoading
                     atlas.Insert(main, msk);
                 }
 
-                if (batch.Count == 1)
+                if (batch.Count is 1)
                 {
                     // 單紋理批次：Bake() 不支援單一紋理，改為直接指定 colorTexture/maskTexture
                     // 並呼叫 BuildMeshesForUvs([全幅 UV])。

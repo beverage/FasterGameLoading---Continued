@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Xml;
 using Verse;
@@ -92,7 +92,7 @@ namespace FasterGameLoading
 
             foreach (XmlNode node in root.ChildNodes)
             {
-                if (node.NodeType != XmlNodeType.Element)
+                if (node.NodeType is not XmlNodeType.Element)
                     continue;
 
                 var key = node.Name;
@@ -106,7 +106,7 @@ namespace FasterGameLoading
                         value = value,
                         fileSource = filePath,
                         fileSourceFullPath = filePath,
-                        isPlaceholder = false
+                        isPlaceholder = false,
                     };
                 }
             }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using HarmonyLib;
 
@@ -17,14 +17,14 @@ namespace FasterGameLoading
         {
             "modDependencies",
             "dependencies",
-            "Dependencies"
+            "Dependencies",
         };
 
         private static readonly string[] DependencyPackageIdMemberNames =
         {
             "packageId",
             "PackageId",
-            "PackageID"
+            "PackageID",
         };
 
         /// <summary>
@@ -54,7 +54,7 @@ namespace FasterGameLoading
 
             foreach (var memberName in DependencyListMemberNames)
             {
-                if (TryGetMemberValue(metaData, memberName, out var value) && value is IEnumerable dependencies && value is not string)
+                if (TryGetMemberValue(metaData, memberName, out var value) && value is IEnumerable dependencies and not string)
                 {
                     return dependencies;
                 }

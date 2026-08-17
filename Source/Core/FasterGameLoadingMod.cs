@@ -88,7 +88,7 @@ namespace FasterGameLoading
                     }
 
                     var roots = contentPack.foldersToLoadDescendingOrder;
-                    if (roots == null || roots.Count == 0)
+                    if (roots == null || roots.Count is 0)
                     {
                         roots = new List<string> { contentPack.RootDir };
                     }

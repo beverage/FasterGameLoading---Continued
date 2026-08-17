@@ -23,7 +23,7 @@ namespace FasterGameLoading
             try
             {
                 var files = XmlFilesInVanillaOrder(mod, folderPath, foldersToLoadDebug);
-                if (files.Count == 0)
+                if (files.Count is 0)
                 {
                     __result = Array.Empty<LoadableXmlAsset>();
                     return false;
@@ -32,7 +32,7 @@ namespace FasterGameLoading
                 var assets = new LoadableXmlAsset[files.Count];
                 var options = new ParallelOptions
                 {
-                    MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 8)
+                    MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, 8),
                 };
 
                 Parallel.For(0, files.Count, options, i =>

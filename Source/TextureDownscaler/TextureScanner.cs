@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
@@ -116,7 +116,7 @@ namespace FasterGameLoading
         /// <summary>掃描服裝的多種穿著外觀變體（含 wornGraphicPaths）。</summary>
         private void ScanApparelVariants(TextureResize.TextureType type, BuildableDef def, ThingDef thingDef)
         {
-            if (type != TextureResize.TextureType.Apparel) return;
+            if (type is not TextureResize.TextureType.Apparel) return;
 
             foreach (var bodyType in DefDatabase<BodyTypeDef>.AllDefs)
             {
@@ -140,7 +140,7 @@ namespace FasterGameLoading
         /// <summary>掃描植物的特殊圖形變體（落葉、未成熟、受汙染）。</summary>
         private void ScanPlantVariants(TextureResize.TextureType type, BuildableDef def, ThingDef thingDef)
         {
-            if (type != TextureResize.TextureType.Plant && type != TextureResize.TextureType.Tree) return;
+            if (type is not TextureResize.TextureType.Plant and not TextureResize.TextureType.Tree) return;
 
             if (thingDef.plant.leaflessGraphic != null)
                 AddEntry(type, def, thingDef.plant.leaflessGraphic);

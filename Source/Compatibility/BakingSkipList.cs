@@ -25,7 +25,7 @@ namespace FasterGameLoading
         {
             "automatic.bionicicons",
             "erdelf.HumanoidAlienRaces",
-            "Ancot.AncotLibrary"
+            "Ancot.AncotLibrary",
         };
 
         private static readonly HashSet<string> targetModRoots = new(StringComparer.OrdinalIgnoreCase);

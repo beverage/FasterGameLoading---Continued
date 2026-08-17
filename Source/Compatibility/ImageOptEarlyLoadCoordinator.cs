@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
@@ -68,7 +68,7 @@ namespace FasterGameLoading
         {
             if (!installed || getStarted == null || setStarted == null) return noOpScope;
 
-            if (syncScopeDepth++ == 0)
+            if (syncScopeDepth++ is 0)
             {
                 syncScopeChangedStarted = !getStarted();
                 if (syncScopeChangedStarted)
@@ -83,7 +83,7 @@ namespace FasterGameLoading
         private static void ExitEarlyLoadSyncScope()
         {
             if (syncScopeDepth <= 0) return;
-            if (--syncScopeDepth != 0) return;
+            if (--syncScopeDepth is not 0) return;
 
             if (syncScopeChangedStarted)
             {
@@ -123,7 +123,7 @@ namespace FasterGameLoading
 
         private static bool IsWindows()
         {
-            return Environment.OSVersion.Platform == PlatformID.Win32NT;
+            return Environment.OSVersion.Platform is PlatformID.Win32NT;
         }
 
         private static void WarnFailOpen(Exception ex)

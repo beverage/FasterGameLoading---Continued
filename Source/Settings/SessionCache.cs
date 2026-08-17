@@ -90,14 +90,14 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
             Scribe_Collections.Look(ref loadedTextures, FGLConsts.LoadedTexturesKey, LookMode.Value, LookMode.Value);
 
             Dictionary<string, string> tempTypes = null;
-            if (Scribe.mode == LoadSaveMode.Saving)
+            if (Scribe.mode is LoadSaveMode.Saving)
             {
                 tempTypes = new Dictionary<string, string>(loadedTypesByFullNameSinceLastSession, StringComparer.Ordinal);
             }
             Scribe_Collections.Look(ref tempTypes, FGLConsts.LoadedTypesKey, LookMode.Value, LookMode.Value);
 
             Dictionary<string, bool> tempXmlPaths = null;
-            if (Scribe.mode == LoadSaveMode.Saving)
+            if (Scribe.mode is LoadSaveMode.Saving)
             {
                 tempXmlPaths = new Dictionary<string, bool>(StringComparer.Ordinal);
                 foreach (var kvp in xmlPathsSinceLastSession)
@@ -126,7 +126,7 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
             historicalBakeSpeeds = bakeSpeeds;
 
 
-            if (Scribe.mode == LoadSaveMode.PostLoadInit)
+            if (Scribe.mode is LoadSaveMode.PostLoadInit)
             {
                 loadedTexturesSinceLastSession ??= new Dictionary<string, string>(StringComparer.Ordinal);
 

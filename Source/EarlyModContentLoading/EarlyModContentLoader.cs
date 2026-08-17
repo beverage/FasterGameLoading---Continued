@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -123,10 +123,8 @@ namespace FasterGameLoading
                     }
                     return;
                 }
-                else
-                {
-                    consecutiveTimeouts = 0;
-                }
+
+                consecutiveTimeouts = 0;
             }
 
             EarlyLoadingComplete = true;

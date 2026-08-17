@@ -30,7 +30,7 @@ namespace FasterGameLoading
             public ManualResetEventSlim CompletedEvent = new ManualResetEventSlim(false);
             private int cancelled;
 
-            public bool IsCancelled => Volatile.Read(ref cancelled) != 0;
+            public bool IsCancelled => Volatile.Read(ref cancelled) is not 0;
 
             public void Cancel()
             {
@@ -155,7 +155,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
             // 透過執行緒安全介面取得快照，避免與 TextureCacheManager 內部的 cacheLock 競爭
             var cacheCopy = cacheManager.GetResizedTextureCacheCopy();
 
-            if (cacheCopy.Count == 0) return;
+            if (cacheCopy.Count is 0) return;
 
             Task.Run(() =>
             {

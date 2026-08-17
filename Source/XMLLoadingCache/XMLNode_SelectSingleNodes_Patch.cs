@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
@@ -139,11 +139,11 @@ namespace FasterGameLoading
         {
             get
             {
-                if (!isXmlExtensionsActive.HasValue)
+                if (isXmlExtensionsActive is null)
                 {
                     lock (xmlExtensionsLock)
                     {
-                        if (!isXmlExtensionsActive.HasValue)
+                        if (isXmlExtensionsActive is null)
                         {
                             try
                             {
@@ -168,12 +168,12 @@ namespace FasterGameLoading
 
             // 只有包含 '/'，或者以 'Defs'、'/'、'[' 開頭的 XPath 查詢才被認為是定位用的 XPath，可以安全地進行快取。
             // 避免誤快取像是 'settingsKey', 'match', 'nomatch', 'value', 'xpath' 這樣的局部子節點欄位名稱。
-            // 一律指定 Ordinal：StartsWith(string) 預設為文化相關比對，在部分語系下對
-            // XPath 這類 ASCII 語法字串會得到非預期結果。
+            // 以字元比對取代 StartsWith(string)：後者預設為文化相關比對，在部分語系下
+            // 對 XPath 這類 ASCII 語法字串會得到非預期結果。
+            // 「以 '/' 開頭」已被「含有 '/'」涵蓋，故不重複判斷。
             return xpath.IndexOf('/') >= 0 ||
-                   xpath.StartsWith("Defs", StringComparison.OrdinalIgnoreCase) ||
-                   xpath.StartsWith("/", StringComparison.Ordinal) ||
-                   xpath.StartsWith("[", StringComparison.Ordinal);
+                   xpath[0] == '[' ||
+                   xpath.StartsWith("Defs", StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool Prefix(string xpath, ref XmlNode __result)

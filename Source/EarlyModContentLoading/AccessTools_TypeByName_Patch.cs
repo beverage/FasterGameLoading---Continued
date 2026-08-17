@@ -29,11 +29,9 @@ namespace FasterGameLoading
                 __state = (true, oldName);
                 return false;
             }
-            else
-            {
-                __state = (false, oldName);
-                return true;
-            }
+
+            __state = (false, oldName);
+            return true;
         }
 
         /// <summary>

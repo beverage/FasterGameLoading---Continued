@@ -18,7 +18,7 @@ namespace FasterGameLoading
         /// <summary>紋理分類，用於決定降質目標尺寸。</summary>
         public enum TextureType
         {
-            None, Building, Pawn, Weapon, Apparel, Item, Plant, Tree, Terrain, Mote, Filth, Projectile, UI, Other
+            None, Building, Pawn, Weapon, Apparel, Item, Plant, Tree, Terrain, Mote, Filth, Projectile, UI, Other,
         }
 
         private readonly TextureCacheManager cacheManager;
@@ -125,7 +125,7 @@ namespace FasterGameLoading
                         path = texture.Value,
                         targetSize = targetSize,
                         originalWidth = sourceWidth,
-                        originalHeight = sourceHeight
+                        originalHeight = sourceHeight,
                     });
                 }
             }
@@ -148,8 +148,9 @@ namespace FasterGameLoading
                 double ratio = sourceHeight > sourceWidth
                     ? (double)candidate.targetSize / sourceHeight
                     : (double)candidate.targetSize / sourceWidth;
-                int newWidth = Math.Max(1, (int)Math.Round(sourceWidth * ratio));
-                int newHeight = Math.Max(1, (int)Math.Round(sourceHeight * ratio));
+                // 明確指定 ToEven：與 Math.Round 的預設捨入模式相同，不改變既有結果。
+                int newWidth = Math.Max(1, (int)Math.Round(sourceWidth * ratio, MidpointRounding.ToEven));
+                int newHeight = Math.Max(1, (int)Math.Round(sourceHeight * ratio, MidpointRounding.ToEven));
                 lastOriginalPixelCount += (long)sourceWidth * sourceHeight;
                 lastDownscaledPixelCount += (long)newWidth * newHeight;
                 var cachePath = cacheManager.GetCachePath(candidate.path);
@@ -274,9 +275,9 @@ namespace FasterGameLoading
                 return thingDef.plant.IsTree ? TextureType.Tree : TextureType.Plant;
             }
             if (thingDef.projectile != null) return TextureType.Projectile;
-            if (thingDef.category == ThingCategory.Mote) return TextureType.Mote;
-            if (thingDef.category == ThingCategory.Filth) return TextureType.Filth;
-            if (thingDef.category == ThingCategory.Item) return TextureType.Item;
+            if (thingDef.category is ThingCategory.Mote) return TextureType.Mote;
+            if (thingDef.category is ThingCategory.Filth) return TextureType.Filth;
+            if (thingDef.category is ThingCategory.Item) return TextureType.Item;
             if (thingDef.race != null) return TextureType.Pawn;
             return TextureType.None;
         }

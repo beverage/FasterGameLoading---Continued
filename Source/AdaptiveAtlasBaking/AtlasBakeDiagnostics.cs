@@ -34,7 +34,7 @@ namespace FasterGameLoading
             try
             {
                 var buildQueue = GlobalTextureAtlasManager.buildQueue;
-                if (buildQueue == null || buildQueue.Count == 0)
+                if (buildQueue == null || buildQueue.Count is 0)
                 {
                     return;
                 }
@@ -72,7 +72,7 @@ namespace FasterGameLoading
                             issueCount++;
                             FGLLog.Warning(
                                 $"[AtlasDiag/{context}] Group '{DescribeKey(key)}' main texture '{DescribeTexture(main)}' " +
-                                $"declares hasMask but has no matching mask (null). BuildMaskAtlas may call CopyTexture on a null source.");
+                                "declares hasMask but has no matching mask (null). BuildMaskAtlas may call CopyTexture on a null source.");
                             continue;
                         }
 
@@ -89,7 +89,7 @@ namespace FasterGameLoading
                             FGLLog.Warning(
                                 $"[AtlasDiag/{context}] Size mismatch: main '{DescribeTexture(main)}' " +
                                 $"vs mask '{DescribeTexture(mask)}'. CopyTexture requires matching source/destination blocks; " +
-                                $"this discrepancy is very likely the cause of a native BuildMaskAtlas crash.");
+                                "this discrepancy is very likely the cause of a native BuildMaskAtlas crash.");
                         }
                     }
                 }
@@ -102,7 +102,7 @@ namespace FasterGameLoading
                 {
                     FGLLog.Warning(
                         $"[AtlasDiag/{context}] Detected {issueCount.ToString(CultureInfo.InvariantCulture)} suspicious mask(s); if a native crash follows in " +
-                        $"BuildMaskAtlas / CopyTexture, it is very likely caused by the content mod owning one of the textures above.");
+                        "BuildMaskAtlas / CopyTexture, it is very likely caused by the content mod owning one of the textures above.");
                 }
             }
             catch (Exception ex)

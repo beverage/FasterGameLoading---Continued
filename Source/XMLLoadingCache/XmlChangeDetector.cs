@@ -98,7 +98,7 @@ namespace FasterGameLoading
             var targetCopy = targets == null ? new List<ModScanTarget>() : new List<ModScanTarget>(targets);
             Task.Run(() => ScanXmlMetadata(targetCopy, configPath)).ContinueWith(task =>
             {
-                var result = task.Status == TaskStatus.RanToCompletion
+                var result = task.Status is TaskStatus.RanToCompletion
                     ? task.Result
                     : new XmlScanResult(null, 0, exception: task.Exception);
                 enqueueMainThreadAction(() => CommitXmlScanResult(result));
@@ -126,7 +126,7 @@ namespace FasterGameLoading
         internal static XmlScanResult ScanXmlMetadata(List<ModScanTarget> targets, string configPath = null)
         {
             var stopwatch = Stopwatch.StartNew();
-            if (Utils.IsMissileGirlActive || ((targets == null || targets.Count == 0) && string.IsNullOrEmpty(configPath)))
+            if (Utils.IsMissileGirlActive || ((targets == null || targets.Count is 0) && string.IsNullOrEmpty(configPath)))
             {
                 return new XmlScanResult(null, 0, stopwatch.ElapsedMilliseconds, bypassed: true);
             }

@@ -97,7 +97,7 @@ namespace FasterGameLoading
                 current.onGroundRandomRotateAngle == other.onGroundRandomRotateAngle &&
                 current.overlayOpacity == other.overlayOpacity &&
                 current.renderQueue == other.renderQueue &&
-                current.maskPath == other.maskPath &&
+                string.Equals(current.maskPath, other.maskPath, StringComparison.Ordinal) &&
                 IsSameShaderParameters(current.shaderParameters, other.shaderParameters) &&
                 IsSameAsymmetricLink(current.asymmetricLink, other.asymmetricLink))
             {
@@ -117,7 +117,7 @@ namespace FasterGameLoading
                 var o = other[i];
                 if (c == null && o == null) continue;
                 if (c == null || o == null) return false;
-                if (c.name != o.name || c.value != o.value || c.valueTex != o.valueTex || c.type != o.type)
+                if (!string.Equals(c.name, o.name, StringComparison.Ordinal) || c.value != o.value || c.valueTex != o.valueTex || c.type != o.type)
                 {
                     return false;
                 }

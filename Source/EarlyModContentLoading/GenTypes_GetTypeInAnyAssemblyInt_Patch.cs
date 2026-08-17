@@ -45,16 +45,14 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
                 __state = (typeName, namespaceIfAmbiguous, cacheKey, true);
                 return false;
             }
-            else
+
+            __state = (typeName, namespaceIfAmbiguous, cacheKey, false);
+            if (SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(cacheKey, out var fullName)
+                || (string.IsNullOrEmpty(namespaceIfAmbiguous) && SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(typeName, out fullName)))
             {
-                __state = (typeName, namespaceIfAmbiguous, cacheKey, false);
-                if (SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(cacheKey, out var fullName)
-                    || (string.IsNullOrEmpty(namespaceIfAmbiguous) && SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(typeName, out fullName)))
-                {
-                    typeName = fullName;
-                }
-                return true;
+                typeName = fullName;
             }
+            return true;
         }
 
         /// <summary>

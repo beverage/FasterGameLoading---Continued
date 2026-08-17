@@ -28,7 +28,7 @@ namespace FasterGameLoading
             stream.Position = 0;
             var header = new byte[24];
             if (stream.Read(header, 0, header.Length) != header.Length) return false;
-            if (header[0] != 0x89 || header[1] != 0x50 || header[2] != 0x4E || header[3] != 0x47) return false;
+            if (header[0] is not 0x89 || header[1] is not 0x50 || header[2] is not 0x4E || header[3] is not 0x47) return false;
 
             width = ReadBigEndianInt32(header, 16);
             height = ReadBigEndianInt32(header, 20);

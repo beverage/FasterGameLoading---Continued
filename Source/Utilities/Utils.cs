@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
@@ -118,11 +118,11 @@ namespace FasterGameLoading
         {
             get
             {
-                if (!isMissileGirlActive.HasValue)
+                if (isMissileGirlActive is null)
                 {
                     lock (missileGirlLock)
                     {
-                        if (!isMissileGirlActive.HasValue)
+                        if (isMissileGirlActive is null)
                         {
                             try
                             {
