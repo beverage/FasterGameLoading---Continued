@@ -1,10 +1,13 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 
 namespace FasterGameLoading.Tests.Utilities
 {
     [TestFixture]
     public class FGLConstsTests
     {
+        // 期望值陣列提為欄位：避免每次斷言重新配置常數陣列 (CA1861)
+        private static readonly string[] ExpectedFurnitureKeywords = { "Furniture", "Production", "Security" };
+
         [Test]
         public void Constants_ExposeStableCacheAndDirectoryContract()
         {
@@ -24,9 +27,7 @@ namespace FasterGameLoading.Tests.Utilities
             Assert.That(FGLConsts.PlaceholderTextureSize, Is.EqualTo(2));
             Assert.That(FGLConsts.AccessToolsPreloadDelayMs, Is.EqualTo(50));
             Assert.That(FGLConsts.TexturePreloadDelayMs, Is.EqualTo(150));
-            CollectionAssert.AreEqual(
-                new[] { "Furniture", "Production", "Security" },
-                FGLConsts.FurnitureKeywords);
+            CollectionAssert.AreEqual(ExpectedFurnitureKeywords, FGLConsts.FurnitureKeywords);
             Assert.That(FGLConsts.AlienRaceAssemblyName, Is.EqualTo("AlienRace"));
             Assert.That(FGLConsts.LoadGraphicsHookMethodName, Is.EqualTo("LoadGraphicsHook"));
         }

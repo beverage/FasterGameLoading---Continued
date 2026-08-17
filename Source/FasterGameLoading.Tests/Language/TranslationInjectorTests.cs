@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
@@ -38,7 +38,7 @@ namespace FasterGameLoading.Tests.Language
         {
             var path = Path.Combine(tempDir, "Keyed.xml");
             File.WriteAllText(path, "<LanguageData><Greeting>Hello</Greeting><Farewell>Bye <b>friend</b></Farewell></LanguageData>");
-            var language = (LoadedLanguage)CreateLanguage();
+            var language = CreateLanguage();
             language.keyedReplacements["Greeting"] = new LoadedLanguage.KeyedReplacement
             {
                 key = "Greeting",
@@ -57,7 +57,7 @@ namespace FasterGameLoading.Tests.Language
         {
             var path = Path.Combine(tempDir, "Corrupt.xml");
             File.WriteAllText(path, "<LanguageData><UnclosedTag>Content</LanguageData>");
-            var language = (LoadedLanguage)CreateLanguage();
+            var language = CreateLanguage();
 
             Assert.DoesNotThrow(() => TranslationInjector.LoadKeyedTranslationsFromFile(path, language));
             Assert.That(language.keyedReplacements, Is.Empty);
@@ -67,7 +67,7 @@ namespace FasterGameLoading.Tests.Language
         public void LoadKeyedTranslationsFromFile_WithNonExistentFile_IsSafelyIgnored()
         {
             var path = Path.Combine(tempDir, "DoesNotExist.xml");
-            var language = (LoadedLanguage)CreateLanguage();
+            var language = CreateLanguage();
 
             Assert.DoesNotThrow(() => TranslationInjector.LoadKeyedTranslationsFromFile(path, language));
             Assert.That(language.keyedReplacements, Is.Empty);
@@ -78,7 +78,7 @@ namespace FasterGameLoading.Tests.Language
         {
             var path = Path.Combine(tempDir, "WithComments.xml");
             File.WriteAllText(path, "<LanguageData>\n  <!-- Comment line -->\n  <OptionA>Alpha</OptionA>\n  <!-- Another comment -->\n</LanguageData>");
-            var language = (LoadedLanguage)CreateLanguage();
+            var language = CreateLanguage();
 
             TranslationInjector.LoadKeyedTranslationsFromFile(path, language);
 
@@ -92,7 +92,7 @@ namespace FasterGameLoading.Tests.Language
             Assert.DoesNotThrow(() => TranslationInjector.InjectTranslations());
         }
 
-        private static object CreateLanguage()
+        private static LoadedLanguage CreateLanguage()
         {
             var language = (LoadedLanguage)FormatterServices.GetUninitializedObject(typeof(LoadedLanguage));
             language.keyedReplacements = new Dictionary<string, LoadedLanguage.KeyedReplacement>();

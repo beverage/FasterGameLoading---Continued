@@ -12,7 +12,7 @@ namespace FasterGameLoading
     /// 攔截 XmlNode.SelectSingleNode，利用跨 session 快取跳過已知不存在的 XPath 查詢。
     /// 上次 session 中回傳 null 的 XPath 路徑會在本次直接被攔截，節省重複的 XML 走訪時間。
     /// </summary>
-    [HarmonyPatch(typeof(XmlNode), nameof(XmlNode.SelectSingleNode), new Type[] { typeof(string) })]
+    [HarmonyPatch(typeof(XmlNode), nameof(XmlNode.SelectSingleNode), typeof(string))]
     public static class XmlNode_SelectSingleNode_Patch
     {
         /// <summary>

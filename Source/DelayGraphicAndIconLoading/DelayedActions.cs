@@ -125,9 +125,10 @@ namespace FasterGameLoading
             lock (graphicsToLoad) graphicsToLoad.Clear();
             lock (iconsToLoad) iconsToLoad.Clear();
             lock (subSoundDefToResolve) subSoundDefToResolve.Clear();
-            // 逐一排空佇列並丟棄內容；工作由 TryDequeue 完成，迴圈本體刻意留空。
             while (mainThreadActions.TryDequeue(out _))
             {
+                // 逐一排空佇列並丟棄內容：工作由 TryDequeue 完成，
+                // 迴圈本體刻意留空。
             }
         }
 
