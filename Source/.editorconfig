@@ -42,6 +42,18 @@ dotnet_diagnostic.MA0182.severity = none
 # 命中處全為 Harmony prefix（回傳 false 以攔截原方法）與 Prepare/TargetMethod
 # 這類必須是「方法」的補丁進入點，無法改為常數，故全專案停用。
 dotnet_diagnostic.S3400.severity = none
+# MA0032 / MA0040 / MA0042 / MA0045 / MA0134: 建議改用 async／CancellationToken
+# ／Task.Delay，並觀察 Task 結果。
+# 本模組的非同步進入點全數是 Harmony prefix、Unity 協程與
+# StaticConstructorOnStartup 的同步 API，無法改為 async；背景暖機工作刻意採
+# fire-and-forget，且各自在委派內以 try/catch 記錄例外，若改為等待就會回到
+# 「阻塞啟動」這個本模組要解決的問題本身。Thread.Sleep 亦是刻意用來錯開啟動
+# 期磁碟 I/O 尖峰的節流，非同步等待無法取代。故全專案停用。
+dotnet_diagnostic.MA0032.severity = none
+dotnet_diagnostic.MA0040.severity = none
+dotnet_diagnostic.MA0042.severity = none
+dotnet_diagnostic.MA0045.severity = none
+dotnet_diagnostic.MA0134.severity = none
 
 # ── C# 代碼風格偏好 (Code Style Preferences) ──
 # using 排序：System 命名空間置頂並按字母排序

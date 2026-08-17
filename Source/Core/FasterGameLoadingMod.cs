@@ -126,11 +126,20 @@ namespace FasterGameLoading
 
             Task.Run(() =>
             {
-                Thread.Sleep(FGLConsts.TexturePreloadDelayMs);
-                var deleted = ImageOptCompat.CleanupInvalidDdsZstdCaches(roots);
-                if (deleted > 0)
+                // 背景清理為 fire-and-forget，沒有呼叫端會觀察這個 Task。
+                // 若不自行攔截，清理途中的例外會成為未觀察的 faulted task 而被靜默吞掉。
+                try
                 {
-                    FGLLog.Message($"Removed invalid ImageOpt DDS cache files: {deleted.ToString(CultureInfo.InvariantCulture)}");
+                    Thread.Sleep(FGLConsts.TexturePreloadDelayMs);
+                    var deleted = ImageOptCompat.CleanupInvalidDdsZstdCaches(roots);
+                    if (deleted > 0)
+                    {
+                        FGLLog.Message($"Removed invalid ImageOpt DDS cache files: {deleted.ToString(CultureInfo.InvariantCulture)}");
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    FGLLog.Warning("Background cleanup of invalid ImageOpt DDS caches failed:", ex);
                 }
             });
         }

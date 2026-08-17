@@ -62,47 +62,60 @@ namespace FasterGameLoading
         /// </summary>
         public static bool ShouldBeLoadedImmediately(this ThingDef thingDef)
         {
-            // 基礎建築和藍圖必須立即載入
-            if (thingDef.designationCategory != null || !thingDef.uiIconPath.NullOrEmpty())
-                return true;
+            return IsBuildingOrBlueprint(thingDef)
+                || IsMedicine(thingDef)
+                || IsColonistGear(thingDef)
+                || IsPawnLike(thingDef)
+                || IsCommonFurniture(thingDef);
+        }
 
-            if (thingDef.IsBlueprint || thingDef.IsFrame)
-                return true;
+        /// <summary>基礎建築、藍圖、框架，以及有明確 UI 圖示或連結式圖形的定義。</summary>
+        private static bool IsBuildingOrBlueprint(ThingDef thingDef)
+        {
+            return thingDef.designationCategory != null
+                || !thingDef.uiIconPath.NullOrEmpty()
+                || thingDef.IsBlueprint
+                || thingDef.IsFrame
+                || (thingDef.graphicData != null && thingDef.graphicData.Linked)
+                || (thingDef.thingClass != null && string.Equals(thingDef.thingClass.Name, FGLConsts.BuildingPipe, StringComparison.Ordinal));
+        }
 
-            if (thingDef.graphicData != null && thingDef.graphicData.Linked)
-                return true;
+        /// <summary>醫療用品。</summary>
+        private static bool IsMedicine(ThingDef thingDef)
+        {
+            return typeof(Medicine).IsAssignableFrom(thingDef.thingClass)
+                || string.Equals(thingDef.orderedTakeGroup?.defName, FGLConsts.MedicineDefName, StringComparison.Ordinal);
+        }
 
-            if (thingDef.thingClass != null && string.Equals(thingDef.thingClass.Name, FGLConsts.BuildingPipe, StringComparison.Ordinal))
-                return true;
+        /// <summary>武器、裝備、食物與材料等殖民者常用物品。</summary>
+        private static bool IsColonistGear(ThingDef thingDef)
+        {
+            // 食物以 ingestible 屬性檢查，避免在 PostLoad 階段訪問 StatDef
+            return thingDef.IsWeapon
+                || thingDef.IsApparel
+                || thingDef.ingestible != null
+                || thingDef.IsStuff;
+        }
 
-            // 醫療用品
-            if (typeof(Medicine).IsAssignableFrom(thingDef.thingClass)
-                || string.Equals(thingDef.orderedTakeGroup?.defName, FGLConsts.MedicineDefName, StringComparison.Ordinal))
-                return true;
+        /// <summary>殖民者與動物。</summary>
+        private static bool IsPawnLike(ThingDef thingDef)
+        {
+            return thingDef.race != null;
+        }
 
-            // 武器和裝備 - 殖民者常用物品
-            if (thingDef.IsWeapon || thingDef.IsApparel)
-                return true;
+        /// <summary>分類名稱命中家具／工作台關鍵字的定義。</summary>
+        private static bool IsCommonFurniture(ThingDef thingDef)
+        {
+            if (thingDef.thingCategories == null)
+                return false;
 
-            // 食物 - 使用 ingestible 屬性檢查（避免在 PostLoad 階段訪問 StatDef）
-            if (thingDef.ingestible != null || thingDef.IsStuff)
-                return true;
-
-            // 殖民者和動物
-            if (thingDef.race != null)
-                return true;
-
-            // 常見家具和工作台
-            if (thingDef.thingCategories != null)
+            for (int i = 0; i < thingDef.thingCategories.Count; i++)
             {
-                for (int i = 0; i < thingDef.thingCategories.Count; i++)
+                var catDefName = thingDef.thingCategories[i].defName;
+                for (int j = 0; j < FGLConsts.FurnitureKeywords.Length; j++)
                 {
-                    var catDefName = thingDef.thingCategories[i].defName;
-                    for (int j = 0; j < FGLConsts.FurnitureKeywords.Length; j++)
-                    {
-                        if (catDefName.IndexOf(FGLConsts.FurnitureKeywords[j], StringComparison.Ordinal) >= 0)
-                            return true;
-                    }
+                    if (catDefName.IndexOf(FGLConsts.FurnitureKeywords[j], StringComparison.Ordinal) >= 0)
+                        return true;
                 }
             }
 
