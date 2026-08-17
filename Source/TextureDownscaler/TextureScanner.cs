@@ -77,7 +77,7 @@ namespace FasterGameLoading
                 {
                     var type = TextureResize.GetTextureType(style.ThingDef);
                     AddEntry(type, style.ThingDef, style.StyleDef.Graphic);
-                    if (style.StyleDef.wornGraphicPath.NullOrEmpty() is false)
+                    if (!style.StyleDef.wornGraphicPath.NullOrEmpty())
                     {
                         foreach (var bodyType in DefDatabase<BodyTypeDef>.AllDefs)
                         {
@@ -99,7 +99,7 @@ namespace FasterGameLoading
                 var modContent = def.modContentPack;
                 if (modContent != null && modContent.IsOfficialMod) continue;
 
-                if (def is TerrainDef terrain)
+                if (def is TerrainDef)
                 {
                     FillEntry(TextureResize.TextureType.Terrain, def);
                 }
@@ -157,12 +157,10 @@ namespace FasterGameLoading
         {
             var graphic = graphicOverride ?? def.graphic;
             AddEntry(type, def, graphic);
-            if (def.uiIconPath.NullOrEmpty() is false && def.uiIcon != null)
+            if (!def.uiIconPath.NullOrEmpty() && def.uiIcon != null
+                && TryGetTexturePath(def.uiIcon, out var fullPath))
             {
-                if (TryGetTexturePath(def.uiIcon, out var fullPath))
-                {
-                    AddEntry(TextureResize.TextureType.UI, def, fullPath, def.uiIcon);
-                }
+                AddEntry(TextureResize.TextureType.UI, def, fullPath, def.uiIcon);
             }
         }
 
@@ -237,13 +235,11 @@ namespace FasterGameLoading
             if (!ReferenceEquals(texture, null) && texturesByPaths.TryGetValue(texture, out fullPath))
                 return true;
 
-            if (!ReferenceEquals(texture, null))
+            if (!ReferenceEquals(texture, null)
+                && ModContentLoaderTexture2D_LoadTexture_Patch.TryGetSavedTexturePath(texture, out fullPath))
             {
-                if (ModContentLoaderTexture2D_LoadTexture_Patch.TryGetSavedTexturePath(texture, out fullPath))
-                {
-                    texturesByPaths[texture] = fullPath;
-                    return true;
-                }
+                texturesByPaths[texture] = fullPath;
+                return true;
             }
 
             fullPath = null;

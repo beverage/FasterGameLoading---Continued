@@ -207,7 +207,7 @@ namespace FasterGameLoading
                     measuredBakeSpeed = Mathf.Lerp(measuredBakeSpeed, latestBakeSpeed, adaptationFactor);
                     float newSliceSize = measuredBakeSpeed * targetBakeTime;
                     int adjusted = (int)(newSliceSize * packDensity);
-                    adaptivePixelsPerSlice = (int)Mathf.Clamp(
+                    adaptivePixelsPerSlice = Mathf.Clamp(
                         adjusted.FloorToPowerOfTwo(),
                         minPixelsPerSlice, maxPixelsPerSlice);
                 }

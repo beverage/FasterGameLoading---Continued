@@ -67,12 +67,12 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
                 {
                     return;
                 }
-                if (__state.isCached is false)
+                if (!__state.isCached)
                 {
                     cachedResults[__state.cacheKey] = __result;
                     if (!string.Equals(fullName, __state.originalTypeName, StringComparison.Ordinal))
                     {
-                        cachedResults[MakeCacheKey(fullName, null)] = __result;
+                        cachedResults[MakeCacheKey(fullName, namespaceIfAmbiguous: null)] = __result;
                         if (!string.IsNullOrEmpty(__state.namespaceIfAmbiguous))
                         {
                             cachedResults[MakeCacheKey(fullName, __state.namespaceIfAmbiguous)] = __result;

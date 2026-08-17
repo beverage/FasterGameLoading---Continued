@@ -20,7 +20,7 @@ namespace FasterGameLoading
         {
             get
             {
-                if (!isActive.HasValue)
+                if (isActive is null)
                 {
                     isActive = IsModActive("Telefonmast.GraphicsSettings");
                 }

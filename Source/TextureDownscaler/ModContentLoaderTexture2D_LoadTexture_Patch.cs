@@ -17,7 +17,7 @@ namespace FasterGameLoading
     /// 使用 WeakReference 追蹤已載入的紋理，避免強參考導致記憶體洩漏。
     /// </summary>
     [HarmonyPatch(typeof(ModContentLoader<Texture2D>), "LoadTexture")]
-    [HarmonyBefore(new[] { GraphicsSettingsCompat.HarmonyId })]
+    [HarmonyBefore(GraphicsSettingsCompat.HarmonyId)]
     public static class ModContentLoaderTexture2D_LoadTexture_Patch
     {
         private static readonly ConcurrentQueue<LoadRequest> mainThreadLoadRequests = new ConcurrentQueue<LoadRequest>();
@@ -27,7 +27,7 @@ namespace FasterGameLoading
             public VirtualFile File;
             public Texture2D Result;
             public Exception Exception;
-            public ManualResetEventSlim CompletedEvent = new ManualResetEventSlim(false);
+            public ManualResetEventSlim CompletedEvent = new ManualResetEventSlim(initialState: false);
             private int cancelled;
 
             public bool IsCancelled => Volatile.Read(ref cancelled) is not 0;
@@ -327,8 +327,8 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                         if (tex.LoadImage(data) && tex.width > 0 && tex.height > 0)
                         {
                             tex.name = Path.GetFileNameWithoutExtension(fullPath);
-                            tex.Compress(true);
-                            tex.Apply(true, true);
+                            tex.Compress(highQuality: true);
+                            tex.Apply(updateMipmaps: true, makeNoLongerReadable: true);
                             SaveTexturePath(fullPath, tex);
                             RegisterSkippedBakingTextureIfApplicable(fullPath, tex);
                             Interlocked.Increment(ref cacheLoadHitsValue);

@@ -24,6 +24,24 @@ dotnet_diagnostic.MA0158.severity = none
 # 已銷毀物件而崩潰，故全專案停用，統一使用 == null / != null。
 dotnet_diagnostic.MA0141.severity = none
 dotnet_diagnostic.MA0142.severity = none
+# MA0181: 不使用強制轉型。
+# 本專案中的轉型全數為必要的數值轉換（(long) 防溢位、(double) 取浮點除法、
+# (int) 收窄）或反射／DynamicMethod 產生委派後的轉型。此規則建議的
+# as / 模式比對對值型別不成立，套用後不是無法編譯就是會移除防溢位語意，
+# 故全專案停用。
+dotnet_diagnostic.MA0181.severity = none
+# S101 / MA0048 / MA0182: 類別命名需符合 PascalCase、檔名需與型別同名、
+# internal 型別未被實體化。
+# Harmony 補丁類別依社群慣例命名為 <型別>_<方法>_Patch，名稱本身即是補丁目標的
+# 說明；且這些類別由 Harmony 於執行期透過特性掃描（PatchAll）探索並反射呼叫，
+# 分析器看不到任何呼叫端。改名或移除都會破壞可讀性與補丁探索，故全專案停用。
+dotnet_diagnostic.S101.severity = none
+dotnet_diagnostic.MA0048.severity = none
+dotnet_diagnostic.MA0182.severity = none
+# S3400: 方法僅回傳常值，應改為常數。
+# 命中處全為 Harmony prefix（回傳 false 以攔截原方法）與 Prepare/TargetMethod
+# 這類必須是「方法」的補丁進入點，無法改為常數，故全專案停用。
+dotnet_diagnostic.S3400.severity = none
 
 # ── C# 代碼風格偏好 (Code Style Preferences) ──
 # using 排序：System 命名空間置頂並按字母排序
@@ -64,7 +82,6 @@ dotnet_naming_style.camel_case_with_underscore.capitalization = camel_case
 
 # ── 測試專案專屬規則 ──
 [FasterGameLoading.Tests/**.cs]
-# MA0181: 不使用強制轉型。
-# 測試大量以反射取得私有欄位與方法回傳值後轉型，型別不符時應直接拋
-# InvalidCastException 讓測試失敗，而非以 as 轉成 null 造成誤判，故停用。
-dotnet_diagnostic.MA0181.severity = none
+# MA0181 已於全專案停用（見上方說明）；測試另有其專屬理由：大量以反射取得
+# 私有欄位與方法回傳值後轉型，型別不符時應直接拋 InvalidCastException 讓測試
+# 失敗，而非以 as 轉成 null 造成誤判。

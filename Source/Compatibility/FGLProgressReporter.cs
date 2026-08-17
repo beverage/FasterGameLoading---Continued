@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Reflection;
 using HarmonyLib;
 using Verse;
@@ -51,7 +51,7 @@ namespace FasterGameLoading
                     try
                     {
                         // 使用 DynamicMethod 動態生成 IL 讀取方法，消除反射 GetValue 開銷
-                        var dm = new System.Reflection.Emit.DynamicMethod("GetIsPaused", typeof(bool), null, type, true);
+                        var dm = new System.Reflection.Emit.DynamicMethod("GetIsPaused", typeof(bool), parameterTypes: null, owner: type, skipVisibility: true);
                         var il = dm.GetILGenerator();
                         il.Emit(System.Reflection.Emit.OpCodes.Ldsfld, pauseField);
                         il.Emit(System.Reflection.Emit.OpCodes.Ret);

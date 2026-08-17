@@ -24,7 +24,7 @@ namespace FasterGameLoading
         {
             get
             {
-                if (!isActive.HasValue)
+                if (isActive is null)
                 {
                     isActive = IsModActive("dev.soeur.imageopt");
                 }
@@ -77,6 +77,8 @@ namespace FasterGameLoading
                         }
                         catch
                         {
+                            // 清理無效快取屬於盡力而為：檔案被佔用或權限不足時略過該檔即可，
+                            // 不應讓清理失敗影響啟動流程。
                         }
                     }
                 }

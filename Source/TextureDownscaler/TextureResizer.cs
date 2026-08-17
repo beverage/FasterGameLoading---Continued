@@ -85,9 +85,9 @@ namespace FasterGameLoading
             {
                 Graphics.Blit(source, renderTexture);
                 RenderTexture.active = renderTexture;
-                readable = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                readable = new Texture2D(width, height, TextureFormat.RGBA32, mipChain: false);
                 readable.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-                readable.Apply(false, false);
+                readable.Apply(updateMipmaps: false, makeNoLongerReadable: false);
                 return readable.EncodeToPNG();
             }
             finally

@@ -81,7 +81,7 @@ namespace FasterGameLoading
             if (File.Exists(dest))
             {
                 // File.Replace(source, dest, backup=null) 為原子性替換，不需備份檔
-                File.Replace(tmp, dest, null);
+                File.Replace(tmp, dest, destinationBackupFileName: null);
             }
             else
             {

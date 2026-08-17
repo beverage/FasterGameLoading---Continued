@@ -92,7 +92,7 @@ namespace FasterGameLoading
                 var property = AccessTools.Property(type, memberName);
                 if (property != null)
                 {
-                    value = property.GetValue(instance, null);
+                    value = property.GetValue(instance, index: null);
                     return true;
                 }
             }

@@ -35,7 +35,7 @@ namespace FasterGameLoading
             {
                 return true;
             }
-            if (__instance.texPath.NullOrEmpty() is false)
+            if (!__instance.texPath.NullOrEmpty())
             {
                 var graphicDatas = savedGraphics.GetOrAdd(__instance.texPath, _ => new List<GraphicData>());
                 lock (graphicDatas)
@@ -56,16 +56,14 @@ namespace FasterGameLoading
 
         public static void Postfix(GraphicData __instance, bool __state)
         {
-            if (__state && __instance.cachedGraphic != null)
+            if (__state && __instance.cachedGraphic != null
+                && savedGraphics.TryGetValue(__instance.texPath, out var graphicDatas))
             {
-                if (savedGraphics.TryGetValue(__instance.texPath, out var graphicDatas))
+                lock (graphicDatas)
                 {
-                    lock (graphicDatas)
+                    if (graphicDatas.Count < 10)
                     {
-                        if (graphicDatas.Count < 10)
-                        {
-                            graphicDatas.Add(__instance);
-                        }
+                        graphicDatas.Add(__instance);
                     }
                 }
             }
@@ -77,6 +75,10 @@ namespace FasterGameLoading
         /// </summary>
         public static bool IsSameGraphicData(GraphicData current, GraphicData other)
         {
+            // S1244: 此處刻意對浮點欄位做精確相等比較。目的不是判斷「數值近似」，
+            // 而是判斷兩份 GraphicData 是否來自同一組 XML 設定值而可共用同一份
+            // Graphic；容差比較會把設定不同的兩者誤判為相同並共用錯誤的圖形。
+#pragma warning disable S1244
             if (current.color == other.color &&
                 current.colorTwo == other.colorTwo &&
                 current.graphicClass == other.graphicClass &&
@@ -100,6 +102,7 @@ namespace FasterGameLoading
                 string.Equals(current.maskPath, other.maskPath, StringComparison.Ordinal) &&
                 IsSameShaderParameters(current.shaderParameters, other.shaderParameters) &&
                 IsSameAsymmetricLink(current.asymmetricLink, other.asymmetricLink))
+#pragma warning restore S1244
             {
                 return true;
             }

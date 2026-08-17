@@ -16,7 +16,7 @@ namespace FasterGameLoading
 
         public static bool ShouldSkip(string packageId)
         {
-            return ShouldSkip(packageId, null);
+            return ShouldSkip(packageId, metaData: null);
         }
 
         public static bool ShouldSkip(ModContentPack mod)

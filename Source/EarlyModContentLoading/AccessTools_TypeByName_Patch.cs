@@ -39,7 +39,7 @@ namespace FasterGameLoading
         /// </summary>
         public static void Postfix(Type __result, string name, (bool isCached, string originalName) __state)
         {
-            if (__state.isCached is false && __result != null)
+            if (!__state.isCached && __result != null)
             {
                 // 短名稱也可安全寫入 cachedResults：此處的對照來自「實際解析結果」，
                 // 對相同字串重複查詢必然一致（與 GenTypes_GetTypeInAnyAssemblyInt_Patch.Postfix 行為一致）。

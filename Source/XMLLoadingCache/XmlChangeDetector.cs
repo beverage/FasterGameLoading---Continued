@@ -100,7 +100,7 @@ namespace FasterGameLoading
             {
                 var result = task.Status is TaskStatus.RanToCompletion
                     ? task.Result
-                    : new XmlScanResult(null, 0, exception: task.Exception);
+                    : new XmlScanResult(metadataHashes: null, fileCount: 0, exception: task.Exception);
                 enqueueMainThreadAction(() => CommitXmlScanResult(result));
             });
         }
@@ -128,7 +128,7 @@ namespace FasterGameLoading
             var stopwatch = Stopwatch.StartNew();
             if (Utils.IsMissileGirlActive || ((targets == null || targets.Count is 0) && string.IsNullOrEmpty(configPath)))
             {
-                return new XmlScanResult(null, 0, stopwatch.ElapsedMilliseconds, bypassed: true);
+                return new XmlScanResult(metadataHashes: null, fileCount: 0, stopwatch.ElapsedMilliseconds, bypassed: true);
             }
 
             try
@@ -191,7 +191,7 @@ namespace FasterGameLoading
             }
             catch (Exception ex)
             {
-                return new XmlScanResult(null, 0, stopwatch.ElapsedMilliseconds, ex);
+                return new XmlScanResult(metadataHashes: null, fileCount: 0, stopwatch.ElapsedMilliseconds, ex);
             }
         }
 

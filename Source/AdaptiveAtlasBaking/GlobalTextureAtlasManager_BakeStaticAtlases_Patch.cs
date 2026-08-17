@@ -56,8 +56,11 @@ namespace FasterGameLoading
                 DelayedActions.AllDeferredVisualsLoaded = true;
 
                 // 同步執行自適應烘焙協程（此協程結束後會清空 buildQueue）
-                var adaptiveBake = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(null);
-                while (adaptiveBake.MoveNext()) { }
+                var adaptiveBake = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(delayedActions: null);
+                // 同步驅動協程直到結束；每一步的工作都在 MoveNext 內完成，迴圈本體刻意留空。
+                while (adaptiveBake.MoveNext())
+                {
+                }
 
                 if (DelayedActions.AdaptiveStaticAtlasBakeFailed)
                 {

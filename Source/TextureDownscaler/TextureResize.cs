@@ -177,14 +177,14 @@ namespace FasterGameLoading
         }
 
         /// <summary>嘗試從磁碟載入原始 PNG 紋理。失敗時回傳 false，由呼叫端使用記憶體中的版本。</summary>
-        private bool TryLoadOriginalTexture(string path, out Texture2D texture)
+        private static bool TryLoadOriginalTexture(string path, out Texture2D texture)
         {
             texture = null;
             try
             {
                 if (!File.Exists(path)) return false;
                 var data = File.ReadAllBytes(path);
-                texture = new Texture2D(FGLConsts.PlaceholderTextureSize, FGLConsts.PlaceholderTextureSize, TextureFormat.RGBA32, false);
+                texture = new Texture2D(FGLConsts.PlaceholderTextureSize, FGLConsts.PlaceholderTextureSize, TextureFormat.RGBA32, mipChain: false);
                 if (texture.LoadImage(data) && texture.width > 0 && texture.height > 0)
                 {
                     texture.name = Path.GetFileNameWithoutExtension(path);
@@ -222,8 +222,8 @@ namespace FasterGameLoading
         /// </summary>
         public static bool TryGetGraphicApparel(ThingDef def, string wornGraphicPath, BodyTypeDef bodyType, out Graphic rec)
         {
-            if (bodyType == BodyTypeDefOf.Baby && def.apparel.developmentalStageFilter.HasFlag(DevelopmentalStage.Baby) is false
-                || bodyType == BodyTypeDefOf.Child && def.apparel.developmentalStageFilter.HasFlag(DevelopmentalStage.Child) is false)
+            if (bodyType == BodyTypeDefOf.Baby && !def.apparel.developmentalStageFilter.HasFlag(DevelopmentalStage.Baby)
+                || bodyType == BodyTypeDefOf.Child && !def.apparel.developmentalStageFilter.HasFlag(DevelopmentalStage.Child))
             {
                 rec = null;
                 return false;

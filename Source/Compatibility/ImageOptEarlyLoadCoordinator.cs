@@ -99,7 +99,7 @@ namespace FasterGameLoading
                 typeof(bool),
                 Type.EmptyTypes,
                 typeof(ImageOptEarlyLoadCoordinator).Module,
-                true);
+                skipVisibility: true);
             var il = method.GetILGenerator();
             il.Emit(OpCodes.Ldsfld, field);
             il.Emit(OpCodes.Ret);
@@ -110,10 +110,10 @@ namespace FasterGameLoading
         {
             var method = new DynamicMethod(
                 "FGL_ImageOpt_SetStarted",
-                null,
+                returnType: null,
                 new[] { typeof(bool) },
                 typeof(ImageOptEarlyLoadCoordinator).Module,
-                true);
+                skipVisibility: true);
             var il = method.GetILGenerator();
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Stsfld, field);
@@ -146,6 +146,8 @@ namespace FasterGameLoading
                 }
                 catch
                 {
+                    // 還原 ImageOpt 的 started 旗標屬於盡力而為的收尾：ImageOpt 版本異動
+                    // 導致欄位不存在時，setter 會拋例外，但此時已無可還原的狀態，忽略即可。
                 }
             }
             syncScopeDepth = 0;

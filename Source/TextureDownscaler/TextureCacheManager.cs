@@ -90,7 +90,7 @@ namespace FasterGameLoading
             return Path.Combine(activeCacheDirectory, sb.ToString() + ".png");
         }
 
-        private string GetCacheKey(string originalPath)
+        private static string GetCacheKey(string originalPath)
         {
             try
             {
@@ -246,7 +246,7 @@ namespace FasterGameLoading
             {
                 if (Directory.Exists(CacheDirectory))
                 {
-                    Directory.Delete(CacheDirectory, true);
+                    Directory.Delete(CacheDirectory, recursive: true);
                 }
                 lock (cacheLock)
                 {
@@ -273,7 +273,7 @@ namespace FasterGameLoading
             {
                 if (Directory.Exists(stagingDirectory))
                 {
-                    Directory.Delete(stagingDirectory, true);
+                    Directory.Delete(stagingDirectory, recursive: true);
                 }
                 Directory.CreateDirectory(stagingDirectory);
             }
@@ -300,7 +300,7 @@ namespace FasterGameLoading
             {
                 if (Directory.Exists(stagingDirectory))
                 {
-                    Directory.Delete(stagingDirectory, true);
+                    Directory.Delete(stagingDirectory, recursive: true);
                 }
             }
             catch (Exception ex)
@@ -324,7 +324,7 @@ namespace FasterGameLoading
             {
                 if (Directory.Exists(backupDirectory))
                 {
-                    Directory.Delete(backupDirectory, true);
+                    Directory.Delete(backupDirectory, recursive: true);
                 }
                 if (Directory.Exists(CacheDirectory))
                 {
@@ -348,7 +348,7 @@ namespace FasterGameLoading
 
                 if (movedPreviousCache && Directory.Exists(backupDirectory))
                 {
-                    Directory.Delete(backupDirectory, true);
+                    Directory.Delete(backupDirectory, recursive: true);
                 }
                 return true;
             }
@@ -358,7 +358,7 @@ namespace FasterGameLoading
                 {
                     if (movedStagingCache && Directory.Exists(CacheDirectory))
                     {
-                        Directory.Delete(CacheDirectory, true);
+                        Directory.Delete(CacheDirectory, recursive: true);
                     }
                     if (movedPreviousCache && Directory.Exists(backupDirectory) && !Directory.Exists(CacheDirectory))
                     {
@@ -423,7 +423,10 @@ namespace FasterGameLoading
                     {
                         originalExists = File.Exists(entry.Key);
                     }
-                    catch { }
+                    catch
+                    {
+                        // 路徑無效或權限不足時視為「原始檔不存在」，交由後續流程移除該快取項目。
+                    }
 
                     if (!originalExists)
                     {
@@ -448,7 +451,10 @@ namespace FasterGameLoading
                         {
                             cacheExists = File.Exists(entry.Value);
                         }
-                        catch { }
+                        catch
+                        {
+                            // 路徑無效或權限不足時視為「快取檔不存在」，交由後續流程移除該快取項目。
+                        }
 
                         if (!cacheExists)
                         {

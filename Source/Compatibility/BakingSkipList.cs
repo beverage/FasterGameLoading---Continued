@@ -51,7 +51,7 @@ namespace FasterGameLoading
         {
             get
             {
-                if (isAnyTargetModActive.HasValue) return isAnyTargetModActive.Value;
+                if (isAnyTargetModActive is not null) return isAnyTargetModActive.Value;
 
                 // 1. 先用 ModsConfig 判定（啟動早期即可用，不需等 RunningMods）
                 if (IsAnyTargetModActiveViaConfig())
@@ -146,7 +146,7 @@ namespace FasterGameLoading
                     if (IsTargetMod(mod))
                     {
                         if (string.IsNullOrEmpty(mod.RootDir)) continue;
-                        string root = mod.RootDir.Replace('\\', '/').TrimEnd(new[] { '/' });
+                        string root = mod.RootDir.Replace('\\', '/').TrimEnd('/');
                         targetModRoots.Add(root);
                     }
                 }

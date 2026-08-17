@@ -27,7 +27,7 @@ namespace FasterGameLoading
             {
                 // 協程只在主執行緒被恢復執行，此檢查僅為防禦性保護。
                 // 若非主執行緒，讓出執行權後由外層 while 重新檢查，不落穿到 Unity 工作。
-                if (UnityData.IsInMainThread is false)
+                if (!UnityData.IsInMainThread)
                 {
                     yield return 0;
                     continue;
@@ -52,10 +52,10 @@ namespace FasterGameLoading
                         // 現在圖形已載入，重新解析圖示即可得到正確的紋理。
                         if (def.uiIcon == BaseContent.BadTex)
                         {
-                            if (def.uiIconPath.NullOrEmpty() is false)
+                            if (!def.uiIconPath.NullOrEmpty())
                             {
                                 // 有明確的圖示路徑，直接載入
-                                def.uiIcon = ContentFinder<Texture2D>.Get(def.uiIconPath, true);
+                                def.uiIcon = ContentFinder<Texture2D>.Get(def.uiIconPath, reportFailure: true);
                             }
                             else if (def.graphicData?.Graphic != null)
                             {
@@ -132,7 +132,7 @@ namespace FasterGameLoading
             FGLLog.Message($"Starting deferred icons: {delayedActions.IconsToLoadCount.ToString(CultureInfo.InvariantCulture)}");
             while (delayedActions.IconsToLoadCount > 0)
             {
-                if (UnityData.IsInMainThread is false)
+                if (!UnityData.IsInMainThread)
                 {
                     yield return 0;
                 }

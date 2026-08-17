@@ -97,7 +97,7 @@ namespace FasterGameLoading
                     scanTargets.Add(new XmlChangeDetector.ModScanTarget(contentPack.RootDir.ToLowerInvariant(), roots));
                 }
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
-                XmlChangeDetector.StartScanAsync(scanTargets, null, delayedActions.EnqueueMainThreadAction);
+                XmlChangeDetector.StartScanAsync(scanTargets, configPath: null, delayedActions.EnqueueMainThreadAction);
             }
             catch (System.Exception ex)
             {
