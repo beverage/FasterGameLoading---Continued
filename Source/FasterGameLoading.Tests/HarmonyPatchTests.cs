@@ -130,11 +130,11 @@ namespace FasterGameLoading.Tests
         [Test]
         public void TestTextureReverseCache_DoesNotHoldStrongTextureKeys()
         {
-            var field = typeof(ModContentLoaderTexture2D_LoadTexture_Patch)
-                .GetField("savedTextures", BindingFlags.Public | BindingFlags.Static);
+            var property = typeof(ModContentLoaderTexture2D_LoadTexture_Patch)
+                .GetProperty("savedTextures", BindingFlags.Public | BindingFlags.Static);
 
-            Assert.IsNotNull(field);
-            Assert.AreEqual(typeof(ConcurrentDictionary<string, System.WeakReference<Texture2D>>), field.FieldType);
+            Assert.IsNotNull(property);
+            Assert.AreEqual(typeof(ConcurrentDictionary<string, System.WeakReference<Texture2D>>), property.PropertyType);
         }
 
         private sealed class FakeModMetaData

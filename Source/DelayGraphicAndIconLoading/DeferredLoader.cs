@@ -19,7 +19,7 @@ namespace FasterGameLoading
         /// </summary>
         /// <param name="delayedActions">延遲動作管理器實例，提供時間預算與佇列存取。</param>
         /// <param name="loadedDefs">存放已載入的 ThingDef 清單，供後續更新地圖網格使用。</param>
-        public static IEnumerator LoadDeferredGraphicsCoroutine(DelayedActions delayedActions, List<ThingDef> loadedDefs)
+        public static IEnumerator LoadDeferredGraphicsCoroutine(DelayedActions delayedActions, ICollection<ThingDef> loadedDefs)
         {
             delayedActions.RestartStopwatch();
             FGLLog.Message($"Starting deferred graphics: {delayedActions.GraphicsToLoadCount.ToString(CultureInfo.InvariantCulture)}");
@@ -105,7 +105,7 @@ namespace FasterGameLoading
         /// 確保延遲載入的圖形在地圖上立即顯示。
         /// </summary>
         /// <param name="loadedDefs">已載入的 ThingDef 清單。</param>
-        public static IEnumerator UpdateMapMeshForLoadedDefs(List<ThingDef> loadedDefs)
+        public static IEnumerator UpdateMapMeshForLoadedDefs(IReadOnlyList<ThingDef> loadedDefs)
         {
             try
             {

@@ -85,7 +85,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
         /// <summary>已非同步預載入至記憶體的降質快取紋理位元組數據。</summary>
         public static ConcurrentDictionary<string, byte[]> preloadedCacheBytes { get; } = new ConcurrentDictionary<string, byte[]>(StringComparer.Ordinal);
         /// <summary>以 WeakReference 快取已載入的 Texture2D，鍵為完整檔案路徑。</summary>
-        public static ConcurrentDictionary<string, System.WeakReference<Texture2D>> savedTextures = new ConcurrentDictionary<string, System.WeakReference<Texture2D>>(StringComparer.Ordinal);
+        public static ConcurrentDictionary<string, System.WeakReference<Texture2D>> savedTextures { get; } = new ConcurrentDictionary<string, System.WeakReference<Texture2D>>(StringComparer.Ordinal);
         /// <summary>
         /// O(1) 反向查找表：Texture2D → 路徑。ConditionalWeakTable 以弱鍵追蹤，Texture2D 被 GC 時自動移除條目，
         /// 不會強引用留住 Unity 貼圖。

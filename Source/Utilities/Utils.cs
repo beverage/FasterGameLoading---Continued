@@ -26,7 +26,7 @@ namespace FasterGameLoading
         /// <summary>
         /// 根據指定的 ThingDef 集合，從 ListerThings 中取出所有對應的 Thing。
         /// </summary>
-        public static List<Thing> ThingsOfDefs(this ListerThings listerThings, IEnumerable<ThingDef> defs)
+        public static IReadOnlyList<Thing> ThingsOfDefs(this ListerThings listerThings, IEnumerable<ThingDef> defs)
         {
             List<Thing> outThings = new List<Thing>();
             foreach (var def in defs)

@@ -129,7 +129,12 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 
 
         [OneTimeSetUp]
+        // MA0051: 這是一份「要打哪些補丁」的線性清單，每一項都是獨立的一次
+        // harmony.Patch 呼叫。拆成多個方法只會讓讀者得跨方法重組同一份清單，
+        // 抽出的單元也取不到比 Part1／Part2 更誠實的名字，故就地抑制。
+#pragma warning disable MA0051
         public void OneTimeSetUp()
+#pragma warning restore MA0051
         {
             harmony = new Harmony("FasterGameLoading.Tests.AdaptiveAtlasBaker");
 

@@ -18,8 +18,15 @@ namespace FasterGameLoading
     {
         /// <summary>
         /// 標記是否需要在主執行緒寫入設定檔（執行緒安全的跨執行緒排程旗標）。
+        /// 以 volatile 欄位為後盾的屬性 —— 與 XmlNode_SelectSingleNode_Patch 的
+        /// isXmlScanComplete 相同寫法，volatile 語意完整保留。
         /// </summary>
-        public static volatile bool needWriteSettings = false;
+        private static volatile bool needWriteSettingsValue;
+        public static bool needWriteSettings
+        {
+            get => needWriteSettingsValue;
+            set => needWriteSettingsValue = value;
+        }
 
         internal sealed class XmlScanResult
         {
@@ -55,7 +62,7 @@ namespace FasterGameLoading
         public sealed class ModScanTarget
         {
             public readonly string Key;
-            public readonly List<string> Roots;
+            public readonly IReadOnlyList<string> Roots;
 
             public ModScanTarget(string key, IEnumerable<string> roots)
             {
@@ -64,7 +71,7 @@ namespace FasterGameLoading
             }
         }
 
-        public static void ScanXmlFiles(List<ModScanTarget> targets, string configPath = null)
+        public static void ScanXmlFiles(IReadOnlyList<ModScanTarget> targets, string configPath = null)
         {
             // 掃描開始：基準尚未驗證。
             // Scan starting: the baseline is not validated yet.
@@ -80,12 +87,12 @@ namespace FasterGameLoading
         /// content root. A caller that has not resolved LoadFolders will not
         /// see content held in subfolders.
         /// </summary>
-        public static void ScanXmlFiles(List<string> modPaths, string configPath = null)
+        public static void ScanXmlFiles(IReadOnlyList<string> modPaths, string configPath = null)
         {
             ScanXmlFiles(TargetsFromPaths(modPaths), configPath);
         }
 
-        public static void StartScanAsync(List<ModScanTarget> targets, string configPath, Action<Action> enqueueMainThreadAction)
+        public static void StartScanAsync(IReadOnlyList<ModScanTarget> targets, string configPath, Action<Action> enqueueMainThreadAction)
         {
             if (enqueueMainThreadAction == null) throw new ArgumentNullException(nameof(enqueueMainThreadAction));
 
@@ -105,7 +112,7 @@ namespace FasterGameLoading
             });
         }
 
-        internal static List<ModScanTarget> TargetsFromPaths(List<string> modPaths)
+        internal static List<ModScanTarget> TargetsFromPaths(IReadOnlyList<string> modPaths)
         {
             var targets = new List<ModScanTarget>();
             if (modPaths == null) return targets;
@@ -118,12 +125,12 @@ namespace FasterGameLoading
             return targets;
         }
 
-        internal static XmlScanResult ScanXmlMetadata(List<string> modPaths, string configPath = null)
+        internal static XmlScanResult ScanXmlMetadata(IReadOnlyList<string> modPaths, string configPath = null)
         {
             return ScanXmlMetadata(TargetsFromPaths(modPaths), configPath);
         }
 
-        internal static XmlScanResult ScanXmlMetadata(List<ModScanTarget> targets, string configPath = null)
+        internal static XmlScanResult ScanXmlMetadata(IReadOnlyList<ModScanTarget> targets, string configPath = null)
         {
             var stopwatch = Stopwatch.StartNew();
             if (Utils.IsMissileGirlActive || ((targets == null || targets.Count is 0) && string.IsNullOrEmpty(configPath)))

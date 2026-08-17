@@ -17,8 +17,8 @@ namespace FasterGameLoading
         /// <summary>原始路徑 → 降質快取路徑的對照表（會透過 Scribe 持久化）。</summary>
         internal Dictionary<string, string> resizedTextureCache = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        /// <summary>原始路徑 → 降質快取路徑的對照表。</summary>
-        public Dictionary<string, string> ResizedTextureCache => resizedTextureCache;
+        /// <summary>原始路徑 → 降質快取路徑的對照表（唯讀檢視；寫入請走 SetCacheEntry）。</summary>
+        public IReadOnlyDictionary<string, string> ResizedTextureCache => resizedTextureCache;
         private readonly object cacheLock = new object();
         private readonly ConcurrentDictionary<string, string> md5HashCache = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
         /// <summary>
@@ -288,10 +288,15 @@ namespace FasterGameLoading
         }
 
         /// <summary>還原快取狀態到上一次的快取對照表與目錄配置。</summary>
+        // MA0016: 這裡刻意收下具體的 Dictionary。傳入的必定是
+        // GetResizedTextureCacheCopy 產出的私有快照，會直接成為新的內部對照表；
+        // 改收唯讀介面只會逼出一次多餘的複製，且無法防止任何實際存在的誤用。
+#pragma warning disable MA0016
         public void RestorePreviousCacheState(
             Dictionary<string, string> previousCacheMap,
             string previousCacheDirectory,
             string stagingDirectory)
+#pragma warning restore MA0016
         {
             lock (cacheLock) { resizedTextureCache = previousCacheMap; }
             activeCacheDirectory = previousCacheDirectory;
@@ -402,7 +407,12 @@ namespace FasterGameLoading
         }
 
         /// <summary>以執行緒安全方式回傳快取對照表的快照副本。</summary>
+        // MA0016: 刻意回傳具體的 Dictionary。回傳的是全新的私有副本，
+        // 呼叫端修改它不會影響內部狀態；而 RestorePreviousCacheState 需要以它
+        // 直接成為新的內部對照表，改回唯讀介面只會逼出一次多餘的複製。
+#pragma warning disable MA0016
         public Dictionary<string, string> GetResizedTextureCacheCopy()
+#pragma warning restore MA0016
         {
             lock (cacheLock)
             {

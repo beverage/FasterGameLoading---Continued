@@ -13,7 +13,12 @@ namespace FasterGameLoading
     [HarmonyPatch(typeof(DirectXmlLoader), "XmlAssetsInModFolder")]
     public static class DirectXmlLoader_XmlAssetsInModFolder_Patch
     {
+        // MA0016: foldersToLoadDebug 是 Harmony 由原方法注入的參數，型別必須與
+        // DirectXmlLoader.XmlAssetsInModFolder 的簽章逐字相符；改成唯讀介面會使
+        // Harmony 無法比對而讓整個補丁失效。
+#pragma warning disable MA0016
         public static bool Prefix(ref LoadableXmlAsset[] __result, ModContentPack mod, string folderPath, List<string> foldersToLoadDebug)
+#pragma warning restore MA0016
         {
             if (mod == null || !FasterGameLoadingSettings.EnableMultiThreading || EarlyLoadSkipList.ShouldSkip(mod))
             {

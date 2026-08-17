@@ -26,7 +26,12 @@ namespace FasterGameLoading
         /// "earlyModContentLoading" 反射讀取此欄位值，若改為 PascalCase 將導致其
         /// 無法顯示本模組的額外進度條。
         /// </remarks>
+        // MA0069/S1104: 必須維持為公開靜態欄位。loading-progress 以
+        // AccessTools.Field("earlyModContentLoading") 反射讀取；改成屬性後只會留下
+        // 編譯器產生的 <earlyModContentLoading>k__BackingField，該反射查詢會失敗。
+#pragma warning disable MA0069
         public static bool earlyModContentLoading = true;
+#pragma warning restore MA0069
 
         /// <summary>自適應靜態圖集烘焙（預設關閉）</summary>
         public static bool StaticAtlasesBaking { get; set; }
