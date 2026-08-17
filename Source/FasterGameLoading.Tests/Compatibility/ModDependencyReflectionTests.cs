@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using NUnit.Framework;
@@ -85,7 +85,7 @@ namespace FasterGameLoading.Tests.Compatibility
 
         private sealed class UnknownDependency
         {
-            public int Value => 1;
+            public static int Value => 1;
         }
     }
 }

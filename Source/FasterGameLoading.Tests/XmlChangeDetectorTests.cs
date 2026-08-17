@@ -118,7 +118,7 @@ namespace FasterGameLoading
             try
             {
                 missileGirlField.SetValue(null, false);
-                Assert.AreEqual(false, missileGirlField.GetValue(null));
+                Assert.IsFalse((bool)missileGirlField.GetValue(null));
                 var first = XmlChangeDetector.ScanXmlMetadata(new List<string> { modPath }, configPath);
                 System.IO.File.WriteAllText(configFile, "<settings>changed</settings>");
                 System.IO.File.SetLastWriteTimeUtc(

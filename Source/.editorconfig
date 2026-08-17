@@ -97,3 +97,17 @@ dotnet_naming_style.camel_case_with_underscore.capitalization = camel_case
 # MA0181 已於全專案停用（見上方說明）；測試另有其專屬理由：大量以反射取得
 # 私有欄位與方法回傳值後轉型，型別不符時應直接拋 InvalidCastException 讓測試
 # 失敗，而非以 as 轉成 null 造成誤判。
+#
+# MA0003（具名引數）、MA0007（尾端逗號）、MA0206（型別宣告的多餘大括號）：
+# 純排版偏好。測試方法的引數意義由測試名稱與 Arrange 區塊表達，補上參數名稱
+# 只會拉長斷言行而不增加資訊，故僅在測試專案停用。
+dotnet_diagnostic.MA0003.severity = none
+dotnet_diagnostic.MA0007.severity = none
+dotnet_diagnostic.MA0206.severity = none
+# MA0002/MA0006/MA0074/MA0076：文化相關的字串比對與格式化。
+# 測試中的字串全為測試自行建立的 ASCII 常值，比對的是自己剛寫入的值，
+# 不涉及使用者資料或跨語系情境，故僅在測試專案停用。
+dotnet_diagnostic.MA0002.severity = none
+dotnet_diagnostic.MA0006.severity = none
+dotnet_diagnostic.MA0074.severity = none
+dotnet_diagnostic.MA0076.severity = none

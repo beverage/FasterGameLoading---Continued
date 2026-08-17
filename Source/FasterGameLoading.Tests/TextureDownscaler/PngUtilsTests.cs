@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using NUnit.Framework;
 
@@ -53,7 +53,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         {
             var path = Path.Combine(tempDir, Guid.NewGuid().ToString("N") + ".png");
             var bytes = TestFixtures.CreatePngHeader(widthValue, heightValue);
-            if (widthValue == 10)
+            if (widthValue is 10)
             {
                 Array.Resize(ref bytes, 10);
             }

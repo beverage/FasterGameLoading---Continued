@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
@@ -61,20 +61,12 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             Assert.That(GenTypes_AllLeafSubclasses_Patch.keyValuePairs, Is.Empty);
         }
 
-        private class TestRoot
-        {
-        }
+        private class TestRoot;
 
-        private class TestIntermediate : TestRoot
-        {
-        }
+        private class TestIntermediate : TestRoot;
 
-        private class TestLeaf : TestIntermediate
-        {
-        }
+        private sealed class TestLeaf : TestIntermediate;
 
-        private class TestSiblingLeaf : TestRoot
-        {
-        }
+        private sealed class TestSiblingLeaf : TestRoot;
     }
 }
