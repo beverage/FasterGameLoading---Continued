@@ -144,46 +144,7 @@ namespace FasterGameLoading
                         if (target == null || string.IsNullOrEmpty(target.Key))
                             continue;
 
-                        long metadataHash = 0;
-                        int xmlCount = 0;
-
-                        // 逐一掃描引擎解析出的每個內容根目錄。
-                        // 去重並以 Ordinal 排序，使折疊順序不受呼叫端或檔案系統
-                        // 列舉順序影響 — 與 ScanDirectoryMetadata 的檔案排序及
-                        // CombineMetadataHashes 的 Mod 排序採用同一個比較器。
-                        //
-                        // Scan each content root the engine resolved for this mod.
-                        // Deduplicated and sorted ordinally so the order-sensitive
-                        // fold cannot vary with caller or filesystem enumeration
-                        // order — the same comparer already used for files in
-                        // ScanDirectoryMetadata and for mods in CombineMetadataHashes.
-                        var roots = new HashSet<string>(StringComparer.Ordinal);
-                        foreach (var root in target.Roots)
-                        {
-                            if (!string.IsNullOrEmpty(root)) roots.Add(root);
-                        }
-
-                        foreach (var root in roots.OrderBy(r => r, StringComparer.Ordinal))
-                        {
-                            if (!Directory.Exists(root)) continue;
-
-                            // 掃描 Defs 目錄
-                            var defsPath = Path.Combine(root, FGLConsts.DefsDirName);
-                            if (Directory.Exists(defsPath))
-                            {
-                                ScanDirectoryMetadata(defsPath, ref metadataHash, ref xmlCount);
-                            }
-
-                            // 掃描 Patches 目錄
-                            var patchesPath = Path.Combine(root, FGLConsts.PatchesDirName);
-                            if (Directory.Exists(patchesPath))
-                            {
-                                ScanDirectoryMetadata(patchesPath, ref metadataHash, ref xmlCount);
-                            }
-                        }
-
-                        nextMetadataHashes[target.Key] = metadataHash;
-                        totalXmlCount += xmlCount;
+                        nextMetadataHashes[target.Key] = ScanSingleTarget(target, ref totalXmlCount);
                     }
                 }
 
@@ -193,6 +154,54 @@ namespace FasterGameLoading
             {
                 return new XmlScanResult(metadataHashes: null, fileCount: 0, stopwatch.ElapsedMilliseconds, ex);
             }
+        }
+
+        /// <summary>
+        /// 掃描單一 Mod 的所有內容根目錄，回傳該 Mod 的 metadata 折疊雜湊，
+        /// 並把掃到的 XML 檔數累加到 <paramref name="totalXmlCount"/>。
+        ///
+        /// 根目錄先去重再以 Ordinal 排序，使折疊順序不受呼叫端或檔案系統列舉順序
+        /// 影響 — 與 ScanDirectoryMetadata 的檔案排序及 CombineMetadataHashes 的
+        /// Mod 排序採用同一個比較器。
+        ///
+        /// Scans every content root the engine resolved for one mod. Roots are
+        /// deduplicated and sorted ordinally so the order-sensitive fold cannot
+        /// vary with caller or filesystem enumeration order — the same comparer
+        /// already used for files in ScanDirectoryMetadata and for mods in
+        /// CombineMetadataHashes.
+        /// </summary>
+        private static long ScanSingleTarget(ModScanTarget target, ref int totalXmlCount)
+        {
+            long metadataHash = 0;
+            int xmlCount = 0;
+
+            var roots = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var root in target.Roots)
+            {
+                if (!string.IsNullOrEmpty(root)) roots.Add(root);
+            }
+
+            foreach (var root in roots.OrderBy(r => r, StringComparer.Ordinal))
+            {
+                if (!Directory.Exists(root)) continue;
+
+                // 掃描 Defs 目錄
+                var defsPath = Path.Combine(root, FGLConsts.DefsDirName);
+                if (Directory.Exists(defsPath))
+                {
+                    ScanDirectoryMetadata(defsPath, ref metadataHash, ref xmlCount);
+                }
+
+                // 掃描 Patches 目錄
+                var patchesPath = Path.Combine(root, FGLConsts.PatchesDirName);
+                if (Directory.Exists(patchesPath))
+                {
+                    ScanDirectoryMetadata(patchesPath, ref metadataHash, ref xmlCount);
+                }
+            }
+
+            totalXmlCount += xmlCount;
+            return metadataHash;
         }
 
         internal static void CommitXmlScanResult(XmlScanResult result)
@@ -227,25 +236,7 @@ namespace FasterGameLoading
                     return;
                 }
 
-                var previous = SessionCache.xmlMetadataHashByMod;
-                bool metadataChanged = previous.Count != result.MetadataHashes.Count
-                    || result.MetadataHashes.Any(pair => !previous.TryGetValue(pair.Key, out var oldHash) || oldHash != pair.Value);
-                long combinedHash = CombineMetadataHashes(result.MetadataHashes);
-
-                SessionCache.xmlMetadataHashByMod = result.MetadataHashes;
-                SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal);
-
-                if (FasterGameLoadingSettings.VerboseLogging)
-                {
-                    FGLLog.Message($"XML scan complete. Files: {result.FileCount.ToString(CultureInfo.InvariantCulture)}, elapsed: {result.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms, combined metadata hash: {combinedHash.ToString(CultureInfo.InvariantCulture)}, last saved hash: {SessionCache.xmlCombinedHashSinceLastSession.ToString(CultureInfo.InvariantCulture)}");
-                }
-
-                if (SessionCache.xmlCombinedHashSinceLastSession != combinedHash || metadataChanged)
-                {
-                    SessionCache.xmlPathsSinceLastSession.Clear();
-                    SessionCache.xmlCombinedHashSinceLastSession = combinedHash;
-                    needWriteSettings = true;
-                }
+                CommitMetadataHashes(result);
 
                 // 掃描成功且基準已提交 — 快取本 session 可用（fail-closed 的成功側）。
                 // 必須在基準寫入之後才設立，且早於 finally 中的 isXmlScanComplete，
@@ -261,6 +252,33 @@ namespace FasterGameLoading
             finally
             {
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = true;
+            }
+        }
+
+        /// <summary>
+        /// 把掃描結果提交為新的快取基準；若與上次 session 的雜湊不符，
+        /// 清空持久化的 XPath 未命中快取並排程寫回設定檔。
+        /// </summary>
+        private static void CommitMetadataHashes(XmlScanResult result)
+        {
+            var previous = SessionCache.xmlMetadataHashByMod;
+            bool metadataChanged = previous.Count != result.MetadataHashes.Count
+                || result.MetadataHashes.Any(pair => !previous.TryGetValue(pair.Key, out var oldHash) || oldHash != pair.Value);
+            long combinedHash = CombineMetadataHashes(result.MetadataHashes);
+
+            SessionCache.xmlMetadataHashByMod = result.MetadataHashes;
+            SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal);
+
+            if (FasterGameLoadingSettings.VerboseLogging)
+            {
+                FGLLog.Message($"XML scan complete. Files: {result.FileCount.ToString(CultureInfo.InvariantCulture)}, elapsed: {result.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)}ms, combined metadata hash: {combinedHash.ToString(CultureInfo.InvariantCulture)}, last saved hash: {SessionCache.xmlCombinedHashSinceLastSession.ToString(CultureInfo.InvariantCulture)}");
+            }
+
+            if (SessionCache.xmlCombinedHashSinceLastSession != combinedHash || metadataChanged)
+            {
+                SessionCache.xmlPathsSinceLastSession.Clear();
+                SessionCache.xmlCombinedHashSinceLastSession = combinedHash;
+                needWriteSettings = true;
             }
         }
 

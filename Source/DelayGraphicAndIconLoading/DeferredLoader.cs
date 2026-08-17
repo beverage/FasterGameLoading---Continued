@@ -39,47 +39,7 @@ namespace FasterGameLoading
                     if (!delayedActions.TryDequeueGraphic(out def, out action))
                         break;
 
-                    bool graphicActionSucceeded = false;
-                    try
-                    {
-                        action();
-                        loadedDefs.Add(def);
-                        graphicActionSucceeded = true;
-
-                        // 圖形剛載入完成，重新解析 UI 圖示。
-                        // BuildableDef.PostLoad 的圖示回呼在 ExecuteWhenFinished 階段以正常時機執行，
-                        // 但那時圖形尚未載入，導致 uiIcon 被設為 BadTex。
-                        // 現在圖形已載入，重新解析圖示即可得到正確的紋理。
-                        if (def.uiIcon == BaseContent.BadTex)
-                        {
-                            if (!def.uiIconPath.NullOrEmpty())
-                            {
-                                // 有明確的圖示路徑，直接載入
-                                def.uiIcon = ContentFinder<Texture2D>.Get(def.uiIconPath, reportFailure: true);
-                            }
-                            else if (def.graphicData?.Graphic != null)
-                            {
-                                // 從已初始化的圖形取得 UI 圖示。
-                                // 必須使用 Graphic.MatSingle.mainTexture，這是 RimWorld 原始
-                                // BuildableDef.PostLoad 中用來設定 uiIcon 的邏輯。
-                                var mat = def.graphicData.Graphic.MatSingle;
-                                if (mat != null && mat.mainTexture is Texture2D tex
-                                    && tex != null && tex != BaseContent.BadTex)
-                                {
-                                    def.uiIcon = tex;
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        FGLLog.Warning($"Error loading graphic for {def}:", ex);
-                    }
-                    // 僅在圖形動作成功後才呼叫 PostLoadSpecial，避免傳入損壞的圖形資料
-                    if (graphicActionSucceeded)
-                    {
-                        def.plant?.PostLoadSpecial(def);
-                    }
+                    LoadOneGraphic(def, action, loadedDefs);
                 }
 
                 if (delayedActions.GraphicsToLoadCount > 0)
@@ -89,6 +49,55 @@ namespace FasterGameLoading
                 }
             }
             FGLLog.Message("Deferred graphics loaded");
+        }
+
+        /// <summary>
+        /// 執行單一 ThingDef 的延遲圖形載入動作，並在成功後重新解析其 UI 圖示。
+        /// 個別 def 的例外只記錄不外傳，避免中斷整個延遲載入協程。
+        /// </summary>
+        private static void LoadOneGraphic(ThingDef def, Action action, ICollection<ThingDef> loadedDefs)
+        {
+            bool graphicActionSucceeded = false;
+            try
+            {
+                action();
+                loadedDefs.Add(def);
+                graphicActionSucceeded = true;
+
+                // 圖形剛載入完成，重新解析 UI 圖示。
+                // BuildableDef.PostLoad 的圖示回呼在 ExecuteWhenFinished 階段以正常時機執行，
+                // 但那時圖形尚未載入，導致 uiIcon 被設為 BadTex。
+                // 現在圖形已載入，重新解析圖示即可得到正確的紋理。
+                if (def.uiIcon == BaseContent.BadTex)
+                {
+                    if (!def.uiIconPath.NullOrEmpty())
+                    {
+                        // 有明確的圖示路徑，直接載入
+                        def.uiIcon = ContentFinder<Texture2D>.Get(def.uiIconPath, reportFailure: true);
+                    }
+                    else if (def.graphicData?.Graphic != null)
+                    {
+                        // 從已初始化的圖形取得 UI 圖示。
+                        // 必須使用 Graphic.MatSingle.mainTexture，這是 RimWorld 原始
+                        // BuildableDef.PostLoad 中用來設定 uiIcon 的邏輯。
+                        var mat = def.graphicData.Graphic.MatSingle;
+                        if (mat != null && mat.mainTexture is Texture2D tex
+                            && tex != null && tex != BaseContent.BadTex)
+                        {
+                            def.uiIcon = tex;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FGLLog.Warning($"Error loading graphic for {def}:", ex);
+            }
+            // 僅在圖形動作成功後才呼叫 PostLoadSpecial，避免傳入損壞的圖形資料
+            if (graphicActionSucceeded)
+            {
+                def.plant?.PostLoadSpecial(def);
+            }
         }
 
         /// <summary>
@@ -143,17 +152,7 @@ namespace FasterGameLoading
                     if (!delayedActions.TryDequeueIcon(out def, out action))
                         break;
 
-                    if (def.uiIcon == BaseContent.BadTex)
-                    {
-                        try
-                        {
-                            action();
-                        }
-                        catch (Exception ex)
-                        {
-                            FGLLog.Warning($"Error loading icon for {def}:", ex);
-                        }
-                    }
+                    LoadOneIcon(def, action);
                 }
 
                 if (delayedActions.IconsToLoadCount > 0)
@@ -163,6 +162,28 @@ namespace FasterGameLoading
                 }
             }
             FGLLog.Message("Deferred icons loaded");
+        }
+
+        /// <summary>
+        /// 執行單一 BuildableDef 的延遲圖示載入動作。
+        /// 圖示已非 BadTex 代表其他路徑已補上，直接跳過；
+        /// 個別 def 的例外只記錄不外傳，避免中斷整個延遲載入協程。
+        /// </summary>
+        private static void LoadOneIcon(BuildableDef def, Action action)
+        {
+            if (def.uiIcon != BaseContent.BadTex)
+            {
+                return;
+            }
+
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                FGLLog.Warning($"Error loading icon for {def}:", ex);
+            }
         }
 
         /// <summary>

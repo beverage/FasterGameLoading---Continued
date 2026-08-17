@@ -128,73 +128,99 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
 
             if (Scribe.mode is LoadSaveMode.PostLoadInit)
             {
-                loadedTexturesSinceLastSession ??= new Dictionary<string, string>(StringComparer.Ordinal);
+                RestoreAfterLoad(tempTypes, tempXmlPaths);
+            }
+        }
 
-                if (tempTypes != null)
+        /// <summary>
+        /// PostLoadInit 階段的還原：補齊空集合、重建 XPath 未命中快取，
+        /// 並在偵測到 mod 組合變更時清空所有跨 session 快取。
+        /// </summary>
+        private static void RestoreAfterLoad(Dictionary<string, string> tempTypes, Dictionary<string, bool> tempXmlPaths)
+        {
+            loadedTexturesSinceLastSession ??= new Dictionary<string, string>(StringComparer.Ordinal);
+
+            if (tempTypes != null)
+            {
+                loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(tempTypes, StringComparer.Ordinal);
+            }
+            loadedTypesByFullNameSinceLastSession ??= new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+
+            xmlPathsSinceLastSession ??= new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
+            RebuildXPathMissCache(tempXmlPaths);
+
+            modsInLastSession ??= new List<string>();
+            xmlMetadataHashByMod ??= new Dictionary<string, long>(StringComparer.Ordinal);
+            xmlContentHashByMod ??= new Dictionary<string, long>(StringComparer.Ordinal);
+            historicalBakeSpeeds ??= new List<float>();
+
+            if (DetectModSetChange())
+            {
+                lock (loadedTexturesLock)
                 {
-                    loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(tempTypes, StringComparer.Ordinal);
+                    loadedTexturesSinceLastSession.Clear();
                 }
-                loadedTypesByFullNameSinceLastSession ??= new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+                loadedTypesByFullNameSinceLastSession.Clear();
+                xmlPathsSinceLastSession.Clear();
+                xmlMetadataHashByMod.Clear();
+                xmlContentHashByMod.Clear();
+                FasterGameLoadingMod.Instance?.CacheManager?.ClearCache();
+            }
+        }
 
-                xmlPathsSinceLastSession ??= new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
-                if (tempXmlPaths != null)
+        /// <summary>
+        /// 以存檔中的 XPath 記錄重建未命中快取，只收下仍屬可快取且不在排除清單中的路徑。
+        /// </summary>
+        private static void RebuildXPathMissCache(Dictionary<string, bool> tempXmlPaths)
+        {
+            if (tempXmlPaths == null)
+            {
+                return;
+            }
+
+            xmlPathsSinceLastSession.Clear();
+            foreach (var kvp in tempXmlPaths)
+            {
+                if (kvp.Value || !XmlNode_SelectSingleNode_Patch.IsCacheableXpath(kvp.Key))
                 {
-                    xmlPathsSinceLastSession.Clear();
-                    foreach (var kvp in tempXmlPaths)
-                    {
-                        if (!kvp.Value && XmlNode_SelectSingleNode_Patch.IsCacheableXpath(kvp.Key))
-                        {
-                            // 排除之前因 Bug 錯誤快取的 Ayameduki/WRelicK 相關補丁 XPath，或是包含定位符的 XPath
-                            if (kvp.Key.IndexOf("AT_Tag_", StringComparison.Ordinal) >= 0 ||
-                                kvp.Key.IndexOf("KeyedSettings", StringComparison.Ordinal) >= 0 ||
-                                kvp.Key.IndexOf("FactionDef", StringComparison.Ordinal) >= 0 ||
-                                kvp.Key.IndexOf("[@", StringComparison.Ordinal) >= 0)
-                            {
-                                continue;
-                            }
-                            xmlPathsSinceLastSession.TryAdd(kvp.Key, 0);
-                        }
-                    }
+                    continue;
                 }
 
-                modsInLastSession ??= new List<string>();
-                xmlMetadataHashByMod ??= new Dictionary<string, long>(StringComparer.Ordinal);
-                xmlContentHashByMod ??= new Dictionary<string, long>(StringComparer.Ordinal);
-                historicalBakeSpeeds ??= new List<float>();
-
-                // 零分配偵測 mod 組合變更，避免 GetHashCode 隨機雜湊種子碰撞與 MD5 重複記憶體配發
-                var currentActiveMods = ModsConfig.ActiveModsInLoadOrder.ToList();
-                bool modsChanged = false;
-                if (modsInLastSession == null || currentActiveMods.Count != modsInLastSession.Count)
+                // 排除之前因 Bug 錯誤快取的 Ayameduki/WRelicK 相關補丁 XPath，或是包含定位符的 XPath
+                if (kvp.Key.IndexOf("AT_Tag_", StringComparison.Ordinal) >= 0 ||
+                    kvp.Key.IndexOf("KeyedSettings", StringComparison.Ordinal) >= 0 ||
+                    kvp.Key.IndexOf("FactionDef", StringComparison.Ordinal) >= 0 ||
+                    kvp.Key.IndexOf("[@", StringComparison.Ordinal) >= 0)
                 {
-                    modsChanged = true;
-                }
-                else
-                {
-                    for (int i = 0; i < modsInLastSession.Count; i++)
-                    {
-                        // currentActiveMods[i] 可能為 null（Mod 載入異常時），跳過避免 NRE
-                        if (currentActiveMods[i] == null || !string.Equals(currentActiveMods[i].packageIdLowerCase, modsInLastSession[i], StringComparison.Ordinal))
-                        {
-                            modsChanged = true;
-                            break;
-                        }
-                    }
+                    continue;
                 }
 
-                if (modsChanged)
+                xmlPathsSinceLastSession.TryAdd(kvp.Key, 0);
+            }
+        }
+
+        /// <summary>
+        /// 比對目前啟用的 mod 清單與上次 session 的記錄是否一致。
+        /// 逐項比對而非算雜湊，以避免 GetHashCode 隨機種子碰撞與 MD5 重複記憶體配發。
+        /// </summary>
+        private static bool DetectModSetChange()
+        {
+            var currentActiveMods = ModsConfig.ActiveModsInLoadOrder.ToList();
+            if (modsInLastSession == null || currentActiveMods.Count != modsInLastSession.Count)
+            {
+                return true;
+            }
+
+            for (int i = 0; i < modsInLastSession.Count; i++)
+            {
+                // currentActiveMods[i] 可能為 null（Mod 載入異常時），跳過避免 NRE
+                if (currentActiveMods[i] == null || !string.Equals(currentActiveMods[i].packageIdLowerCase, modsInLastSession[i], StringComparison.Ordinal))
                 {
-                    lock (loadedTexturesLock)
-                    {
-                        loadedTexturesSinceLastSession.Clear();
-                    }
-                    loadedTypesByFullNameSinceLastSession.Clear();
-                    xmlPathsSinceLastSession.Clear();
-                    xmlMetadataHashByMod.Clear();
-                    xmlContentHashByMod.Clear();
-                    FasterGameLoadingMod.Instance?.CacheManager?.ClearCache();
+                    return true;
                 }
             }
+
+            return false;
         }
     }
 }

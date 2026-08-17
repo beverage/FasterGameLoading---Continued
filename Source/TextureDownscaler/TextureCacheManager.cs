@@ -334,17 +334,7 @@ namespace FasterGameLoading
                 Directory.Move(stagingDirectory, CacheDirectory);
                 movedStagingCache = true;
 
-                var updatedCacheMap = new Dictionary<string, string>(StringComparer.Ordinal);
-                lock (cacheLock)
-                {
-                    foreach (var kvp in resizedTextureCache)
-                    {
-                        updatedCacheMap[kvp.Key] = Path.Combine(CacheDirectory, Path.GetFileName(kvp.Value));
-                    }
-                    resizedTextureCache = updatedCacheMap;
-                }
-                activeCacheDirectory = CacheDirectory;
-                md5HashCache.Clear();
+                RebuildCacheMapForActiveDirectory();
 
                 if (movedPreviousCache && Directory.Exists(backupDirectory))
                 {
@@ -354,23 +344,51 @@ namespace FasterGameLoading
             }
             catch (Exception ex)
             {
-                try
-                {
-                    if (movedStagingCache && Directory.Exists(CacheDirectory))
-                    {
-                        Directory.Delete(CacheDirectory, recursive: true);
-                    }
-                    if (movedPreviousCache && Directory.Exists(backupDirectory) && !Directory.Exists(CacheDirectory))
-                    {
-                        Directory.Move(backupDirectory, CacheDirectory);
-                    }
-                }
-                catch (Exception rollbackEx)
-                {
-                    FGLLog.Error("Failed to restore previous texture cache directory.", rollbackEx);
-                }
+                RollbackPromotion(movedStagingCache, movedPreviousCache, backupDirectory);
                 FGLLog.Error("Failed to replace texture cache directory; previous cache was restored.", ex);
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// 快取目錄升級成功後，把對照表中的每個快取檔路徑重新指向新的正式目錄，
+        /// 並清掉以舊目錄為前綴的 MD5 路徑快取。
+        /// </summary>
+        private void RebuildCacheMapForActiveDirectory()
+        {
+            var updatedCacheMap = new Dictionary<string, string>(StringComparer.Ordinal);
+            lock (cacheLock)
+            {
+                foreach (var kvp in resizedTextureCache)
+                {
+                    updatedCacheMap[kvp.Key] = Path.Combine(CacheDirectory, Path.GetFileName(kvp.Value));
+                }
+                resizedTextureCache = updatedCacheMap;
+            }
+            activeCacheDirectory = CacheDirectory;
+            md5HashCache.Clear();
+        }
+
+        /// <summary>
+        /// 升級失敗時的回滾：先移除已就位的暫存目錄，再把備份目錄搬回正式位置。
+        /// 回滾本身失敗只記錄，不再向上拋出，避免掩蓋原始失敗原因。
+        /// </summary>
+        private void RollbackPromotion(bool movedStagingCache, bool movedPreviousCache, string backupDirectory)
+        {
+            try
+            {
+                if (movedStagingCache && Directory.Exists(CacheDirectory))
+                {
+                    Directory.Delete(CacheDirectory, recursive: true);
+                }
+                if (movedPreviousCache && Directory.Exists(backupDirectory) && !Directory.Exists(CacheDirectory))
+                {
+                    Directory.Move(backupDirectory, CacheDirectory);
+                }
+            }
+            catch (Exception rollbackEx)
+            {
+                FGLLog.Error("Failed to restore previous texture cache directory.", rollbackEx);
             }
         }
 
@@ -412,113 +430,16 @@ namespace FasterGameLoading
                     cacheEntries = new List<KeyValuePair<string, string>>(resizedTextureCache);
                 }
 
-                var keysToRemove = new List<string>();
                 var validCacheFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                int deletedObsoleteFiles = 0;
+                var keysToRemove = TriageCacheEntries(cacheEntries, validCacheFiles, out int deletedObsoleteFiles);
 
-                foreach (var entry in cacheEntries)
-                {
-                    bool originalExists = false;
-                    try
-                    {
-                        originalExists = File.Exists(entry.Key);
-                    }
-                    catch
-                    {
-                        // 路徑無效或權限不足時視為「原始檔不存在」，交由後續流程移除該快取項目。
-                    }
-
-                    if (!originalExists)
-                    {
-                        keysToRemove.Add(entry.Key);
-                        try
-                        {
-                            if (File.Exists(entry.Value))
-                            {
-                                File.Delete(entry.Value);
-                                deletedObsoleteFiles++;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            FGLLog.Warning($"Failed to delete obsolete cache file {entry.Value}: {ex.Message}");
-                        }
-                    }
-                    else
-                    {
-                        bool cacheExists = false;
-                        try
-                        {
-                            cacheExists = File.Exists(entry.Value);
-                        }
-                        catch
-                        {
-                            // 路徑無效或權限不足時視為「快取檔不存在」，交由後續流程移除該快取項目。
-                        }
-
-                        if (!cacheExists)
-                        {
-                            keysToRemove.Add(entry.Key);
-                        }
-                        else
-                        {
-                            try
-                            {
-                                validCacheFiles.Add(Path.GetFullPath(entry.Value));
-                            }
-                            catch
-                            {
-                                validCacheFiles.Add(entry.Value);
-                            }
-                        }
-                    }
-                }
-
-                if (keysToRemove.Count > 0)
-                {
-                    lock (cacheLock)
-                    {
-                        foreach (var key in keysToRemove)
-                        {
-                            resizedTextureCache.Remove(key);
-                        }
-                    }
-                }
+                RemoveCacheEntries(keysToRemove);
 
                 // 刪除未引用檔案前，重新取得最新的有效路徑集合，
                 // 防止快照拍攝後由 SetCacheEntry 併發新增的項目被誤刪。
-                lock (cacheLock)
-                {
-                    foreach (var kvp in resizedTextureCache)
-                    {
-                        try
-                        {
-                            validCacheFiles.Add(Path.GetFullPath(kvp.Value));
-                        }
-                        catch
-                        {
-                            validCacheFiles.Add(kvp.Value);
-                        }
-                    }
-                }
+                CollectValidCacheFilePaths(validCacheFiles);
 
-                int deletedUnreferencedFiles = 0;
-                foreach (var file in files)
-                {
-                    try
-                    {
-                        string fullPath = Path.GetFullPath(file);
-                        if (!validCacheFiles.Contains(fullPath))
-                        {
-                            File.Delete(file);
-                            deletedUnreferencedFiles++;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        FGLLog.Warning($"Failed to delete unreferenced cache file {file}: {ex.Message}");
-                    }
-                }
+                int deletedUnreferencedFiles = DeleteUnreferencedFiles(files, validCacheFiles);
 
                 if (keysToRemove.Count > 0 || deletedObsoleteFiles > 0 || deletedUnreferencedFiles > 0)
                 {
@@ -528,6 +449,131 @@ namespace FasterGameLoading
             catch (Exception ex)
             {
                 FGLLog.Error("Error during obsolete cache files cleanup:", ex);
+            }
+        }
+
+        /// <summary>
+        /// 逐一檢視快取對照表的項目，回傳應從對照表移除的鍵，
+        /// 並把仍然有效的快取檔路徑收集到 <paramref name="validCacheFiles"/>。
+        /// 原始檔已不存在者，其快取檔會就地刪除。
+        /// </summary>
+        private static List<string> TriageCacheEntries(
+            List<KeyValuePair<string, string>> cacheEntries,
+            HashSet<string> validCacheFiles,
+            out int deletedObsoleteFiles)
+        {
+            var keysToRemove = new List<string>();
+            deletedObsoleteFiles = 0;
+
+            foreach (var entry in cacheEntries)
+            {
+                if (!SafeFileExists(entry.Key))
+                {
+                    keysToRemove.Add(entry.Key);
+                    try
+                    {
+                        if (File.Exists(entry.Value))
+                        {
+                            File.Delete(entry.Value);
+                            deletedObsoleteFiles++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        FGLLog.Warning($"Failed to delete obsolete cache file {entry.Value}: {ex.Message}");
+                    }
+                }
+                else if (!SafeFileExists(entry.Value))
+                {
+                    keysToRemove.Add(entry.Key);
+                }
+                else
+                {
+                    AddResolvedPath(validCacheFiles, entry.Value);
+                }
+            }
+
+            return keysToRemove;
+        }
+
+        /// <summary>以執行緒安全方式從快取對照表移除指定的鍵。</summary>
+        private void RemoveCacheEntries(List<string> keysToRemove)
+        {
+            if (keysToRemove.Count is 0)
+            {
+                return;
+            }
+
+            lock (cacheLock)
+            {
+                foreach (var key in keysToRemove)
+                {
+                    resizedTextureCache.Remove(key);
+                }
+            }
+        }
+
+        /// <summary>把目前對照表中所有快取檔路徑補進有效路徑集合。</summary>
+        private void CollectValidCacheFilePaths(HashSet<string> validCacheFiles)
+        {
+            lock (cacheLock)
+            {
+                foreach (var kvp in resizedTextureCache)
+                {
+                    AddResolvedPath(validCacheFiles, kvp.Value);
+                }
+            }
+        }
+
+        /// <summary>刪除快取目錄中未被對照表引用的檔案，回傳實際刪除數量。</summary>
+        private static int DeleteUnreferencedFiles(string[] files, HashSet<string> validCacheFiles)
+        {
+            int deleted = 0;
+            foreach (var file in files)
+            {
+                try
+                {
+                    string fullPath = Path.GetFullPath(file);
+                    if (!validCacheFiles.Contains(fullPath))
+                    {
+                        File.Delete(file);
+                        deleted++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    FGLLog.Warning($"Failed to delete unreferenced cache file {file}: {ex.Message}");
+                }
+            }
+            return deleted;
+        }
+
+        /// <summary>
+        /// 檢查檔案是否存在；路徑無效或權限不足時一律視為「不存在」，
+        /// 交由呼叫端把對應的快取項目當作失效處理。
+        /// </summary>
+        private static bool SafeFileExists(string path)
+        {
+            try
+            {
+                return File.Exists(path);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>把路徑正規化後加入集合；無法正規化時退回使用原始字串。</summary>
+        private static void AddResolvedPath(HashSet<string> set, string path)
+        {
+            try
+            {
+                set.Add(Path.GetFullPath(path));
+            }
+            catch
+            {
+                set.Add(path);
             }
         }
     }
