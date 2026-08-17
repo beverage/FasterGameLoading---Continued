@@ -80,7 +80,14 @@ namespace FasterGameLoading
             return new SyncScope();
         }
 
+        // S3398: 此方法目前只被巢狀的 SyncScope.Dispose 呼叫，分析器因此建議搬進去。
+        // 但 Enter/Exit 是一組成對的協定：兩者共同維護 syncScopeDepth 與
+        // syncScopeChangedStarted 這兩個外層靜態狀態，且退出時的還原條件必須對照
+        // 進入時的判斷才讀得懂。把 Exit 搬進 SyncScope 會讓這組協定被拆到兩個型別，
+        // 故維持現狀。
+#pragma warning disable S3398
         private static void ExitEarlyLoadSyncScope()
+#pragma warning restore S3398
         {
             if (syncScopeDepth <= 0) return;
             if (--syncScopeDepth is not 0) return;

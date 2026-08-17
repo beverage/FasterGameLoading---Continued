@@ -178,6 +178,14 @@ namespace FasterGameLoading
         /// 支援 Graphic_Multi、Graphic_Appearances、Graphic_Single、
         /// Graphic_RandomRotated、Graphic_Linked、Graphic_Collection 等類型。
         /// </summary>
+        /// <summary>將紋理條目加入指定類型的分類中。</summary>
+        private void AddEntry(TextureResize.TextureType type, BuildableDef def, string fullPath, Texture texture)
+        {
+            var entry = new KeyValuePair<BuildableDef, string>(def, fullPath);
+            textures[type].Add(entry);
+            texturesByDefs[texture] = entry;
+        }
+
         private void AddEntry(TextureResize.TextureType type, BuildableDef def, Graphic graphic)
         {
             switch (graphic)
@@ -253,14 +261,6 @@ namespace FasterGameLoading
 
             fullPath = null;
             return false;
-        }
-
-        /// <summary>將紋理條目加入指定類型的分類中。</summary>
-        private void AddEntry(TextureResize.TextureType type, BuildableDef def, string fullPath, Texture texture)
-        {
-            var entry = new KeyValuePair<BuildableDef, string>(def, fullPath);
-            textures[type].Add(entry);
-            texturesByDefs[texture] = entry;
         }
 
         /// <summary>清理掃描階段的暫存資料。</summary>

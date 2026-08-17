@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using Verse;
 
@@ -66,6 +67,7 @@ namespace FasterGameLoading
         }
 
         /// <summary>掃描過程的累計數，於各 group 之間就地累加。</summary>
+        [StructLayout(LayoutKind.Auto)]
         private struct MaskScanCounters
         {
             public int Groups;

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using RimWorld;
 using UnityEngine;
 using Verse;
@@ -20,6 +21,7 @@ namespace FasterGameLoading
         /// 自適應烘焙的可變狀態：目前測得的烘焙速度，以及依此推導的下個 slice 大小。
         /// 每烘完一批就地更新，故以 ref 傳遞。
         /// </summary>
+        [StructLayout(LayoutKind.Auto)]
         private struct AdaptiveBakeState
         {
             public float MeasuredBakeSpeed;
@@ -29,6 +31,7 @@ namespace FasterGameLoading
         /// <summary>
         /// 自適應烘焙的調校常數。整個協程期間不變，故以 in 傳遞避免複製。
         /// </summary>
+        [StructLayout(LayoutKind.Auto)]
         private readonly struct AdaptiveBakeTuning
         {
             public readonly float TargetBakeTime;
