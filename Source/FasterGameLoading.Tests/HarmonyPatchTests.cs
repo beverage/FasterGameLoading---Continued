@@ -737,7 +737,6 @@ namespace FasterGameLoading.Tests
         [Test]
         public void TestEarlyModContentLoader_UsesImageOptSynchronousScopeWithoutGlobalBypass()
         {
-            var update = typeof(EarlyModContentLoader).GetMethod(nameof(EarlyModContentLoader.Update));
             var imageOptActiveGetter = typeof(ImageOptCompat)
                 .GetProperty(nameof(ImageOptCompat.IsActive))
                 .GetGetMethod();
@@ -747,14 +746,20 @@ namespace FasterGameLoading.Tests
                 .GetProperty("IsInstalled", BindingFlags.NonPublic | BindingFlags.Static)
                 .GetGetMethod(true);
 
+            // 掃描 EarlyModContentLoader 宣告的所有方法，而非只看 Update：此測試守的是
+            // 「提早載入走 ImageOpt 同步 scope，且不因 ImageOpt 而全域停用」這個不變式，
+            // 呼叫落在 Update 本體或它抽出的私有輔助方法內都同樣成立。
+            var declaredMethods = typeof(EarlyModContentLoader).GetMethods(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+
             Assert.IsTrue(
-                MethodBodyContainsMetadataToken(update, enterSyncScope),
+                Array.Exists(declaredMethods, m => MethodBodyContainsMetadataToken(m, enterSyncScope)),
                 "FGL early content loading should enter the ImageOpt synchronous scope.");
             Assert.IsTrue(
-                MethodBodyContainsMetadataToken(update, imageOptInstalledGetter),
+                Array.Exists(declaredMethods, m => MethodBodyContainsMetadataToken(m, imageOptInstalledGetter)),
                 "FGL should cache whether the ImageOpt synchronous scope is required.");
             Assert.IsFalse(
-                MethodBodyContainsMetadataToken(update, imageOptActiveGetter),
+                Array.Exists(declaredMethods, m => MethodBodyContainsMetadataToken(m, imageOptActiveGetter)),
                 "ImageOpt should not globally disable FGL early content loading.");
         }
 
@@ -853,11 +858,16 @@ namespace FasterGameLoading.Tests
         [Test]
         public void TestStartupPostfix_UsesExecuteWhenFinishedForCompletionActions()
         {
-            var postfix = typeof(Startup).GetMethod(nameof(Startup.Postfix));
             var executeWhenFinished = AccessTools.Method(typeof(LongEventHandler), nameof(LongEventHandler.ExecuteWhenFinished));
 
+            // 掃描 Startup 宣告的所有方法，而非只看 Postfix：此測試守的是
+            // 「排程一律經由 ExecuteWhenFinished」這個不變式，該呼叫落在
+            // Postfix 本體或它抽出的私有輔助方法內都同樣成立。
+            var declaredMethods = typeof(Startup).GetMethods(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+
             Assert.IsTrue(
-                MethodBodyReferencesMethod(postfix, executeWhenFinished),
+                Array.Exists(declaredMethods, m => MethodBodyReferencesMethod(m, executeWhenFinished)),
                 "Startup completion actions must use ExecuteWhenFinished instead of mutating LongEventHandler.toExecuteWhenFinished directly.");
         }
 

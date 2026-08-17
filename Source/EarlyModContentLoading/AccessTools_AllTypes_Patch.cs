@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using HarmonyLib;
 using Verse;
@@ -33,15 +34,7 @@ namespace FasterGameLoading
 
             if (!FasterGameLoadingSettings.EnableMultiThreading)
             {
-                // 當關閉多執行緒預載入時，直接在當前（主）執行緒同步載入，避免後續在其他執行緒上觸發初始化
-                var types = BuildTypeList(assembliesSnapshot);
-                lock (typesLock)
-                {
-                    allTypesCached = types;
-                    cachedAssembliesCount = snapshotCount;
-                }
-                // 主執行緒：直接預熱 FullName 快取（與下方多執行緒路徑不同，這裡本就在主緒，無競爭風險）
-                WarmupTypeCache(types);
+                PreloadOnMainThread(assembliesSnapshot, snapshotCount);
                 return;
             }
 
@@ -58,6 +51,29 @@ namespace FasterGameLoading
             //
             // 因此：FullName 預熱改排程到主執行緒（載入長事件結束時）執行，與其他主緒型別
             // 解析自然序列化、互不並行。
+            EnumerateTypesInBackground(assembliesSnapshot, snapshotCount);
+            ScheduleMainThreadWarmup();
+        }
+
+        /// <summary>
+        /// 關閉多執行緒時的同步路徑：在當前（主）執行緒列舉型別並直接預熱 FullName 快取，
+        /// 避免後續在其他執行緒上觸發型別初始化。
+        /// </summary>
+        private static void PreloadOnMainThread(Assembly[] assembliesSnapshot, int snapshotCount)
+        {
+            var types = BuildTypeList(assembliesSnapshot);
+            lock (typesLock)
+            {
+                allTypesCached = types;
+                cachedAssembliesCount = snapshotCount;
+            }
+            // 本就在主緒，無競爭風險，可直接預熱
+            WarmupTypeCache(types);
+        }
+
+        /// <summary>背景緒僅做型別「列舉」，不讀取 FullName（原因見 Preload 的說明）。</summary>
+        private static void EnumerateTypesInBackground(Assembly[] assembliesSnapshot, int snapshotCount)
+        {
             Task.Run(() =>
             {
                 // 最外層安全網：fire-and-forget 背景 Task 的例外無人觀察，
@@ -79,11 +95,16 @@ namespace FasterGameLoading
                     FGLLog.Warning("Unexpected exception preloading all types cache in background:", ex);
                 }
             });
+        }
 
-            // 在主執行緒排程 FullName 預熱（此處 Preload 由 Mod 建構子在主緒呼叫，
-            // ExecuteWhenFinished 的 Add 與其回呼皆在主緒，安全）。
-            // 回呼觸發時背景列舉通常已完成；若尚未完成（allTypesCached 仍為 null）則略過預熱，
-            // 之後由主緒在首次需要時自然補上，不影響正確性。
+        /// <summary>
+        /// 在主執行緒排程 FullName 預熱（Preload 由 Mod 建構子在主緒呼叫，
+        /// ExecuteWhenFinished 的 Add 與其回呼皆在主緒，安全）。
+        /// 回呼觸發時背景列舉通常已完成；若尚未完成（allTypesCached 仍為 null）則略過預熱，
+        /// 之後由主緒在首次需要時自然補上，不影響正確性。
+        /// </summary>
+        private static void ScheduleMainThreadWarmup()
+        {
             LongEventHandler.ExecuteWhenFinished(() =>
             {
                 var cached = allTypesCached;

@@ -189,6 +189,16 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
             var logMethod = AccessTools.Method(typeof(AtlasBakeDiagnostics), nameof(AtlasBakeDiagnostics.LogPotentialMaskIssues));
             var transpilerMethod = AccessTools.Method(typeof(MockTextureHelper), nameof(MockTextureHelper.Transpiler));
             harmony.Patch(logMethod, transpiler: new HarmonyMethod(transpilerMethod));
+
+            // 逐 group 的檢查已抽出成 InspectGroup，貼圖寬高的模擬與
+            // GlobalTextureAtlasManager.buildQueueMasks 的存取都移到了該方法內，
+            // 因此同樣需要轉譯（Krafs.Publicizer 只在編譯期開放該欄位，
+            // 未經 Harmony 轉譯的方法在執行期會拋 FieldAccessException）。
+            var inspectGroup = AccessTools.Method(typeof(AtlasBakeDiagnostics), "InspectGroup");
+            if (inspectGroup != null)
+            {
+                harmony.Patch(inspectGroup, transpiler: new HarmonyMethod(transpilerMethod));
+            }
         }
 
         private static bool PrefixSkip()

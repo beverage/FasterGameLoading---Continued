@@ -75,18 +75,27 @@ namespace FasterGameLoading
 
                 foreach (var style in styleDef.thingDefStyles)
                 {
-                    var type = TextureResize.GetTextureType(style.ThingDef);
-                    AddEntry(type, style.ThingDef, style.StyleDef.Graphic);
-                    if (!style.StyleDef.wornGraphicPath.NullOrEmpty())
-                    {
-                        foreach (var bodyType in DefDatabase<BodyTypeDef>.AllDefs)
-                        {
-                            if (TextureResize.TryGetGraphicApparel(style.ThingDef, style.StyleDef.wornGraphicPath, bodyType, out var graphic))
-                            {
-                                AddEntry(type, style.ThingDef, graphic);
-                            }
-                        }
-                    }
+                    AddStyleEntry(style);
+                }
+            }
+        }
+
+        /// <summary>登錄單一風格的主圖形，以及（若有）其各體型的穿著外觀圖形。</summary>
+        private void AddStyleEntry(ThingDefStyle style)
+        {
+            var type = TextureResize.GetTextureType(style.ThingDef);
+            AddEntry(type, style.ThingDef, style.StyleDef.Graphic);
+
+            if (style.StyleDef.wornGraphicPath.NullOrEmpty())
+            {
+                return;
+            }
+
+            foreach (var bodyType in DefDatabase<BodyTypeDef>.AllDefs)
+            {
+                if (TextureResize.TryGetGraphicApparel(style.ThingDef, style.StyleDef.wornGraphicPath, bodyType, out var graphic))
+                {
+                    AddEntry(type, style.ThingDef, graphic);
                 }
             }
         }

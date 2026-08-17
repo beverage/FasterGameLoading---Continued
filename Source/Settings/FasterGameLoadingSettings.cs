@@ -48,6 +48,20 @@ namespace FasterGameLoading
 
             var ls = new Listing_Standard();
             ls.Begin(viewRect);
+
+            DrawLoadingOptions(ls);
+            DrawDiagnosticsOptions(ls);
+            ls.Gap(12f);
+            DrawTextureCacheSection(ls);
+
+            ls.End();
+            viewHeight = ls.CurHeight + 20f;
+            Widgets.EndScrollView();
+        }
+
+        /// <summary>載入行為相關的開關。</summary>
+        private static void DrawLoadingOptions(Listing_Standard ls)
+        {
             ls.CheckboxLabeled("FGL_EarlyModContentLoading".Translate(), ref earlyModContentLoading);
             var enableMultiThreading = EnableMultiThreading;
             ls.CheckboxLabeled("FGL_MultiThreading".Translate(), ref enableMultiThreading);
@@ -58,15 +72,22 @@ namespace FasterGameLoading
             var delayGraphicLoading = DelayGraphicLoading;
             ls.CheckboxLabeled("FGL_DelayGraphicLoading".Translate(), ref delayGraphicLoading);
             DelayGraphicLoading = delayGraphicLoading;
+        }
 
+        /// <summary>圖集烘焙與詳細日誌開關。</summary>
+        private static void DrawDiagnosticsOptions(Listing_Standard ls)
+        {
             var staticAtlasesBaking = StaticAtlasesBaking;
             ls.CheckboxLabeled("FGL_StaticAtlasesBaking".Translate(), ref staticAtlasesBaking);
             StaticAtlasesBaking = staticAtlasesBaking;
             var verboseLogging = VerboseLogging;
             ls.CheckboxLabeled("FGL_VerboseLogging".Translate(), ref verboseLogging);
             VerboseLogging = verboseLogging;
-            ls.Gap(12f);
+        }
 
+        /// <summary>紋理降質說明、執行按鈕，以及快取狀態與清除按鈕。</summary>
+        private static void DrawTextureCacheSection(Listing_Standard ls)
+        {
             // Texture resize explanation
             var explanationText = "FGL_TextureResizingExplanation".Translate();
             var textHeight = Text.CalcHeight(explanationText, ls.ColumnWidth);
@@ -101,10 +122,6 @@ namespace FasterGameLoading
                     LoadedModManager.GetMod<FasterGameLoadingMod>().WriteSettings();
                 }, "GoBack".Translate()));
             }
-
-            ls.End();
-            viewHeight = ls.CurHeight + 20f;
-            Widgets.EndScrollView();
         }
 
         public override void ExposeData()

@@ -42,7 +42,15 @@ namespace FasterGameLoading
             }
             SessionCache.modsInLastSession = mods;
 
-            // 執行所有註冊的啟動完成回呼
+            RunStartupCallbacks();
+            StartBackgroundCacheCleanup();
+            InjectTranslations();
+            ScheduleDeferredStartupActions();
+        }
+
+        /// <summary>依註冊順序執行所有啟動完成回呼；個別回呼的例外只記錄，不影響其餘回呼。</summary>
+        private static void RunStartupCallbacks()
+        {
             foreach (var callback in onStartupCompleted)
             {
                 try
@@ -55,8 +63,11 @@ namespace FasterGameLoading
                 }
             }
             onStartupCompleted.Clear();
+        }
 
-            // 在背景執行緒啟動過期/無效的材質快取自動清理，避免阻塞啟動流程與主頁面
+        /// <summary>在背景執行緒啟動過期／無效的材質快取自動清理，避免阻塞啟動流程與主頁面。</summary>
+        private static void StartBackgroundCacheCleanup()
+        {
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
@@ -68,8 +79,11 @@ namespace FasterGameLoading
                     FGLLog.Warning("Error executing obsolete cache cleanup:", ex);
                 }
             });
+        }
 
-            // 注入翻譯（包在 try/catch 內，避免例外中斷 StaticConstructorOnStartupUtility.CallAll）
+        /// <summary>注入翻譯；包在 try/catch 內，避免例外中斷 StaticConstructorOnStartupUtility.CallAll。</summary>
+        private static void InjectTranslations()
+        {
             try
             {
                 TranslationInjector.InjectTranslations();
@@ -78,8 +92,11 @@ namespace FasterGameLoading
             {
                 FGLLog.Error("TranslationInjector.InjectTranslations execution failed", ex);
             }
+        }
 
-            // 透過 LongEventHandler 排程設定寫入與延遲動作，以避免阻塞啟動流程
+        /// <summary>透過 LongEventHandler 排程設定寫入與延遲動作，以避免阻塞啟動流程。</summary>
+        private static void ScheduleDeferredStartupActions()
+        {
             try
             {
                 LongEventHandler.ExecuteWhenFinished(delegate

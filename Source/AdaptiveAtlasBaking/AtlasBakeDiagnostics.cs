@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using UnityEngine;
@@ -39,69 +40,21 @@ namespace FasterGameLoading
                     return;
                 }
 
-                int groupCount = 0;
-                int textureCount = 0;
-                int maskCount = 0;
-                int issueCount = 0;
+                var counters = default(MaskScanCounters);
 
                 foreach (var kvp in buildQueue.ToList())
                 {
-                    var key = kvp.Key;
-                    if (!key.hasMask)
-                    {
-                        // 沒有 mask 的群組不會進 BuildMaskAtlas，跳過。
-                        groupCount++;
-                        continue;
-                    }
-
-                    groupCount++;
-
-                    foreach (Texture2D main in kvp.Value.Item1.ToList())
-                    {
-                        if (main == null)
-                        {
-                            continue;
-                        }
-
-                        textureCount++;
-
-                        if (!GlobalTextureAtlasManager.buildQueueMasks.TryGetValue(main, out var mask)
-                            || mask == null)
-                        {
-                            // hasMask 為 true 但找不到對應 mask：BuildMaskAtlas 內以 null 進 CopyTexture 是高風險。
-                            issueCount++;
-                            FGLLog.Warning(
-                                $"[AtlasDiag/{context}] Group '{DescribeKey(key)}' main texture '{DescribeTexture(main)}' " +
-                                "declares hasMask but has no matching mask (null). BuildMaskAtlas may call CopyTexture on a null source.");
-                            continue;
-                        }
-
-                        maskCount++;
-
-                        // ── 主因檢查：mask 與 main 尺寸不符是 CopyTexture 區塊複製越界 / AV 的最常見原因 ──
-                        // 註：main 與 mask 會被搬進兩個各自獨立的圖集（colorTexture / maskTexture），
-                        // 兩者佔同一個 UV rect，故尺寸必須一致；但「格式」彼此無需相容——
-                        // CopyTexture 只要求 mask 的格式與「目標 mask 圖集」相容，與 main 的格式無關。
-                        // 因此不比較 mask.format vs main.format（BC7 main + DXT1 mask 是原版常態，並非崩潰條件）。
-                        if (mask.width != main.width || mask.height != main.height)
-                        {
-                            issueCount++;
-                            FGLLog.Warning(
-                                $"[AtlasDiag/{context}] Size mismatch: main '{DescribeTexture(main)}' " +
-                                $"vs mask '{DescribeTexture(mask)}'. CopyTexture requires matching source/destination blocks; " +
-                                "this discrepancy is very likely the cause of a native BuildMaskAtlas crash.");
-                        }
-                    }
+                    InspectGroup(context, kvp.Key, kvp.Value.Item1, ref counters);
                 }
 
                 FGLLog.Message(
-                    $"[AtlasDiag/{context}] Scan complete: groups {groupCount.ToString(CultureInfo.InvariantCulture)}, main textures with mask {textureCount.ToString(CultureInfo.InvariantCulture)}, " +
-                    $"successfully paired masks {maskCount.ToString(CultureInfo.InvariantCulture)}, suspicious items detected {issueCount.ToString(CultureInfo.InvariantCulture)}.");
+                    $"[AtlasDiag/{context}] Scan complete: groups {counters.Groups.ToString(CultureInfo.InvariantCulture)}, main textures with mask {counters.Textures.ToString(CultureInfo.InvariantCulture)}, " +
+                    $"successfully paired masks {counters.Masks.ToString(CultureInfo.InvariantCulture)}, suspicious items detected {counters.Issues.ToString(CultureInfo.InvariantCulture)}.");
 
-                if (issueCount > 0)
+                if (counters.Issues > 0)
                 {
                     FGLLog.Warning(
-                        $"[AtlasDiag/{context}] Detected {issueCount.ToString(CultureInfo.InvariantCulture)} suspicious mask(s); if a native crash follows in " +
+                        $"[AtlasDiag/{context}] Detected {counters.Issues.ToString(CultureInfo.InvariantCulture)} suspicious mask(s); if a native crash follows in " +
                         "BuildMaskAtlas / CopyTexture, it is very likely caused by the content mod owning one of the textures above.");
                 }
             }
@@ -109,6 +62,65 @@ namespace FasterGameLoading
             {
                 // 診斷工具本身絕不可影響烘焙：吞掉任何例外，只留一條警告。
                 FGLLog.Warning($"[AtlasDiag/{context}] Exception while scanning buildQueue (ignored, does not affect baking)", ex);
+            }
+        }
+
+        /// <summary>掃描過程的累計數，於各 group 之間就地累加。</summary>
+        private struct MaskScanCounters
+        {
+            public int Groups;
+            public int Textures;
+            public int Masks;
+            public int Issues;
+        }
+
+        /// <summary>
+        /// 檢查單一圖集群組中每張 main 貼圖的 mask 配對狀況，把可疑項目以 Warning 印出。
+        /// </summary>
+        private static void InspectGroup(string context, TextureAtlasGroupKey key, List<Texture2D> mainTextures, ref MaskScanCounters counters)
+        {
+            counters.Groups++;
+            if (!key.hasMask)
+            {
+                // 沒有 mask 的群組不會進 BuildMaskAtlas，跳過。
+                return;
+            }
+
+            foreach (Texture2D main in mainTextures.ToList())
+            {
+                if (main == null)
+                {
+                    continue;
+                }
+
+                counters.Textures++;
+
+                if (!GlobalTextureAtlasManager.buildQueueMasks.TryGetValue(main, out var mask)
+                    || mask == null)
+                {
+                    // hasMask 為 true 但找不到對應 mask：BuildMaskAtlas 內以 null 進 CopyTexture 是高風險。
+                    counters.Issues++;
+                    FGLLog.Warning(
+                        $"[AtlasDiag/{context}] Group '{DescribeKey(key)}' main texture '{DescribeTexture(main)}' " +
+                        "declares hasMask but has no matching mask (null). BuildMaskAtlas may call CopyTexture on a null source.");
+                    continue;
+                }
+
+                counters.Masks++;
+
+                // ── 主因檢查：mask 與 main 尺寸不符是 CopyTexture 區塊複製越界 / AV 的最常見原因 ──
+                // 註：main 與 mask 會被搬進兩個各自獨立的圖集（colorTexture / maskTexture），
+                // 兩者佔同一個 UV rect，故尺寸必須一致；但「格式」彼此無需相容——
+                // CopyTexture 只要求 mask 的格式與「目標 mask 圖集」相容，與 main 的格式無關。
+                // 因此不比較 mask.format vs main.format（BC7 main + DXT1 mask 是原版常態，並非崩潰條件）。
+                if (mask.width != main.width || mask.height != main.height)
+                {
+                    counters.Issues++;
+                    FGLLog.Warning(
+                        $"[AtlasDiag/{context}] Size mismatch: main '{DescribeTexture(main)}' " +
+                        $"vs mask '{DescribeTexture(mask)}'. CopyTexture requires matching source/destination blocks; " +
+                        "this discrepancy is very likely the cause of a native BuildMaskAtlas crash.");
+                }
             }
         }
 

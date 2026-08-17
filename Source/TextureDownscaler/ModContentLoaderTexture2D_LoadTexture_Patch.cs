@@ -259,109 +259,144 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
 
             if (!UnityData.IsInMainThread)
             {
-                // 當前非主線程，我們無法安全地呼叫 Unity 的資源載入 API。
-                // 將任務派送至主線程執行，並在此處阻塞等待。
-                var request = new LoadRequest { File = file };
-                mainThreadLoadRequests.Enqueue(request);
-
-                // 等待最多 5 秒，防止潛在的死鎖或載入超時。
-                // 泵送合約：DelayedActions（MonoBehaviour）的 Update() 每幀在主執行緒呼叫
-                // ProcessPendingMainThreadRequests()，確保此請求在下一幀內被處理。
-                // 參見 Source\DelayGraphicAndIconLoading\DelayedActions.cs:Update()。
-                if (request.CompletedEvent.Wait(1000))
-                {
-                    if (request.Exception != null)
-                    {
-                        FGLLog.Warning($"Error loading texture on main thread redirect: {request.Exception.Message}");
-                        __result = null;
-                        __state = false;
-                        return false;
-                    }
-                    if (request.Result != null)
-                    {
-                        __result = request.Result;
-                        __state = false;
-                        return false;
-                    }
-                }
-                else
-                {
-                    FGLLog.Warning($"Timeout waiting for texture loading on main thread: {file.FullPath}");
-                }
-
-                request.Cancel();
-                __result = null;
                 __state = false;
+                __result = LoadViaMainThreadRedirect(file);
                 return false;
             }
 
             var fullPath = file.FullPath;
-            var shouldBypassTextureReplacement = GraphicsSettingsCompat.ShouldBypassTextureReplacement;
-            var isProtectedTexturePath = AdaptiveBakingSkipList.IsProtectedModTexturePath(fullPath);
+            var canReplaceTexture = !AdaptiveBakingSkipList.IsProtectedModTexturePath(fullPath)
+                && !GraphicsSettingsCompat.ShouldBypassTextureReplacement;
 
             // 優先檢查 WeakReference 快取中是否已有此紋理
-            if (!isProtectedTexturePath && !shouldBypassTextureReplacement && savedTextures.TryGetValue(fullPath, out var weakRef) && weakRef.TryGetTarget(out __result))
+            if (canReplaceTexture && TryServeFromWeakReferenceCache(fullPath, out __result))
             {
-                RegisterSkippedBakingTextureIfApplicable(fullPath, __result);
                 __state = false;
                 return false;
             }
 
-
             // 檢查是否有降質快取版本的紋理可用
-            if (!isProtectedTexturePath && !shouldBypassTextureReplacement && FasterGameLoadingMod.Instance.CacheManager.TryGetCachedTexturePath(fullPath, out var cachePath))
+            if (canReplaceTexture && TryServeFromDownscaleCache(fullPath, out __result))
             {
-                try
-                {
-                    byte[] data;
-                    if (!preloadedCacheBytes.TryRemove(cachePath, out data))
-                    {
-                        data = File.ReadAllBytes(cachePath);
-                    }
-                    bool useMipmaps = fullPath.NormalizePath().IndexOf(FGLConsts.UIDirSlash, StringComparison.Ordinal) < 0;
-                    var tex = new Texture2D(FGLConsts.PlaceholderTextureSize, FGLConsts.PlaceholderTextureSize, TextureFormat.RGBA32, useMipmaps);
-                    var textureAccepted = false;
-
-                    try
-                    {
-                        if (tex.LoadImage(data) && tex.width > 0 && tex.height > 0)
-                        {
-                            tex.name = Path.GetFileNameWithoutExtension(fullPath);
-                            tex.Compress(highQuality: true);
-                            tex.Apply(updateMipmaps: true, makeNoLongerReadable: true);
-                            SaveTexturePath(fullPath, tex);
-                            RegisterSkippedBakingTextureIfApplicable(fullPath, tex);
-                            Interlocked.Increment(ref cacheLoadHitsValue);
-                            __result = tex;
-                            __state = false;
-                            textureAccepted = true;
-                            return false;
-                        }
-                    }
-                    finally
-                    {
-                        if (!textureAccepted)
-                        {
-                            UnityEngine.Object.Destroy(tex);
-                        }
-                    }
-
-                    FasterGameLoadingMod.Instance.CacheManager.RemoveCachedTexturePath(fullPath);
-                    Interlocked.Increment(ref cacheLoadFailuresValue);
-                }
-                catch (Exception ex)
-                {
-                    if (FasterGameLoadingSettings.VerboseLogging)
-                    {
-                        FGLLog.Warning($"Exception loading cached texture for: {fullPath}", ex);
-                    }
-                    FasterGameLoadingMod.Instance.CacheManager.RemoveCachedTexturePath(fullPath);
-                    Interlocked.Increment(ref cacheLoadFailuresValue);
-                }
+                __state = false;
+                return false;
             }
 
             // 沒有快取命中，讓原始方法載入紋理
             __state = true;
+            RecordTextureForSession(fullPath);
+            return true;
+        }
+
+        /// <summary>
+        /// 非主執行緒時的載入路徑：把請求派送到主執行緒並在此阻塞等待。
+        /// 逾時、失敗或取消一律回傳 null，由呼叫端直接跳過原始方法。
+        /// </summary>
+        private static Texture2D LoadViaMainThreadRedirect(VirtualFile file)
+        {
+            // 當前非主線程，我們無法安全地呼叫 Unity 的資源載入 API。
+            // 將任務派送至主線程執行，並在此處阻塞等待。
+            var request = new LoadRequest { File = file };
+            mainThreadLoadRequests.Enqueue(request);
+
+            // 泵送合約：DelayedActions（MonoBehaviour）的 Update() 每幀在主執行緒呼叫
+            // ProcessPendingMainThreadRequests()，確保此請求在下一幀內被處理。
+            // 參見 Source\DelayGraphicAndIconLoading\DelayedActions.cs:Update()。
+            if (request.CompletedEvent.Wait(1000))
+            {
+                if (request.Exception != null)
+                {
+                    FGLLog.Warning($"Error loading texture on main thread redirect: {request.Exception.Message}");
+                    return null;
+                }
+                if (request.Result != null)
+                {
+                    return request.Result;
+                }
+            }
+            else
+            {
+                FGLLog.Warning($"Timeout waiting for texture loading on main thread: {file.FullPath}");
+            }
+
+            request.Cancel();
+            return null;
+        }
+
+        /// <summary>本 session 已載入過同一路徑時，直接沿用 WeakReference 快取中的紋理。</summary>
+        private static bool TryServeFromWeakReferenceCache(string fullPath, out Texture2D result)
+        {
+            if (savedTextures.TryGetValue(fullPath, out var weakRef) && weakRef.TryGetTarget(out result))
+            {
+                RegisterSkippedBakingTextureIfApplicable(fullPath, result);
+                return true;
+            }
+
+            result = null;
+            return false;
+        }
+
+        /// <summary>
+        /// 嘗試以磁碟上的降質快取取代原始紋理。
+        /// 快取檔損毀或載入失敗時移除該快取項目並回報未命中，由原始方法接手。
+        /// </summary>
+        private static bool TryServeFromDownscaleCache(string fullPath, out Texture2D result)
+        {
+            result = null;
+            if (!FasterGameLoadingMod.Instance.CacheManager.TryGetCachedTexturePath(fullPath, out var cachePath))
+            {
+                return false;
+            }
+
+            try
+            {
+                if (!preloadedCacheBytes.TryRemove(cachePath, out byte[] data))
+                {
+                    data = File.ReadAllBytes(cachePath);
+                }
+                bool useMipmaps = fullPath.NormalizePath().IndexOf(FGLConsts.UIDirSlash, StringComparison.Ordinal) < 0;
+                var tex = new Texture2D(FGLConsts.PlaceholderTextureSize, FGLConsts.PlaceholderTextureSize, TextureFormat.RGBA32, useMipmaps);
+                var textureAccepted = false;
+
+                try
+                {
+                    if (tex.LoadImage(data) && tex.width > 0 && tex.height > 0)
+                    {
+                        tex.name = Path.GetFileNameWithoutExtension(fullPath);
+                        tex.Compress(highQuality: true);
+                        tex.Apply(updateMipmaps: true, makeNoLongerReadable: true);
+                        SaveTexturePath(fullPath, tex);
+                        RegisterSkippedBakingTextureIfApplicable(fullPath, tex);
+                        Interlocked.Increment(ref cacheLoadHitsValue);
+                        result = tex;
+                        textureAccepted = true;
+                        return true;
+                    }
+                }
+                finally
+                {
+                    if (!textureAccepted)
+                    {
+                        UnityEngine.Object.Destroy(tex);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (FasterGameLoadingSettings.VerboseLogging)
+                {
+                    FGLLog.Warning($"Exception loading cached texture for: {fullPath}", ex);
+                }
+            }
+
+            FasterGameLoadingMod.Instance.CacheManager.RemoveCachedTexturePath(fullPath);
+            Interlocked.Increment(ref cacheLoadFailuresValue);
+            return false;
+        }
+
+        /// <summary>把此紋理的 Textures/ 相對路徑記入本 session 的載入清單，供跨 session 快取使用。</summary>
+        private static void RecordTextureForSession(string fullPath)
+        {
             var searchPath = fullPath.Replace('\\', '/');
             // 必須用 Ordinal：IndexOf(string) 預設為文化相關比對，某些語系會忽略特定字元
             // 而回傳錯誤的位移，導致後續路徑切片取到錯誤片段。
@@ -371,7 +406,6 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                 var path = fullPath.Substring(index);
                 loadedTexturesThisSession[path] = fullPath;
             }
-            return true;
         }
 
         /// <summary>

@@ -54,33 +54,44 @@ namespace FasterGameLoading
 
                 foreach (var textureDir in TextureDirs(root))
                 {
-                    IEnumerable<string> paths;
-                    try
-                    {
-                        paths = Directory.EnumerateFiles(textureDir, "*.dds.zstd", SearchOption.AllDirectories)
-                            .Concat(Directory.EnumerateFiles(textureDir, "*.dds", SearchOption.AllDirectories))
-                            .ToArray();
-                    }
-                    catch
-                    {
-                        continue;
-                    }
+                    deleted += CleanupTextureDir(textureDir);
+                }
+            }
+            return deleted;
+        }
 
-                    foreach (var path in paths)
-                    {
-                        if (!HasSourceImage(path) || HasValidCacheMagic(path)) continue;
+        /// <summary>
+        /// 清理單一 Textures 目錄下所有「有原始圖檔存在、但快取魔術字不合法」的
+        /// .dds／.dds.zstd 檔，回傳實際刪除數量。
+        /// 目錄無法列舉或個別檔案刪不掉都只是略過 —— 清理屬盡力而為，不得影響啟動流程。
+        /// </summary>
+        private static int CleanupTextureDir(string textureDir)
+        {
+            string[] paths;
+            try
+            {
+                paths = Directory.EnumerateFiles(textureDir, "*.dds.zstd", SearchOption.AllDirectories)
+                    .Concat(Directory.EnumerateFiles(textureDir, "*.dds", SearchOption.AllDirectories))
+                    .ToArray();
+            }
+            catch
+            {
+                return 0;
+            }
 
-                        try
-                        {
-                            File.Delete(path);
-                            deleted++;
-                        }
-                        catch
-                        {
-                            // 清理無效快取屬於盡力而為：檔案被佔用或權限不足時略過該檔即可，
-                            // 不應讓清理失敗影響啟動流程。
-                        }
-                    }
+            var deleted = 0;
+            foreach (var path in paths)
+            {
+                if (!HasSourceImage(path) || HasValidCacheMagic(path)) continue;
+
+                try
+                {
+                    File.Delete(path);
+                    deleted++;
+                }
+                catch
+                {
+                    // 檔案被佔用或權限不足時略過該檔即可。
                 }
             }
             return deleted;
