@@ -47,6 +47,15 @@ namespace FasterGameLoading
         /// 只在判定可信時才快取：ModsConfig 命中、或 RunningMods 已就緒時才鎖定結果；
         /// RunningMods 尚未就緒則維持未判定，下次再來。
         /// </summary>
+        // S1144：此屬性目前確實沒有呼叫端 —— 排除判定已改走 IsProtectedModTexturePath
+        // 的路徑比對（見 ShouldSkipBaking）。刻意保留而非刪除的理由：
+        // 它與 isAnyTargetModActive 快取欄位、CacheResetter 的重置註冊，以及下方三個
+        // helper（IsAnyTargetModActiveViaConfig／IsActiveSafe／
+        // TryDetectActiveTargetModFromRunningMods）是同一組「RunningMods 尚未就緒時
+        // 不得下定論」的 fail-open 判定邏輯，該時序條件難以重建；路徑比對若日後在
+        // 未提供 RootDir 的 Mod 上失效，這裡是既有且已驗證的退路。
+        // 以逐處 pragma 抑制而非在 .editorconfig 全域停用 S1144，避免遮蔽其他死碼。
+#pragma warning disable S1144
         private static bool IsAnyTargetModActive
         {
             get
@@ -77,6 +86,7 @@ namespace FasterGameLoading
                 return false;
             }
         }
+#pragma warning restore S1144
 
         /// <summary>透過 ModsConfig.IsActive 判定外星人種族核心或特定名單是否啟用。</summary>
         private static bool IsAnyTargetModActiveViaConfig()
