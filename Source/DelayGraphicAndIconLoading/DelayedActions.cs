@@ -23,9 +23,9 @@ namespace FasterGameLoading
         public static float MaxImpactThisFrame => Current.Game != null ? 0.008f : 0.05f;
 
         // ── 延遲佇列 ──
-        private readonly List<(ThingDef def, Action action)> graphicsToLoad = new();
-        private readonly List<(BuildableDef def, Action action)> iconsToLoad = new();
-        private readonly List<(SubSoundDef def, Action action)> subSoundDefToResolve = new();
+        private readonly Queue<(ThingDef def, Action action)> graphicsToLoad = new();
+        private readonly Queue<(BuildableDef def, Action action)> iconsToLoad = new();
+        private readonly Queue<(SubSoundDef def, Action action)> subSoundDefToResolve = new();
         private readonly ConcurrentQueue<Action> mainThreadActions = new();
 
         public void EnqueueMainThreadAction(Action action)
@@ -52,7 +52,7 @@ namespace FasterGameLoading
         {
             lock (graphicsToLoad)
             {
-                graphicsToLoad.Add((def, action));
+                graphicsToLoad.Enqueue((def, action));
             }
         }
 
@@ -60,7 +60,7 @@ namespace FasterGameLoading
         {
             lock (iconsToLoad)
             {
-                iconsToLoad.Add((def, action));
+                iconsToLoad.Enqueue((def, action));
             }
         }
 
@@ -68,7 +68,7 @@ namespace FasterGameLoading
         {
             lock (subSoundDefToResolve)
             {
-                subSoundDefToResolve.Add((def, action));
+                subSoundDefToResolve.Enqueue((def, action));
             }
         }
 
@@ -78,8 +78,8 @@ namespace FasterGameLoading
             {
                 if (graphicsToLoad.Count > 0)
                 {
-                    (def, action) = graphicsToLoad[0];
-                    graphicsToLoad.RemoveAt(0);
+                    (def, action) = graphicsToLoad.Peek();
+                    graphicsToLoad.Dequeue();
                     return true;
                 }
             }
@@ -94,8 +94,8 @@ namespace FasterGameLoading
             {
                 if (iconsToLoad.Count > 0)
                 {
-                    (def, action) = iconsToLoad[0];
-                    iconsToLoad.RemoveAt(0);
+                    (def, action) = iconsToLoad.Peek();
+                    iconsToLoad.Dequeue();
                     return true;
                 }
             }
@@ -110,8 +110,8 @@ namespace FasterGameLoading
             {
                 if (subSoundDefToResolve.Count > 0)
                 {
-                    (def, action) = subSoundDefToResolve[0];
-                    subSoundDefToResolve.RemoveAt(0);
+                    (def, action) = subSoundDefToResolve.Peek();
+                    subSoundDefToResolve.Dequeue();
                     return true;
                 }
             }

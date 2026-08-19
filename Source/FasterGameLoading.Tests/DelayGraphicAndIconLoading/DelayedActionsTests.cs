@@ -243,5 +243,66 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             Assert.That(DelayedActions.AllDeferredVisualsLoaded, Is.False);
             Assert.That(DelayedActions.AdaptiveStaticAtlasBakeFailed, Is.False);
         }
+
+        [Test]
+        public void LateUpdate_InvokesEarlyModContentLoaderUpdateWithoutThrowing()
+        {
+            // LateUpdate 每幀呼叫 EarlyModContentLoader.Update；在設定關閉時該方法提前返回，
+            // 此處僅驗證呼叫路徑本身不拋出例外（覆蓋 DelayedActions.LateUpdate）。
+            Assert.DoesNotThrow(() => delayedActions.LateUpdate());
+        }
+
+        [Test]
+        public void PerformActions_WhenDeferredVisualPipelineDisabled_ResolvesSubSoundsAndMarksLoaded()
+        {
+            bool originalDelay = FasterGameLoadingSettings.DelayGraphicLoading;
+            bool originalLoaded = DelayedActions.AllDeferredVisualsLoaded;
+            FasterGameLoadingSettings.DelayGraphicLoading = false;
+            try
+            {
+                // DelayGraphicLoading=false 時略過延遲圖形/圖集烘焙管線，直接標記視覺已載入，
+                // 並在 finally 中執行取消 SoundStarter 攔截與清空 savedGraphics（覆蓋 PerformActions 主協程）。
+                var enumerator = delayedActions.PerformActions();
+                while (enumerator.MoveNext()) { }
+
+                Assert.That(DelayedActions.AllDeferredVisualsLoaded, Is.True);
+            }
+            finally
+            {
+                FasterGameLoadingSettings.DelayGraphicLoading = originalDelay;
+                DelayedActions.AllDeferredVisualsLoaded = originalLoaded;
+            }
+        }
+
+        [Test]
+        public void PerformActions_WhenDeferredVisualPipelineEnabled_StartsPipelineAndResolvesWithoutBaking()
+        {
+            bool originalDelay = FasterGameLoadingSettings.DelayGraphicLoading;
+            bool originalLoaded = DelayedActions.AllDeferredVisualsLoaded;
+            FasterGameLoadingSettings.DelayGraphicLoading = true;
+            try
+            {
+                // DelayGraphicLoading=true 時進入延遲視覺管線：第一次 MoveNext 覆蓋 210-216
+                // （含 LoadDeferredGraphicsCoroutine 呼叫），第二次覆蓋 217-218（產生
+                // BakeDeferredAtlasesCoroutine 列舉器，但尚未執行其烘焙本體）。烘焙呼叫需要
+                // 遊戲/圖集基礎設施，無頭環境會拋出，故不繼續迭代；finally 區塊會在 Dispose 時安全執行。
+                var enumerator = delayedActions.PerformActions();
+                try
+                {
+                    Assert.That(enumerator.MoveNext(), Is.True);
+                    Assert.That(enumerator.MoveNext(), Is.True);
+                }
+                finally
+                {
+                    if (enumerator is IDisposable disposable)
+                        disposable.Dispose();
+                }
+            }
+            finally
+            {
+                FasterGameLoadingSettings.DelayGraphicLoading = originalDelay;
+                DelayedActions.AllDeferredVisualsLoaded = originalLoaded;
+            }
+        }
     }
 }
