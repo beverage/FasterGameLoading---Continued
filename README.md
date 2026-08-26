@@ -1,9 +1,22 @@
 # Faster Game Loading - Continued
 
 [![RimWorld 1.6](https://img.shields.io/badge/RimWorld-1.6-brightgreen.svg)](http://rimworldgame.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Languages](https://img.shields.io/badge/languages-EN%20%7C%20Traditional%20Chinese%20%7C%20Simplified%20Chinese%20%7C%20RU-orange.svg)
 
 Makes RimWorld reach the main menu faster on large mod lists. This mod reduces startup costs from XML loading, reflection, textures, and atlas work without changing gameplay or save data.
+
+Original mod by [Taranchuk](https://github.com/Taranchuk/FasterGameLoading); this is a maintained fork with compatibility fixes and performance improvements.
+
+## Installation
+
+> [!IMPORTANT]
+> Requires RimWorld 1.6 and [Harmony](https://github.com/pardeike/HarmonyRimWorld/releases/latest). Load this mod after Harmony.
+
+- **Steam Workshop**: subscribe on the [Workshop page](https://steamcommunity.com/sharedfiles/filedetails/?id=3652938473).
+- **Manual**: download or clone this repository into your `RimWorld/Mods/` folder, then enable **Faster Game Loading - Continued** in the in-game mod list.
+
+All options live in `Options → Mod options → Faster Game Loading - Continued`. Most players can keep the defaults; see [Recommended Settings](#recommended-settings).
 
 ## Startup Flow
 
@@ -41,15 +54,13 @@ Manual tool:
 - **Downscale textures**: Downscales high-resolution textures into a separate cache. Original mod files are never modified. If you already use Graphics Settings+ or RimSort Optimize Texture, you usually do not need this.
 - **Clear texture cache**: Removes cached downscaled textures so original textures are used on the next startup.
 
-## Notes
-
-- XPath caching may rebuild after the first launch, mod updates, or XML edits.
-- XPath caching applies only while RimWorld is starting; it does not intercept XML queries at the main menu or during gameplay.
-- Mod `Defs` and `Patches` XML edits are detected when file path, size, or modified time changes; Mod settings XML is ignored.
-- Brief startup unresponsiveness can be normal, especially with large mod lists.
-- Startup sound playback is temporarily held until deferred sound definitions finish resolving, then released automatically.
-- **Delay graphic and icon loading** is an advanced option. If you see texture or icon timing issues, disable it first.
-- Downscaled texture cache can be cleared from the mod settings.
+> [!NOTE]
+> Brief startup unresponsiveness can be normal, especially with large mod lists. Startup sound playback is temporarily held until deferred sound definitions finish resolving, then released automatically.
+> XPath caching may rebuild after the first launch, mod updates, or XML edits.
+> XPath caching applies only while RimWorld is starting; it does not intercept XML queries at the main menu or during gameplay.
+> Mod `Defs` and `Patches` XML edits are detected when file path, size, or modified time changes; Mod settings XML is ignored.
+> **Delay graphic and icon loading** is an advanced option. If you see texture or icon timing issues, disable it first.
+> Downscaled texture cache can be cleared from the mod settings.
 
 ## Compatibility
 
@@ -57,7 +68,6 @@ Compatibility handling exists for:
 
 - [Loading Progress](https://github.com/ilyvion/LoadingProgress)
 - [Missile Girl - Performance Mod](https://github.com/ViralReaction/MissileGirl)
-- [DefLoadCache](https://github.com/FluxxField/rimworld-defload-cache)
 - [Graphics Settings+](https://github.com/RealTelefonmast/GraphicsSetter)
 - [HugsLib](https://github.com/UnlimitedHugs/RimworldHugsLib)
 - [XmlExtensions](https://github.com/15adhami/XmlExtensions)
@@ -69,6 +79,7 @@ Compatibility handling exists for:
 Important behavior:
 
 - When Missile Girl is active, XPath caching and background XML change scanning are disabled to avoid conflicting with its cache system.
+- [DefLoadCache](https://github.com/FluxxField/rimworld-defload-cache) has no dedicated compatibility code in this mod. It is expected to work alongside Faster Game Loading, but use either Missile Girl or DefLoadCache, not both.
 - [Image Opt](https://steamcommunity.com/sharedfiles/filedetails/?id=3543873568) compatibility is no longer maintained. When Faster Game Loading and Image Opt are enabled together, mods that depend on [Ancot Library](https://steamcommunity.com/sharedfiles/filedetails/?id=2988801276) may encounter graphical loading errors, missing textures, or black textures under some loading conditions. Using both mods together is not recommended.
 - Existing Image Opt safeguards, such as downscaled-texture bypass and invalid `.dds` / `.dds.zstd` cache cleanup, do not guarantee compatibility.
 - HAR and Ancot-related race mods skip some early-loading and atlas-baking paths to reduce bodyAddon, hair, ear, and multi-mask texture issues.
@@ -88,9 +99,10 @@ If loading is still slow:
 
 ```text
 FasterGameLoading/
-├── About/                         # Mod metadata
+├── About/                         # Mod metadata, preview, and Workshop id
 ├── Assemblies/                    # Compiled DLL
-├── LanguageData/                  # Translation XML files
+├── LanguageData/                  # Translation XML files (EN, zh-TW, zh-CN, RU)
+├── SteamDescriptions/             # Steam Workshop description sources
 ├── Source/
 │   ├── Core/                      # Mod entry point and startup cleanup
 │   ├── Settings/                  # Settings and cross-session cache data
@@ -101,11 +113,29 @@ FasterGameLoading/
 │   ├── DelayGraphicAndIconLoading/# Delay graphic and icon loading
 │   ├── DelaySoundLoading/         # Deferred sound resolution
 │   ├── Compatibility/             # Third-party mod compatibility handling
+│   ├── Language/                  # In-game translation injection
 │   ├── Utilities/                 # Shared helpers
 │   └── FasterGameLoading.Tests/   # NUnit tests
+├── LICENSE
 └── README.md
 ```
 
-## Credits
+## Building from Source
 
-Original mod by Taranchuk. This is a maintained fork with compatibility fixes and performance improvements.
+The main project targets .NET Framework 4.7.2 and references RimWorld via the [Krafs.Rimworld.Ref](https://www.nuget.org/packages/Krafs.Rimworld.Ref) NuGet package, so no local RimWorld installation is needed to compile. The compiled DLL is written to `Assemblies/`.
+
+```bash
+dotnet build Source/FasterGameLoading.csproj -c Release
+```
+
+Tests use NUnit on .NET 9:
+
+```bash
+dotnet test Source/FasterGameLoading.Tests/FasterGameLoading.Tests.csproj --settings test.runsettings
+```
+
+## Credits and License
+
+Original mod by [Taranchuk](https://github.com/Taranchuk/FasterGameLoading). This fork is maintained by [mushroomTW](https://github.com/mushroomTW/FasterGameLoading---Continued) with compatibility fixes and performance improvements.
+
+Licensed under the [MIT License](LICENSE).
