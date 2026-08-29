@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -144,6 +144,7 @@ namespace FasterGameLoading
                 if (!UnityData.IsInMainThread)
                 {
                     yield return 0;
+                    continue;
                 }
                 while (delayedActions.IconsToLoadCount > 0 && !delayedActions.IsOverBudget)
                 {

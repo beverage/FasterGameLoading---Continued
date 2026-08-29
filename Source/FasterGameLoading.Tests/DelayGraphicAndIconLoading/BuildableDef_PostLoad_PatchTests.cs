@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using Verse;
 
 namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
 {
@@ -31,6 +32,23 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
 
             Assert.That(method, Is.Not.Null);
             Assert.That(method.GetParameters(), Has.Length.EqualTo(2));
+        }
+
+        [Test]
+        public void ExecuteDelayed_WhenDelayedActionsIsNull_DispatchesToLongEventHandler()
+        {
+            var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            var previous = prop?.GetValue(null);
+            try
+            {
+                prop?.SetValue(null, value: null, index: null);
+                var def = (ThingDef)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(ThingDef));
+                Assert.DoesNotThrow(() => BuildableDef_PostLoad_Patch.ExecuteDelayed(() => { }, def));
+            }
+            finally
+            {
+                prop?.SetValue(null, previous, index: null);
+            }
         }
     }
 }

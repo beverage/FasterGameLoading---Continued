@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using RimWorld;
 using Verse;
@@ -111,7 +111,11 @@ namespace FasterGameLoading
 
             for (int i = 0; i < thingDef.thingCategories.Count; i++)
             {
-                var catDefName = thingDef.thingCategories[i].defName;
+                var catDef = thingDef.thingCategories[i];
+                var catDefName = catDef?.defName;
+                if (string.IsNullOrEmpty(catDefName))
+                    continue;
+
                 for (int j = 0; j < FGLConsts.FurnitureKeywords.Length; j++)
                 {
                     if (catDefName.IndexOf(FGLConsts.FurnitureKeywords[j], StringComparison.Ordinal) >= 0)

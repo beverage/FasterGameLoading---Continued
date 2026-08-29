@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
@@ -28,17 +28,21 @@ namespace FasterGameLoading
             "Ancot.AncotLibrary",
         };
 
+        private static readonly object rootsLock = new object();
         private static readonly HashSet<string> targetModRoots = new(StringComparer.OrdinalIgnoreCase);
-        private static bool rootsInitialized = false;
+        private static volatile bool rootsInitialized = false;
         private static bool? isAnyTargetModActive;
 
         static AdaptiveBakingSkipList()
         {
             CacheResetter.Register(() =>
             {
-                targetModRoots.Clear();
-                rootsInitialized = false;
-                isAnyTargetModActive = null;
+                lock (rootsLock)
+                {
+                    targetModRoots.Clear();
+                    rootsInitialized = false;
+                    isAnyTargetModActive = null;
+                }
             });
         }
 
@@ -141,34 +145,38 @@ namespace FasterGameLoading
                 || ModDependencyReflection.DependsOnMod(mod.ModMetaData, "Ancot.AncotLibrary");
         }
 
-        private static void InitializeModRoots()
+        public static void InitializeModRoots()
         {
             if (rootsInitialized) return;
             var mods = LoadedModManager.RunningMods;
             if (mods == null) return;
 
-            try
+            lock (rootsLock)
             {
-                bool hasAny = false;
-                foreach (var mod in mods)
+                if (rootsInitialized) return;
+                try
                 {
-                    hasAny = true;
-                    if (IsTargetMod(mod))
+                    bool hasAny = false;
+                    foreach (var mod in mods)
                     {
-                        if (string.IsNullOrEmpty(mod.RootDir)) continue;
-                        string root = mod.RootDir.Replace('\\', '/').TrimEnd('/');
-                        targetModRoots.Add(root);
+                        hasAny = true;
+                        if (IsTargetMod(mod))
+                        {
+                            if (string.IsNullOrEmpty(mod.RootDir)) continue;
+                            string root = mod.RootDir.Replace('\\', '/').TrimEnd('/');
+                            targetModRoots.Add(root);
+                        }
                     }
+
+                    if (!hasAny) return; // 載入列表尚未初始化完畢（空集合），下次再來
+
+                    // 迴圈順利完成後才標記初始化，避免例外導致半初始化狀態被永久鎖定
+                    rootsInitialized = true;
                 }
-
-                if (!hasAny) return; // 載入列表尚未初始化完畢（空集合），下次再來
-
-                // 迴圈順利完成後才標記初始化，避免例外導致半初始化狀態被永久鎖定
-                rootsInitialized = true;
-            }
-            catch (Exception ex)
-            {
-                FGLLog.Error("Error initializing target mod roots:", ex);
+                catch (Exception ex)
+                {
+                    FGLLog.Error("Error initializing target mod roots:", ex);
+                }
             }
         }
 
@@ -189,11 +197,16 @@ namespace FasterGameLoading
             InitializeModRoots();
 
             string normalizedPath = path.Replace('\\', '/');
-            foreach (var root in targetModRoots)
+            // 直接在鎖內走訪，不另外複製一份清單：本方法是每張貼圖都會走的熱路徑，
+            // 而 IsPathUnderRoot 只做純字串比對，持鎖期間不會回呼外部程式碼。
+            lock (rootsLock)
             {
-                if (IsPathUnderRoot(normalizedPath, root))
+                foreach (var root in targetModRoots)
                 {
-                    return true;
+                    if (IsPathUnderRoot(normalizedPath, root))
+                    {
+                        return true;
+                    }
                 }
             }
             return false;

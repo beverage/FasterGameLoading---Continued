@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Verse;
 
@@ -14,6 +14,17 @@ namespace FasterGameLoading
         private static readonly Dictionary<ModContentPack, bool> shouldSkipCache = new();
         private static readonly object shouldSkipCacheLock = new();
 
+        static EarlyLoadSkipList()
+        {
+            CacheResetter.Register(() =>
+            {
+                lock (shouldSkipCacheLock)
+                {
+                    shouldSkipCache.Clear();
+                }
+            });
+        }
+
         public static bool ShouldSkip(string packageId)
         {
             return ShouldSkip(packageId, metaData: null);
@@ -28,7 +39,7 @@ namespace FasterGameLoading
             }
 
             var shouldSkip = ShouldSkip(mod.PackageIdPlayerFacing, mod.ModMetaData)
-                || ShouldSkip(mod.PackageId, mod.ModMetaData);
+                || (!string.Equals(mod.PackageIdPlayerFacing, mod.PackageId, StringComparison.OrdinalIgnoreCase) && ShouldSkip(mod.PackageId, mod.ModMetaData));
 
             lock (shouldSkipCacheLock)
             {

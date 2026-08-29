@@ -70,6 +70,26 @@ namespace FasterGameLoading.Tests.Compatibility
             }
         }
 
+        [Test]
+        public void CacheResetter_ResetAll_ClearsShouldSkipCache()
+        {
+            var mod = (ModContentPack)FormatterServices.GetUninitializedObject(typeof(ModContentPack));
+            var packageIdField = AccessTools.Field(typeof(ModContentPack), "packageIdInt")
+                ?? AccessTools.Field(typeof(ModContentPack), "packageId");
+
+            if (packageIdField != null)
+            {
+                packageIdField.SetValue(mod, "wrk.custommod");
+                Assert.That(EarlyLoadSkipList.ShouldSkip(mod), Is.True);
+
+                // 呼叫 CacheResetter 清空快取
+                CacheResetter.ResetAll();
+
+                // 再次呼叫應能正常重新計算且不拋例外
+                Assert.That(EarlyLoadSkipList.ShouldSkip(mod), Is.True);
+            }
+        }
+
         private sealed class MockMetaData
         {
             public IEnumerable Dependencies { get; }

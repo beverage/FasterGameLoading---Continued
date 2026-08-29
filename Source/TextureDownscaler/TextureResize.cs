@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -151,6 +151,12 @@ namespace FasterGameLoading
                 // 明確指定 ToEven：與 Math.Round 的預設捨入模式相同，不改變既有結果。
                 int newWidth = Math.Max(1, (int)Math.Round(sourceWidth * ratio, MidpointRounding.ToEven));
                 int newHeight = Math.Max(1, (int)Math.Round(sourceHeight * ratio, MidpointRounding.ToEven));
+                // 將寬高對齊至 4 的倍數，確保 Unity 桌面端 DXT 區塊壓縮 (DXT1/DXT5) 正常運作。
+                // 一律向下取整：targetSize 本身就是 4 的倍數，長邊不受影響，向上取整只會墊高短邊
+                // 而扭曲長寬比（例如 1024×40→128×5 會被墊成 128×8，垂直拉伸 60%）。
+                // 不足 4 像素時保留原值，不硬墊到 4，以免結果反而大於原圖。
+                if (newWidth >= 4) newWidth &= ~3;
+                if (newHeight >= 4) newHeight &= ~3;
                 lastOriginalPixelCount += (long)sourceWidth * sourceHeight;
                 lastDownscaledPixelCount += (long)newWidth * newHeight;
                 var cachePath = cacheManager.GetCachePath(candidate.path);
@@ -242,7 +248,8 @@ namespace FasterGameLoading
             {
                 shader = ShaderDatabase.CutoutComplex;
             }
-            rec = GraphicDatabase.Get<Graphic_Multi>(path, shader, def.graphicData.drawSize, Color.white);
+            var drawSize = def.graphicData?.drawSize ?? UnityEngine.Vector2.one;
+            rec = GraphicDatabase.Get<Graphic_Multi>(path, shader, drawSize, Color.white);
             return true;
         }
 

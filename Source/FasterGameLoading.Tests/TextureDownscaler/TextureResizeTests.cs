@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.Serialization;
 using HarmonyLib;
 using NUnit.Framework;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace FasterGameLoading.Tests.TextureDownscaler
@@ -11,6 +14,51 @@ namespace FasterGameLoading.Tests.TextureDownscaler
     [TestFixture]
     public class TextureResizeTests
     {
+        private static Harmony harmony;
+        public static Vector2? LastCapturedDrawSize { get; set; }
+
+        public static class MockGraphicHelper
+        {
+            public static Graphic MockGet(string path, Shader shader, Vector2 drawSize, Color color)
+            {
+                LastCapturedDrawSize = drawSize;
+                return null;
+            }
+
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var mockGet = AccessTools.Method(typeof(MockGraphicHelper), nameof(MockGet));
+                foreach (var inst in instructions)
+                {
+                    if ((inst.opcode == OpCodes.Call || inst.opcode == OpCodes.Callvirt)
+                        && inst.operand is MethodInfo m && string.Equals(m.Name, nameof(GraphicDatabase.Get), StringComparison.Ordinal))
+                    {
+                        yield return new CodeInstruction(OpCodes.Call, mockGet);
+                        continue;
+                    }
+                    yield return inst;
+                }
+            }
+        }
+
+        [OneTimeSetUp]
+        public void OneTimeSetUp()
+        {
+            harmony = new Harmony("FasterGameLoading.Tests.TextureResizeTests");
+            var tryGetMethod = AccessTools.Method(typeof(TextureResize), nameof(TextureResize.TryGetGraphicApparel));
+            if (tryGetMethod != null)
+            {
+                var transpiler = AccessTools.Method(typeof(MockGraphicHelper), nameof(MockGraphicHelper.Transpiler));
+                harmony.Patch(tryGetMethod, transpiler: new HarmonyMethod(transpiler));
+            }
+        }
+
+        [OneTimeTearDown]
+        public void OneTimeTearDown()
+        {
+            harmony?.UnpatchAll("FasterGameLoading.Tests.TextureResizeTests");
+        }
+
         private static T Uninitialized<T>()
         {
             return (T)FormatterServices.GetUninitializedObject(typeof(T));
@@ -85,6 +133,25 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             def.apparel.layers = new List<ApparelLayerDef> { nonUtilityLayer };
 
             Assert.That(TextureResize.RenderAsPack(def), Is.False);
+        }
+
+        [Test]
+        public void TryGetGraphicApparel_WhenGraphicDataIsNull_FallsBackToVector2One()
+        {
+            var def = Uninitialized<ThingDef>();
+            def.apparel = Uninitialized<ApparelProperties>();
+            def.apparel.layers = new List<ApparelLayerDef>();
+            def.graphicData = null; // graphicData 為 null 的服裝 Def
+
+            var bodyType = Uninitialized<BodyTypeDef>();
+            bodyType.defName = "Male";
+
+            LastCapturedDrawSize = null;
+            Graphic rec = null;
+            bool result = TextureResize.TryGetGraphicApparel(def, "Things/Pawn/Humanlike/Apparel/TestApparel", bodyType, out rec);
+
+            Assert.That(result, Is.True);
+            Assert.That(LastCapturedDrawSize, Is.EqualTo(Vector2.one));
         }
     }
 }

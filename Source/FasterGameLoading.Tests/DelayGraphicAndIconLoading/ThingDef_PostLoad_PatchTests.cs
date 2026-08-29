@@ -153,5 +153,20 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             outAct();
             Assert.That(actionExecuted, Is.True);
         }
+
+        [Test]
+        public void ExecuteDelayed_WhenDelayedActionsIsNull_FallsBackToLongEventHandler()
+        {
+            var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
+            prop?.SetValue(null, value: null, index: null);
+
+            var def = CreateMockThingDef("DelayedDef");
+            def.uiIconPath = null;
+
+            Action act = () => { };
+            ThingDef_PostLoad_Patch.ExecuteDelayed(act, def);
+
+            Assert.That(capturedExecuteWhenFinishedAction, Is.SameAs(act));
+        }
     }
 }

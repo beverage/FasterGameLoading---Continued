@@ -207,6 +207,20 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
+        public void ShouldBeLoadedImmediately_WithNullCategoryElementOrNullDefName_DoesNotThrowAndReturnsFalse()
+        {
+            var defWithNullCategory = Uninitialized<ThingDef>();
+            defWithNullCategory.thingCategories = new List<ThingCategoryDef> { null };
+            Assert.DoesNotThrow(() => Assert.That(defWithNullCategory.ShouldBeLoadedImmediately(), Is.False));
+
+            var defWithNullDefName = Uninitialized<ThingDef>();
+            var catWithNullName = Uninitialized<ThingCategoryDef>();
+            catWithNullName.defName = null;
+            defWithNullDefName.thingCategories = new List<ThingCategoryDef> { catWithNullName };
+            Assert.DoesNotThrow(() => Assert.That(defWithNullDefName.ShouldBeLoadedImmediately(), Is.False));
+        }
+
+        [Test]
         public void ThingsOfDefs_ExtractsMatchingThingsFromListerThings()
         {
             var defA = Uninitialized<ThingDef>();

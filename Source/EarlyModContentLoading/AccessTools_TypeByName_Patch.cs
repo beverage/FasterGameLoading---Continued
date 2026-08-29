@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using HarmonyLib;
 using Verse;
@@ -19,6 +19,12 @@ namespace FasterGameLoading
         public static bool Prefix(ref Type __result, out (bool isCached, string originalName) __state, ref string name)
         {
             var oldName = name;
+            if (string.IsNullOrEmpty(name))
+            {
+                __state = (false, oldName);
+                return true;
+            }
+
             if (SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(name, out var fullName))
             {
                 name = fullName;
@@ -41,16 +47,22 @@ namespace FasterGameLoading
         {
             if (!__state.isCached && __result != null)
             {
+                var fullName = __result.FullName;
+                if (string.IsNullOrEmpty(fullName))
+                {
+                    return;
+                }
+
                 // 短名稱也可安全寫入 cachedResults：此處的對照來自「實際解析結果」，
                 // 對相同字串重複查詢必然一致（與 GenTypes_GetTypeInAnyAssemblyInt_Patch.Postfix 行為一致）。
                 // 不可寫入短名稱的是 WarmupTypeCache 的「預先填充」路徑
                 // （列舉順序與解析順序可能不同，見 AccessTools_AllTypes_Patch.cs WarmupTypeCache 備註）。
                 GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults[__state.originalName] = __result;
-                if (!string.Equals(__result.FullName, __state.originalName, StringComparison.Ordinal))
+                if (!string.Equals(fullName, __state.originalName, StringComparison.Ordinal))
                 {
                     // 記錄短名稱→完整名稱的對照到 session 快取供下次查詢加速
-                    SessionCache.loadedTypesByFullNameSinceLastSession[__state.originalName] = __result.FullName;
-                    GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults[__result.FullName] = __result;
+                    SessionCache.loadedTypesByFullNameSinceLastSession[__state.originalName] = fullName;
+                    GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults[fullName] = __result;
                 }
             }
         }

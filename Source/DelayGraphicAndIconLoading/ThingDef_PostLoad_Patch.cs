@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection.Emit;
 using HarmonyLib;
@@ -52,7 +52,15 @@ namespace FasterGameLoading
             }
             else
             {
-                FasterGameLoadingMod.delayedActions.EnqueueGraphic(def, action);
+                var delayedActions = FasterGameLoadingMod.delayedActions;
+                if (delayedActions != null)
+                {
+                    delayedActions.EnqueueGraphic(def, action);
+                }
+                else
+                {
+                    LongEventHandler.ExecuteWhenFinished(action);
+                }
             }
         }
     }

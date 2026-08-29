@@ -224,5 +224,18 @@ namespace FasterGameLoading.Tests.Compatibility
                 harmony.Patch(isTargetModTexture, transpiler: new HarmonyMethod(transpilerMethod));
             }
         }
+
+        [Test]
+        public void IsProtectedModTexturePath_ConcurrentAccess_DoesNotThrow()
+        {
+            targetModRoots?.Add("c:/mods/targetmod");
+            rootsInitializedField?.SetValue(null, true);
+
+            System.Threading.Tasks.Parallel.For(0, 100, i =>
+            {
+                AdaptiveBakingSkipList.IsProtectedModTexturePath($"c:/mods/targetmod/textures/tex_{i}.png");
+                AdaptiveBakingSkipList.IsProtectedModTexturePath($"c:/mods/othermod/textures/tex_{i}.png");
+            });
+        }
     }
 }
