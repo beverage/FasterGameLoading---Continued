@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using HarmonyLib;
 using NUnit.Framework;
 using UnityEngine;
 using Verse;
@@ -11,6 +12,8 @@ namespace FasterGameLoading.Tests.TextureDownscaler
     public class TextureScannerTests
     {
         private static T Uninitialized<T>() => (T)FormatterServices.GetUninitializedObject(typeof(T));
+
+
 
         [TearDown]
         public void TearDown()
@@ -62,6 +65,97 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             Assert.That(result, Is.True);
             Assert.That(path, Is.EqualTo(expectedPath));
             Assert.That(scanner.texturesByPaths.ContainsKey(texture), Is.True);
+        }
+
+        [Test]
+        public void AddEntry_DirectRegistration_PopulatesTexturesByDefs()
+        {
+            var scanner = new TextureScanner();
+            var mainTex = Uninitialized<Texture2D>();
+            var def = Uninitialized<ThingDef>();
+            def.defName = "TestThing";
+
+            var addDirectEntry = typeof(TextureScanner).GetMethod("AddEntry",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+                null,
+                new[] { typeof(BuildableDef), typeof(string), typeof(Texture) },
+                null);
+            Assert.That(addDirectEntry, Is.Not.Null);
+            addDirectEntry.Invoke(scanner, new object[] { def, "Mods/MyMod/Textures/Main.png", mainTex });
+
+            Assert.That(scanner.texturesByDefs.ContainsKey(mainTex), Is.True);
+            Assert.That(scanner.texturesByDefs[mainTex].Key, Is.SameAs(def));
+            Assert.That(scanner.texturesByDefs[mainTex].Value, Is.EqualTo("Mods/MyMod/Textures/Main.png"));
+        }
+
+        [Test]
+        public void FillEntry_WithUiIcon_RegistersUiIconPath()
+        {
+            var scanner = new TextureScanner();
+            var iconTex = Uninitialized<Texture2D>();
+            scanner.texturesByPaths[iconTex] = "Mods/MyMod/Textures/Icon.png";
+
+            var def = Uninitialized<ThingDef>();
+            def.defName = "TestIconDef";
+            def.uiIconPath = "Mods/MyMod/Textures/Icon.png";
+            def.uiIcon = iconTex;
+
+            var fillEntryMethod = typeof(TextureScanner).GetMethod("FillEntry",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.That(fillEntryMethod, Is.Not.Null);
+
+            fillEntryMethod.Invoke(scanner, new object[] { def, null });
+
+            Assert.That(scanner.texturesByDefs.ContainsKey(iconTex), Is.True);
+            Assert.That(scanner.texturesByDefs[iconTex].Value, Is.EqualTo("Mods/MyMod/Textures/Icon.png"));
+        }
+
+        [Test]
+        public void ScanApparelVariants_And_ScanPlantVariants_ExecuteSafely()
+        {
+            var scanner = new TextureScanner();
+            var def = Uninitialized<ThingDef>();
+            def.defName = "ApparelDef";
+            def.apparel = Uninitialized<RimWorld.ApparelProperties>();
+            def.apparel.wornGraphicPath = "Things/Apparel/Worn";
+            def.apparel.wornGraphicPaths = new List<string> { "Things/Apparel/WornAlt" };
+
+            var plantDef = Uninitialized<ThingDef>();
+            plantDef.defName = "PlantDef";
+            plantDef.plant = Uninitialized<RimWorld.PlantProperties>();
+            var single = Uninitialized<Graphic_Single>();
+            AccessTools.Field(typeof(Graphic_Single), "mat")?.SetValue(single, Uninitialized<Material>());
+            plantDef.plant.leaflessGraphic = single;
+            plantDef.plant.immatureGraphic = single;
+            plantDef.plant.pollutedGraphic = single;
+
+            var scanApparel = typeof(TextureScanner).GetMethod("ScanApparelVariants",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var scanPlant = typeof(TextureScanner).GetMethod("ScanPlantVariants",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+            Assert.That(scanApparel, Is.Not.Null);
+            Assert.That(scanPlant, Is.Not.Null);
+
+            Assert.DoesNotThrow(() => scanApparel.Invoke(scanner, new object[] { def, def }));
+            Assert.DoesNotThrow(() => scanPlant.Invoke(scanner, new object[] { plantDef, plantDef }));
+        }
+
+        [Test]
+        public void RefreshTexturePathMap_PopulatesTexturesByPaths()
+        {
+            var scanner = new TextureScanner();
+            var tex = Uninitialized<Texture2D>();
+            ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures["Mods/MyMod/Tex.png"] = new System.WeakReference<Texture2D>(tex);
+
+            var refreshMethod = typeof(TextureScanner).GetMethod("RefreshTexturePathMap",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.That(refreshMethod, Is.Not.Null);
+
+            refreshMethod.Invoke(scanner, null);
+
+            Assert.That(scanner.texturesByPaths.ContainsKey(tex), Is.True);
+            Assert.That(scanner.texturesByPaths[tex], Is.EqualTo("Mods/MyMod/Tex.png"));
         }
 
         [Test]

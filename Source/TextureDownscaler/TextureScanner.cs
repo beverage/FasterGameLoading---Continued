@@ -183,7 +183,7 @@ namespace FasterGameLoading
                     foreach (var subGraphic in appearances.subGraphics) AddEntry(def, subGraphic);
                     break;
                 case Graphic_Single single:
-                    GetMatTexture(single.mat, def);
+                    GetMatTexture(single.MatSingle, def);
                     break;
                 case Graphic_RandomRotated randomRotated:
                     AddEntry(def, randomRotated.subGraphic);
