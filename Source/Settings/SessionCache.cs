@@ -1,9 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using Verse;
 
 namespace FasterGameLoading
@@ -20,7 +18,7 @@ namespace FasterGameLoading
         /// <summary>
         /// 上一次 session 中所有已載入的紋理路徑映射。
         /// </summary>
-internal static Dictionary<string, string> loadedTexturesSinceLastSession { get; set; } = new(StringComparer.Ordinal);
+        internal static Dictionary<string, string> loadedTexturesSinceLastSession { get; set; } = new(StringComparer.Ordinal);
 
         /// <summary>
         /// 上一次 session 中所有已查詢的完整型別名稱映射。
@@ -47,16 +45,11 @@ internal static Dictionary<string, string> loadedTexturesSinceLastSession { get;
         /// </summary>
         internal static Dictionary<string, long> xmlMetadataHashByMod { get; set; } = new(StringComparer.Ordinal);
 
-        /// <summary>
-        /// 舊版 XML 內容雜湊欄位。保留 Scribe 相容性，新版 metadata-only 掃描不再使用。
-        /// </summary>
-        internal static Dictionary<string, long> xmlContentHashByMod { get; set; } = new(StringComparer.Ordinal);
-
 
         /// <summary>
         /// 歷次靜態圖集烘焙速度記錄（用於自適應批次調整）。
         /// </summary>
-internal static List<float> historicalBakeSpeeds { get; set; } = new();
+        internal static List<float> historicalBakeSpeeds { get; set; } = new();
         private static readonly object loadedTexturesLock = new();
 
         /// <summary>
@@ -111,8 +104,6 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
             Scribe_Values.Look(ref xmlCombinedHash, "FGL_XmlCombinedHash", 0L);
             var xmlMetadataHash = xmlMetadataHashByMod;
             Scribe_Collections.Look(ref xmlMetadataHash, "FGL_XmlMetadataHashByMod", LookMode.Value, LookMode.Value);
-            var xmlContentHash = xmlContentHashByMod;
-            Scribe_Collections.Look(ref xmlContentHash, "FGL_XmlContentHashByMod", LookMode.Value, LookMode.Value);
             var mods = modsInLastSession;
             Scribe_Collections.Look(ref mods, FGLConsts.ModsInLastSessionKey, LookMode.Value);
             var bakeSpeeds = historicalBakeSpeeds;
@@ -121,7 +112,6 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
             loadedTexturesSinceLastSession = loadedTextures;
             xmlCombinedHashSinceLastSession = xmlCombinedHash;
             xmlMetadataHashByMod = xmlMetadataHash;
-            xmlContentHashByMod = xmlContentHash;
             modsInLastSession = mods;
             historicalBakeSpeeds = bakeSpeeds;
 
@@ -151,7 +141,6 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
 
             modsInLastSession ??= new List<string>();
             xmlMetadataHashByMod ??= new Dictionary<string, long>(StringComparer.Ordinal);
-            xmlContentHashByMod ??= new Dictionary<string, long>(StringComparer.Ordinal);
             historicalBakeSpeeds ??= new List<float>();
 
             if (DetectModSetChange())
@@ -163,7 +152,6 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
                 loadedTypesByFullNameSinceLastSession.Clear();
                 xmlPathsSinceLastSession.Clear();
                 xmlMetadataHashByMod.Clear();
-                xmlContentHashByMod.Clear();
                 FasterGameLoadingMod.Instance?.CacheManager?.ClearCache();
             }
         }
@@ -205,22 +193,23 @@ internal static List<float> historicalBakeSpeeds { get; set; } = new();
         /// </summary>
         private static bool DetectModSetChange()
         {
-            var currentActiveMods = ModsConfig.ActiveModsInLoadOrder.ToList();
-            if (modsInLastSession == null || currentActiveMods.Count != modsInLastSession.Count)
-            {
-                return true;
-            }
+            if (modsInLastSession == null) return true;
 
-            for (int i = 0; i < modsInLastSession.Count; i++)
+            var activeMods = ModsConfig.ActiveModsInLoadOrder;
+            if (activeMods == null) return true;
+
+            int index = 0;
+            foreach (var mod in activeMods)
             {
-                // currentActiveMods[i] 可能為 null（Mod 載入異常時），跳過避免 NRE
-                if (currentActiveMods[i] == null || !string.Equals(currentActiveMods[i].packageIdLowerCase, modsInLastSession[i], StringComparison.Ordinal))
+                if (index >= modsInLastSession.Count) return true;
+                if (mod == null || !string.Equals(mod.packageIdLowerCase, modsInLastSession[index], StringComparison.Ordinal))
                 {
                     return true;
                 }
+                index++;
             }
 
-            return false;
+            return index != modsInLastSession.Count;
         }
     }
 }

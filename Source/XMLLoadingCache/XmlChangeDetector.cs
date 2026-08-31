@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -274,7 +274,6 @@ namespace FasterGameLoading
             long combinedHash = CombineMetadataHashes(result.MetadataHashes);
 
             SessionCache.xmlMetadataHashByMod = result.MetadataHashes;
-            SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal);
 
             if (FasterGameLoadingSettings.VerboseLogging)
             {

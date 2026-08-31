@@ -288,15 +288,5 @@ namespace FasterGameLoading
             if (thingDef.race != null) return TextureType.Pawn;
             return TextureType.None;
         }
-
-        // ════════════════════════════════════════════════════════════════
-        //  向後相容性代理 API
-        // ════════════════════════════════════════════════════════════════
-
-        /// <summary>相容性代理：目前快取的紋理數量。</summary>
-        public int CacheCount => cacheManager.CacheCount;
-
-        /// <summary>相容性代理：清除所有紋理快取。</summary>
-        public void ClearCache() => cacheManager.ClearCache();
     }
 }

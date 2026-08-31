@@ -14,13 +14,14 @@ namespace FasterGameLoading.Tests.Compatibility
         }
 
         [Test]
-        public void ShouldBypassTextureReplacement_MirrorsDetectedModState()
+        public void IsActive_CachesResultAndResetsViaCacheResetter()
         {
             CacheResetter.ResetAll();
             var isActive = GraphicsSettingsCompat.IsActive;
 
-            Assert.That(GraphicsSettingsCompat.ShouldBypassTextureReplacement, Is.EqualTo(isActive));
+            Assert.That(GraphicsSettingsCompat.IsActive, Is.EqualTo(isActive));
             Assert.DoesNotThrow(() => CacheResetter.ResetAll());
+            Assert.That(GraphicsSettingsCompat.IsActive, Is.EqualTo(isActive));
         }
     }
 }

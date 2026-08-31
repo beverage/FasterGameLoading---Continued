@@ -65,27 +65,17 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         }
 
         [Test]
-        public void BuildTextureScanData_InitializesAllTextureTypeContainers()
+        public void BuildTextureScanData_ExecutesWithoutException()
         {
             var scanner = new TextureScanner();
 
             Assert.DoesNotThrow(() => scanner.BuildTextureScanData());
-
-            foreach (TextureResize.TextureType type in Enum.GetValues<TextureResize.TextureType>())
-            {
-                Assert.That(scanner.textures.ContainsKey(type), Is.True);
-                Assert.That(scanner.textures[type], Is.Not.Null);
-            }
         }
 
         [Test]
-        public void ClearTextureScanData_ClearsAllIndexesAndTypeLists()
+        public void ClearTextureScanData_ClearsAllIndexes()
         {
             var scanner = new TextureScanner();
-            scanner.textures[TextureResize.TextureType.UI] =
-                new List<KeyValuePair<BuildableDef, string>>();
-            scanner.textures[TextureResize.TextureType.UI].Add(
-                new KeyValuePair<BuildableDef, string>(key: null, value: "ui"));
             var texture = Uninitialized<Texture2D>();
             scanner.texturesByPaths[texture] = "texture";
             scanner.texturesByDefs[texture] =
@@ -95,11 +85,10 @@ namespace FasterGameLoading.Tests.TextureDownscaler
 
             Assert.That(scanner.texturesByPaths, Is.Empty);
             Assert.That(scanner.texturesByDefs, Is.Empty);
-            Assert.That(scanner.textures[TextureResize.TextureType.UI], Is.Empty);
         }
 
         [Test]
-        public void ClearTextureScanData_IsSafeBeforeContainersAreInitialized()
+        public void ClearTextureScanData_IsSafeWhenEmpty()
         {
             var scanner = new TextureScanner();
 

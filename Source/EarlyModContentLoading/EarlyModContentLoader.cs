@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -13,7 +13,7 @@ namespace FasterGameLoading
     /// </summary>
     public class EarlyModContentLoader
     {
-        private List<ModContentPack> pendingEarlyLoads;
+        private Queue<ModContentPack> pendingEarlyLoads;
         private bool useImageOptSyncScope;
         private int consecutiveTimeouts;
         private int skipFrames;
@@ -81,8 +81,7 @@ namespace FasterGameLoading
             delayedActions.RestartStopwatch();
             while (pendingEarlyLoads.Count > 0)
             {
-                var modToLoad = pendingEarlyLoads[0];
-                pendingEarlyLoads.RemoveAt(0);
+                var modToLoad = pendingEarlyLoads.Dequeue();
                 if (ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(modToLoad))
                     continue;
 
@@ -111,10 +110,10 @@ namespace FasterGameLoading
         {
             // ImageOpt 整合狀態在 Mod 初始化後不會改變；每輪提早載入只判斷一次。
             useImageOptSyncScope = ImageOptEarlyLoadCoordinator.IsInstalled;
-            pendingEarlyLoads = LoadedModManager.RunningMods
+            var pending = LoadedModManager.RunningMods
                 .Where(x => !ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(x)
-                            && !EarlyLoadSkipList.ShouldSkip(x))
-                .ToList();
+                            && !EarlyLoadSkipList.ShouldSkip(x));
+            pendingEarlyLoads = new Queue<ModContentPack>(pending);
         }
 
         /// <summary>

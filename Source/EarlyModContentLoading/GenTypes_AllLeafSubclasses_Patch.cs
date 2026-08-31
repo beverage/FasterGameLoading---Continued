@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +19,7 @@ namespace FasterGameLoading
 
         static GenTypes_AllLeafSubclasses_Patch()
         {
-            CacheResetter.Register(() => ClearCache());
+            CacheResetter.Register(ClearCache);
         }
 
         public static void ClearCache()

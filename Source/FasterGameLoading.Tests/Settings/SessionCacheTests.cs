@@ -78,7 +78,6 @@ namespace FasterGameLoading.Tests.Settings
             SessionCache.xmlPathsSinceLastSession = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
             SessionCache.modsInLastSession = new List<string>();
             SessionCache.xmlMetadataHashByMod = new Dictionary<string, long>(StringComparer.Ordinal);
-            SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal);
             SessionCache.historicalBakeSpeeds = new List<float>();
             SessionCache.xmlCombinedHashSinceLastSession = 0;
         }
@@ -163,7 +162,6 @@ namespace FasterGameLoading.Tests.Settings
             SessionCache.loadedTypesByFullNameSinceLastSession = null;
             SessionCache.xmlPathsSinceLastSession = null;
             SessionCache.xmlMetadataHashByMod = null;
-            SessionCache.xmlContentHashByMod = null;
             SessionCache.historicalBakeSpeeds = null;
 
             InvokeRestoreAfterLoad(tempTypes: null, tempXmlPaths: null);
@@ -173,7 +171,6 @@ namespace FasterGameLoading.Tests.Settings
             Assert.That(SessionCache.xmlPathsSinceLastSession, Is.Not.Null.And.Empty);
             Assert.That(SessionCache.modsInLastSession, Is.Not.Null.And.Empty);
             Assert.That(SessionCache.xmlMetadataHashByMod, Is.Not.Null.And.Empty);
-            Assert.That(SessionCache.xmlContentHashByMod, Is.Not.Null.And.Empty);
             Assert.That(SessionCache.historicalBakeSpeeds, Is.Not.Null.And.Empty);
         }
 

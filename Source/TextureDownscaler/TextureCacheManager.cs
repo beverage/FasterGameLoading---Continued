@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
@@ -60,17 +60,7 @@ namespace FasterGameLoading
         /// </summary>
         public string GetCachePath(string originalPath)
         {
-            return md5HashCache.GetOrAdd(GetCacheKey(originalPath), key =>
-            {
-                var md5 = md5PerThread.Value;
-                var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(key));
-                var sb = new StringBuilder();
-                foreach (var b in hash)
-                {
-                    sb.Append(b.ToString("x2"));
-                }
-                return Path.Combine(activeCacheDirectory, sb.ToString() + ".png");
-            });
+            return md5HashCache.GetOrAdd(GetCacheKey(originalPath), ComputeHashString);
         }
 
         /// <summary>
@@ -79,10 +69,14 @@ namespace FasterGameLoading
         /// </summary>
         private string ComputeCachePathDirect(string originalPath)
         {
-            var cacheKey = GetCacheKey(originalPath);
+            return ComputeHashString(GetCacheKey(originalPath));
+        }
+
+        private string ComputeHashString(string key)
+        {
             var md5 = md5PerThread.Value;
-            var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(cacheKey));
-            var sb = new StringBuilder();
+            var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(key));
+            var sb = new StringBuilder(hash.Length * 2);
             foreach (var b in hash)
             {
                 sb.Append(b.ToString("x2"));

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -223,7 +223,7 @@ namespace FasterGameLoading
 
                 if (runDeferredVisualPipeline)
                 {
-                    yield return DeferredLoader.UpdateMapMeshForLoadedDefs(loadedDefs);
+                    DeferredLoader.UpdateMapMeshForLoadedDefs(loadedDefs);
                     yield return DeferredLoader.LoadDeferredIconsCoroutine(this);
                 }
                 yield return DeferredLoader.ResolveSubSoundDefsCoroutine(this);

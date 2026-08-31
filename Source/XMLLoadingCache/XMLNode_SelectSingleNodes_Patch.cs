@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
@@ -145,14 +145,7 @@ namespace FasterGameLoading
                     {
                         if (isXmlExtensionsActive is null)
                         {
-                            try
-                            {
-                                isXmlExtensionsActive = ModsConfig.IsActive("krafs.xmlextensions");
-                            }
-                            catch
-                            {
-                                isXmlExtensionsActive = false;
-                            }
+                            isXmlExtensionsActive = Utils.IsModActive("krafs.xmlextensions");
                         }
                     }
                 }

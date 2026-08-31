@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Threading;
 
@@ -18,28 +18,7 @@ namespace FasterGameLoading
         /// </summary>
         public static void WriteAllBytesWithRetry(string path, byte[] bytes, int maxRetries = 3, int delayMs = 100)
         {
-            string tmp = path + ".tmp";
-            for (int i = 0; i < maxRetries; i++)
-            {
-                try
-                {
-                    File.WriteAllBytes(tmp, bytes);
-                    MoveFileIntoPlace(tmp, path);
-                    return;
-                }
-                catch (IOException)
-                {
-                    CleanupTempFile(tmp);
-                    if (i == maxRetries - 1) throw;
-                    Thread.Sleep(delayMs);
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    CleanupTempFile(tmp);
-                    if (i == maxRetries - 1) throw;
-                    Thread.Sleep(delayMs);
-                }
-            }
+            WriteWithRetry(path, tmp => File.WriteAllBytes(tmp, bytes), maxRetries, delayMs);
         }
 
         /// <summary>
@@ -48,22 +27,21 @@ namespace FasterGameLoading
         /// </summary>
         public static void WriteAllTextWithRetry(string path, string text, int maxRetries = 3, int delayMs = 100)
         {
+            WriteWithRetry(path, tmp => File.WriteAllText(tmp, text), maxRetries, delayMs);
+        }
+
+        private static void WriteWithRetry(string path, Action<string> writeAction, int maxRetries, int delayMs)
+        {
             string tmp = path + ".tmp";
             for (int i = 0; i < maxRetries; i++)
             {
                 try
                 {
-                    File.WriteAllText(tmp, text);
+                    writeAction(tmp);
                     MoveFileIntoPlace(tmp, path);
                     return;
                 }
-                catch (IOException)
-                {
-                    CleanupTempFile(tmp);
-                    if (i == maxRetries - 1) throw;
-                    Thread.Sleep(delayMs);
-                }
-                catch (UnauthorizedAccessException)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     CleanupTempFile(tmp);
                     if (i == maxRetries - 1) throw;

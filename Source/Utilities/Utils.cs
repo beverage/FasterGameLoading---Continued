@@ -126,6 +126,21 @@ namespace FasterGameLoading
             return false;
         }
 
+        /// <summary>
+        /// 安全檢查指定 Mod 是否啟用，若 ModsConfig 尚未就緒或拋出例外則回傳 false。
+        /// </summary>
+        public static bool IsModActive(string packageId)
+        {
+            try
+            {
+                return ModsConfig.IsActive(packageId);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static readonly object missileGirlLock = new object();
         private static bool? isMissileGirlActive;
         /// <summary>
@@ -141,14 +156,7 @@ namespace FasterGameLoading
                     {
                         if (isMissileGirlActive is null)
                         {
-                            try
-                            {
-                                isMissileGirlActive = ModsConfig.IsActive("vr.missilegirl");
-                            }
-                            catch
-                            {
-                                isMissileGirlActive = false;
-                            }
+                            isMissileGirlActive = IsModActive("vr.missilegirl");
                         }
                     }
                 }

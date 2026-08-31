@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -112,7 +112,7 @@ namespace FasterGameLoading
 
             // Reset texture button (clear cache) + status display
             ls.Gap(4f);
-            var cacheCount = FasterGameLoadingMod.Instance?.Resizer?.CacheCount ?? 0;
+            var cacheCount = FasterGameLoadingMod.Instance?.CacheManager?.CacheCount ?? 0;
             var cacheStatusText = cacheCount > 0
                 ? "FGL_TextureCacheStatus_Active".Translate(cacheCount)
                 : "FGL_TextureCacheStatus_Empty".Translate();
@@ -122,8 +122,8 @@ namespace FasterGameLoading
             {
                 Find.WindowStack.Add(new Dialog_MessageBox("FGL_ClearTextureCacheConfirmation".Translate(), "Confirm".Translate(), delegate
                 {
-                    // 防止 Mod 初始化失敗時 Instance 或 Resizer 為 null 導致 NRE
-                    FasterGameLoadingMod.Instance?.Resizer?.ClearCache();
+                    // 防止 Mod 初始化失敗時 Instance 或 CacheManager 為 null 導致 NRE
+                    FasterGameLoadingMod.Instance?.CacheManager?.ClearCache();
                     LoadedModManager.GetMod<FasterGameLoadingMod>().WriteSettings();
                 }, "GoBack".Translate()));
             }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -26,20 +26,9 @@ namespace FasterGameLoading
             {
                 if (isActive is null)
                 {
-                    isActive = IsModActive("dev.soeur.imageopt");
+                    isActive = Utils.IsModActive("dev.soeur.imageopt");
                 }
                 return isActive.Value;
-            }
-        }
-        private static bool IsModActive(string packageId)
-        {
-            try
-            {
-                return ModsConfig.IsActive(packageId);
-            }
-            catch
-            {
-                return false;
             }
         }
 

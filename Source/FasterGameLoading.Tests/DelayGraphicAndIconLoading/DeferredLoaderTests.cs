@@ -355,11 +355,7 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         [Test]
         public void UpdateMapMeshForLoadedDefs_WhenCurrentGameNull_RunsSafely()
         {
-            var coroutine = DeferredLoader.UpdateMapMeshForLoadedDefs(new List<ThingDef>());
-            Assert.DoesNotThrow(() =>
-            {
-                while (coroutine.MoveNext()) { }
-            });
+            Assert.DoesNotThrow(() => DeferredLoader.UpdateMapMeshForLoadedDefs(new List<ThingDef>()));
         }
     }
 }

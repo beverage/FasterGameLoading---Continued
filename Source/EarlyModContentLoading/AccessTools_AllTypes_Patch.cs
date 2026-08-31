@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -121,12 +121,19 @@ namespace FasterGameLoading
         /// </summary>
         private static List<Type> BuildTypeList(System.Reflection.Assembly[] assemblies)
         {
-            return assemblies
-                .SelectMany(assembly =>
+            var list = new List<Type>();
+            foreach (var assembly in assemblies)
+            {
+                try
                 {
-                    try { return AccessTools.GetTypesFromAssembly(assembly); }
-                    catch { return Array.Empty<Type>(); }
-                }).ToList();
+                    list.AddRange(AccessTools.GetTypesFromAssembly(assembly));
+                }
+                catch
+                {
+                    // 忽略個別組件型別讀取失敗
+                }
+            }
+            return list;
         }
 
         /// <summary>

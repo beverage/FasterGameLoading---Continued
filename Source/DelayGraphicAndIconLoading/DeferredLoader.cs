@@ -105,7 +105,7 @@ namespace FasterGameLoading
         /// 確保延遲載入的圖形在地圖上立即顯示。
         /// </summary>
         /// <param name="loadedDefs">已載入的 ThingDef 清單。</param>
-        public static IEnumerator UpdateMapMeshForLoadedDefs(IReadOnlyList<ThingDef> loadedDefs)
+        public static void UpdateMapMeshForLoadedDefs(IReadOnlyList<ThingDef> loadedDefs)
         {
             try
             {
@@ -128,7 +128,6 @@ namespace FasterGameLoading
             {
                 FGLLog.Warning("Error updating map mesh:", ex);
             }
-            yield break;
         }
 
         /// <summary>

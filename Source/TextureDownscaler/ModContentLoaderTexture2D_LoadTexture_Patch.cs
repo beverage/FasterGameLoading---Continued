@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO;
@@ -251,7 +251,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
             // Graphics Settings+ 啟用時，FGL 不需要攔截紋理載入。
             // 原版 LoadTexture 可以安全在背景執行緒執行，
             // Graphics Settings+ 自行處理 DDS 載入。
-            if (GraphicsSettingsCompat.ShouldBypassTextureReplacement)
+            if (GraphicsSettingsCompat.IsActive)
             {
                 __state = false;
                 return true;
@@ -266,7 +266,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
 
             var fullPath = file.FullPath;
             var canReplaceTexture = !AdaptiveBakingSkipList.IsProtectedModTexturePath(fullPath)
-                && !GraphicsSettingsCompat.ShouldBypassTextureReplacement;
+                && !GraphicsSettingsCompat.IsActive;
 
             // 優先檢查 WeakReference 快取中是否已有此紋理
             if (canReplaceTexture && TryServeFromWeakReferenceCache(fullPath, out __result))

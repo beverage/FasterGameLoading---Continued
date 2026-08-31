@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using HarmonyLib;
 using Verse;
@@ -102,9 +102,6 @@ namespace FasterGameLoading
                 LongEventHandler.ExecuteWhenFinished(delegate
                 {
                     LoadedModManager.GetMod<FasterGameLoadingMod>().WriteSettings();
-                });
-                LongEventHandler.ExecuteWhenFinished(delegate
-                {
                     var delayedActions = FasterGameLoadingMod.delayedActions;
                     if (delayedActions)
                     {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -470,7 +470,6 @@ namespace FasterGameLoading.Tests
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
                 SessionCache.xmlCombinedHashSinceLastSession = 0;
                 SessionCache.xmlMetadataHashByMod.Clear();
-                SessionCache.xmlContentHashByMod.Clear();
                 XmlChangeDetector.needWriteSettings = false;
 
                 XmlChangeDetector.ScanXmlFiles(new List<string> { tempDir });
@@ -513,7 +512,6 @@ namespace FasterGameLoading.Tests
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
                 SessionCache.xmlCombinedHashSinceLastSession = 0;
                 SessionCache.xmlMetadataHashByMod.Clear();
-                SessionCache.xmlContentHashByMod.Clear();
                 XmlChangeDetector.needWriteSettings = false;
 
                 XmlChangeDetector.ScanXmlFiles(new List<string> { tempDir });
@@ -558,7 +556,6 @@ namespace FasterGameLoading.Tests
                 XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
                 SessionCache.xmlCombinedHashSinceLastSession = 0;
                 SessionCache.xmlMetadataHashByMod.Clear();
-                SessionCache.xmlContentHashByMod.Clear();
                 XmlChangeDetector.needWriteSettings = false;
 
                 XmlChangeDetector.ScanXmlFiles(new List<string> { tempDir });
@@ -907,7 +904,6 @@ namespace FasterGameLoading.Tests
             var originalXmlPaths = SessionCache.xmlPathsSinceLastSession;
             var originalXmlHash = SessionCache.xmlCombinedHashSinceLastSession;
             var originalMetadataHashes = SessionCache.xmlMetadataHashByMod;
-            var originalContentHashes = SessionCache.xmlContentHashByMod;
             var originalBakeSpeeds = SessionCache.historicalBakeSpeeds;
 
             try
@@ -927,7 +923,6 @@ namespace FasterGameLoading.Tests
                 SessionCache.xmlPathsSinceLastSession.TryAdd("/Defs/Test", 0);
                 SessionCache.xmlCombinedHashSinceLastSession = 42L;
                 SessionCache.xmlMetadataHashByMod = new Dictionary<string, long>(StringComparer.Ordinal) { ["test.mod"] = 43L };
-                SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal) { ["test.mod"] = 44L };
                 SessionCache.historicalBakeSpeeds = new List<float> { 45f };
 
                 new FasterGameLoadingSettings().ExposeData();
@@ -938,13 +933,12 @@ namespace FasterGameLoading.Tests
                 Assert.IsTrue(FasterGameLoadingSettings.StaticAtlasesBaking);
                 Assert.IsFalse(FasterGameLoadingSettings.EnableMultiThreading);
                 Assert.IsFalse(FasterGameLoadingSettings.XPathCaching);
-CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTexturesSinceLastSession.Keys);
+                CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTexturesSinceLastSession.Keys);
                 CollectionAssert.AreEquivalent(ExpectedSessionTypes, SessionCache.loadedTypesByFullNameSinceLastSession.Keys);
                 CollectionAssert.AreEqual(ExpectedSessionMods, SessionCache.modsInLastSession);
                 CollectionAssert.AreEquivalent(ExpectedSessionXmlPaths, SessionCache.xmlPathsSinceLastSession.Keys);
                 Assert.AreEqual(42L, SessionCache.xmlCombinedHashSinceLastSession);
                 Assert.AreEqual(43L, SessionCache.xmlMetadataHashByMod["test.mod"]);
-                Assert.AreEqual(44L, SessionCache.xmlContentHashByMod["test.mod"]);
                 CollectionAssert.AreEqual(ExpectedSessionBakeSpeeds, SessionCache.historicalBakeSpeeds);
             }
             finally
@@ -962,7 +956,6 @@ CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTextu
                 SessionCache.xmlPathsSinceLastSession = originalXmlPaths;
                 SessionCache.xmlCombinedHashSinceLastSession = originalXmlHash;
                 SessionCache.xmlMetadataHashByMod = originalMetadataHashes;
-                SessionCache.xmlContentHashByMod = originalContentHashes;
                 SessionCache.historicalBakeSpeeds = originalBakeSpeeds;
             }
         }
@@ -978,7 +971,6 @@ CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTextu
             var originalXmlPaths = SessionCache.xmlPathsSinceLastSession;
             var originalXmlHash = SessionCache.xmlCombinedHashSinceLastSession;
             var originalMetadataHashes = SessionCache.xmlMetadataHashByMod;
-            var originalContentHashes = SessionCache.xmlContentHashByMod;
             var originalBakeSpeeds = SessionCache.historicalBakeSpeeds;
             var savePath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"FGL_Settings_{Guid.NewGuid():N}.xml");
 
@@ -992,7 +984,6 @@ CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTextu
                 SessionCache.xmlPathsSinceLastSession.TryAdd("/Defs/Test", 0);
                 SessionCache.xmlCombinedHashSinceLastSession = 42L;
                 SessionCache.xmlMetadataHashByMod = new Dictionary<string, long>(StringComparer.Ordinal) { ["test.mod"] = 43L };
-                SessionCache.xmlContentHashByMod = new Dictionary<string, long>(StringComparer.Ordinal) { ["test.mod"] = 44L };
                 SessionCache.historicalBakeSpeeds = new List<float> { 45f };
 
                 Scribe.saver.InitSaving(savePath, "settings");
@@ -1025,7 +1016,6 @@ CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTextu
                 SessionCache.xmlPathsSinceLastSession = originalXmlPaths;
                 SessionCache.xmlCombinedHashSinceLastSession = originalXmlHash;
                 SessionCache.xmlMetadataHashByMod = originalMetadataHashes;
-                SessionCache.xmlContentHashByMod = originalContentHashes;
                 SessionCache.historicalBakeSpeeds = originalBakeSpeeds;
 
                 if (System.IO.File.Exists(savePath))

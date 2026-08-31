@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using HarmonyLib;
@@ -19,7 +19,7 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
 
         static GenTypes_GetTypeInAnyAssemblyInt_Patch()
         {
-            CacheResetter.Register(() => ClearCache());
+            CacheResetter.Register(ClearCache);
 
             Startup.RegisterOnStartupCompleted(() =>
             {

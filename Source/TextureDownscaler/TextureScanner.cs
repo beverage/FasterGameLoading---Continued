@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
@@ -12,8 +12,6 @@ namespace FasterGameLoading
     /// </summary>
     public class TextureScanner
     {
-        /// <summary>按紋理類型分類的紋理條目。</summary>
-        internal readonly Dictionary<TextureResize.TextureType, List<KeyValuePair<BuildableDef, string>>> textures = new();
         /// <summary>紋理 → 檔案路徑的對照表。</summary>
         internal readonly Dictionary<Texture, string> texturesByPaths = new();
         /// <summary>紋理 → (Def, 路徑) 的對照表。</summary>
@@ -25,19 +23,10 @@ namespace FasterGameLoading
         /// </summary>
         public void BuildTextureScanData()
         {
-            InitializeScanContainers();
             RefreshTexturePathMap();
             ScanPawnTextures();
             ScanStyleTextures();
             ScanBuildableTextures();
-        }
-
-        private void InitializeScanContainers()
-        {
-            foreach (var value in Enum.GetValues(typeof(TextureResize.TextureType)).Cast<TextureResize.TextureType>())
-            {
-                textures[value] = new();
-            }
         }
 
 
@@ -169,7 +158,7 @@ namespace FasterGameLoading
             if (!def.uiIconPath.NullOrEmpty() && def.uiIcon != null
                 && TryGetTexturePath(def.uiIcon, out var fullPath))
             {
-                AddEntry(TextureResize.TextureType.UI, def, fullPath, def.uiIcon);
+                AddEntry(def, fullPath, def.uiIcon);
             }
         }
 
@@ -178,12 +167,10 @@ namespace FasterGameLoading
         /// 支援 Graphic_Multi、Graphic_Appearances、Graphic_Single、
         /// Graphic_RandomRotated、Graphic_Linked、Graphic_Collection 等類型。
         /// </summary>
-        /// <summary>將紋理條目加入指定類型的分類中。</summary>
-        private void AddEntry(TextureResize.TextureType type, BuildableDef def, string fullPath, Texture texture)
+        /// <summary>將紋理條目加入對照表。</summary>
+        private void AddEntry(BuildableDef def, string fullPath, Texture texture)
         {
-            var entry = new KeyValuePair<BuildableDef, string>(def, fullPath);
-            textures[type].Add(entry);
-            texturesByDefs[texture] = entry;
+            texturesByDefs[texture] = new KeyValuePair<BuildableDef, string>(def, fullPath);
         }
 
         private void AddEntry(TextureResize.TextureType type, BuildableDef def, Graphic graphic)
@@ -218,7 +205,7 @@ namespace FasterGameLoading
         {
             if (mat?.mainTexture != mat && mat?.mainTexture != null && TryGetTexturePath(mat.mainTexture, out var fullPath))
             {
-                AddEntry(type, def, fullPath, mat.mainTexture);
+                AddEntry(def, fullPath, mat.mainTexture);
                 Texture2D mask = null;
                 if (mat.HasProperty(ShaderPropertyIDs.MaskTex))
                 {
@@ -226,7 +213,7 @@ namespace FasterGameLoading
                 }
                 if (mask != null && TryGetTexturePath(mask, out var maskPath))
                 {
-                    AddEntry(type, def, maskPath, mask);
+                    AddEntry(def, maskPath, mask);
                 }
             }
         }
@@ -268,7 +255,6 @@ namespace FasterGameLoading
         {
             texturesByPaths.Clear();
             texturesByDefs.Clear();
-            foreach (var value in textures.Values) { value.Clear(); }
         }
     }
 }
