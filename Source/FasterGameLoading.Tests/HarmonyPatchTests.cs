@@ -843,6 +843,7 @@ namespace FasterGameLoading.Tests
         [Test]
         public void TestUtils_IsMissileGirlActiveCache_IsResetByCacheResetter()
         {
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(Utils).TypeHandle);
             var field = typeof(Utils).GetField("isMissileGirlActive", BindingFlags.NonPublic | BindingFlags.Static);
             Assert.IsNotNull(field);
 
