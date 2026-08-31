@@ -60,7 +60,7 @@ namespace FasterGameLoading
         /// </summary>
         public string GetCachePath(string originalPath)
         {
-            return md5HashCache.GetOrAdd(GetCacheKey(originalPath), ComputeHashString);
+            return md5HashCache.GetOrAdd(GetCacheKey(originalPath), ComputeCachePathFromKey);
         }
 
         /// <summary>
@@ -69,10 +69,10 @@ namespace FasterGameLoading
         /// </summary>
         private string ComputeCachePathDirect(string originalPath)
         {
-            return ComputeHashString(GetCacheKey(originalPath));
+            return ComputeCachePathFromKey(GetCacheKey(originalPath));
         }
 
-        private string ComputeHashString(string key)
+        private string ComputeCachePathFromKey(string key)
         {
             var md5 = md5PerThread.Value;
             var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(key));

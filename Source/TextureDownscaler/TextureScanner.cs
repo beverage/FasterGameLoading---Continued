@@ -44,10 +44,10 @@ namespace FasterGameLoading
                 {
                     if (lifeStage.bodyGraphicData != null)
                     {
-                        AddEntry(TextureResize.TextureType.Pawn, pawnKind.race, lifeStage.bodyGraphicData.Graphic);
+                        AddEntry(pawnKind.race, lifeStage.bodyGraphicData.Graphic);
                         if (lifeStage.dessicatedBodyGraphicData != null)
                         {
-                            AddEntry(TextureResize.TextureType.Pawn, pawnKind.race, lifeStage.dessicatedBodyGraphicData.Graphic);
+                            AddEntry(pawnKind.race, lifeStage.dessicatedBodyGraphicData.Graphic);
                         }
                     }
                 }
@@ -72,8 +72,7 @@ namespace FasterGameLoading
         /// <summary>登錄單一風格的主圖形，以及（若有）其各體型的穿著外觀圖形。</summary>
         private void AddStyleEntry(ThingDefStyle style)
         {
-            var type = TextureResize.GetTextureType(style.ThingDef);
-            AddEntry(type, style.ThingDef, style.StyleDef.Graphic);
+            AddEntry(style.ThingDef, style.StyleDef.Graphic);
 
             if (style.StyleDef.wornGraphicPath.NullOrEmpty())
             {
@@ -84,7 +83,7 @@ namespace FasterGameLoading
             {
                 if (TextureResize.TryGetGraphicApparel(style.ThingDef, style.StyleDef.wornGraphicPath, bodyType, out var graphic))
                 {
-                    AddEntry(type, style.ThingDef, graphic);
+                    AddEntry(style.ThingDef, graphic);
                 }
             }
         }
@@ -99,28 +98,27 @@ namespace FasterGameLoading
 
                 if (def is TerrainDef)
                 {
-                    FillEntry(TextureResize.TextureType.Terrain, def);
+                    FillEntry(def);
                 }
                 else if (def is ThingDef thingDef)
                 {
-                    var type = TextureResize.GetTextureType(thingDef);
-                    FillEntry(type, thingDef);
-                    ScanApparelVariants(type, def, thingDef);
-                    ScanPlantVariants(type, def, thingDef);
+                    FillEntry(thingDef);
+                    ScanApparelVariants(def, thingDef);
+                    ScanPlantVariants(def, thingDef);
                 }
             }
         }
 
         /// <summary>掃描服裝的多種穿著外觀變體（含 wornGraphicPaths）。</summary>
-        private void ScanApparelVariants(TextureResize.TextureType type, BuildableDef def, ThingDef thingDef)
+        private void ScanApparelVariants(BuildableDef def, ThingDef thingDef)
         {
-            if (type is not TextureResize.TextureType.Apparel) return;
+            if (TextureResize.GetTextureType(thingDef) is not TextureResize.TextureType.Apparel) return;
 
             foreach (var bodyType in DefDatabase<BodyTypeDef>.AllDefs)
             {
                 if (TextureResize.TryGetGraphicApparel(thingDef, thingDef.apparel.wornGraphicPath, bodyType, out var graphic))
                 {
-                    AddEntry(type, def, graphic);
+                    AddEntry(def, graphic);
                 }
                 if (thingDef.apparel.wornGraphicPaths != null)
                 {
@@ -128,7 +126,7 @@ namespace FasterGameLoading
                     {
                         if (TextureResize.TryGetGraphicApparel(thingDef, path, bodyType, out var graphic2))
                         {
-                            AddEntry(type, def, graphic2);
+                            AddEntry(def, graphic2);
                         }
                     }
                 }
@@ -136,25 +134,26 @@ namespace FasterGameLoading
         }
 
         /// <summary>掃描植物的特殊圖形變體（落葉、未成熟、受汙染）。</summary>
-        private void ScanPlantVariants(TextureResize.TextureType type, BuildableDef def, ThingDef thingDef)
+        private void ScanPlantVariants(BuildableDef def, ThingDef thingDef)
         {
+            var type = TextureResize.GetTextureType(thingDef);
             if (type is not TextureResize.TextureType.Plant and not TextureResize.TextureType.Tree) return;
 
             if (thingDef.plant.leaflessGraphic != null)
-                AddEntry(type, def, thingDef.plant.leaflessGraphic);
+                AddEntry(def, thingDef.plant.leaflessGraphic);
             if (thingDef.plant.immatureGraphic != null)
-                AddEntry(type, def, thingDef.plant.immatureGraphic);
+                AddEntry(def, thingDef.plant.immatureGraphic);
             if (thingDef.plant.pollutedGraphic != null)
-                AddEntry(type, def, thingDef.plant.pollutedGraphic);
+                AddEntry(def, thingDef.plant.pollutedGraphic);
         }
 
         /// <summary>
         /// 將 Def 的圖形和 UI 圖示加入紋理條目。
         /// </summary>
-        private void FillEntry(TextureResize.TextureType type, BuildableDef def, Graphic graphicOverride = null)
+        private void FillEntry(BuildableDef def, Graphic graphicOverride = null)
         {
             var graphic = graphicOverride ?? def.graphic;
-            AddEntry(type, def, graphic);
+            AddEntry(def, graphic);
             if (!def.uiIconPath.NullOrEmpty() && def.uiIcon != null
                 && TryGetTexturePath(def.uiIcon, out var fullPath))
             {
@@ -173,27 +172,27 @@ namespace FasterGameLoading
             texturesByDefs[texture] = new KeyValuePair<BuildableDef, string>(def, fullPath);
         }
 
-        private void AddEntry(TextureResize.TextureType type, BuildableDef def, Graphic graphic)
+        private void AddEntry(BuildableDef def, Graphic graphic)
         {
             switch (graphic)
             {
                 case Graphic_Multi multi:
-                    foreach (var mat in multi.mats) GetMatTexture(type, mat, def);
+                    foreach (var mat in multi.mats) GetMatTexture(mat, def);
                     break;
                 case Graphic_Appearances appearances:
-                    foreach (var subGraphic in appearances.subGraphics) AddEntry(type, def, subGraphic);
+                    foreach (var subGraphic in appearances.subGraphics) AddEntry(def, subGraphic);
                     break;
                 case Graphic_Single single:
-                    GetMatTexture(type, single.mat, def);
+                    GetMatTexture(single.mat, def);
                     break;
                 case Graphic_RandomRotated randomRotated:
-                    AddEntry(type, def, randomRotated.subGraphic);
+                    AddEntry(def, randomRotated.subGraphic);
                     break;
                 case Graphic_Linked linked:
-                    AddEntry(type, def, linked.subGraphic);
+                    AddEntry(def, linked.subGraphic);
                     break;
                 case Graphic_Collection collection:
-                    foreach (var subGraphic in collection.subGraphics) AddEntry(type, def, subGraphic);
+                    foreach (var subGraphic in collection.subGraphics) AddEntry(def, subGraphic);
                     break;
             }
         }
@@ -201,7 +200,7 @@ namespace FasterGameLoading
         /// <summary>
         /// 從 Material 中提取 mainTexture 和 mask texture 加入條目。
         /// </summary>
-        private void GetMatTexture(TextureResize.TextureType type, Material mat, BuildableDef def)
+        private void GetMatTexture(Material mat, BuildableDef def)
         {
             if (mat?.mainTexture != mat && mat?.mainTexture != null && TryGetTexturePath(mat.mainTexture, out var fullPath))
             {
