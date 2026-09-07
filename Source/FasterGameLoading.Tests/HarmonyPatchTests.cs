@@ -707,7 +707,7 @@ namespace FasterGameLoading.Tests
         {
             var type = typeof(AdaptiveBakingSkipList);
             var targetMods = (HashSet<string>)type.GetField("targetMods", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
-            CollectionAssert.Contains(targetMods, "erdelf.HumanoidAlienRaces");
+            Assert.That(targetMods, Does.Contain("erdelf.HumanoidAlienRaces"));
 
             var roots = (HashSet<string>)type.GetField("targetModRoots", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
             var rootsInitialized = type.GetField("rootsInitialized", BindingFlags.NonPublic | BindingFlags.Static);
@@ -934,13 +934,13 @@ namespace FasterGameLoading.Tests
                 Assert.IsTrue(FasterGameLoadingSettings.StaticAtlasesBaking);
                 Assert.IsFalse(FasterGameLoadingSettings.EnableMultiThreading);
                 Assert.IsFalse(FasterGameLoadingSettings.XPathCaching);
-                CollectionAssert.AreEquivalent(ExpectedSessionTextures, SessionCache.loadedTexturesSinceLastSession.Keys);
-                CollectionAssert.AreEquivalent(ExpectedSessionTypes, SessionCache.loadedTypesByFullNameSinceLastSession.Keys);
-                CollectionAssert.AreEqual(ExpectedSessionMods, SessionCache.modsInLastSession);
-                CollectionAssert.AreEquivalent(ExpectedSessionXmlPaths, SessionCache.xmlPathsSinceLastSession.Keys);
-                Assert.AreEqual(42L, SessionCache.xmlCombinedHashSinceLastSession);
-                Assert.AreEqual(43L, SessionCache.xmlMetadataHashByMod["test.mod"]);
-                CollectionAssert.AreEqual(ExpectedSessionBakeSpeeds, SessionCache.historicalBakeSpeeds);
+                Assert.That(SessionCache.loadedTexturesSinceLastSession.Keys, Is.EquivalentTo(ExpectedSessionTextures));
+                Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession.Keys, Is.EquivalentTo(ExpectedSessionTypes));
+                Assert.That(SessionCache.modsInLastSession, Is.EqualTo(ExpectedSessionMods));
+                Assert.That(SessionCache.xmlPathsSinceLastSession.Keys, Is.EquivalentTo(ExpectedSessionXmlPaths));
+                Assert.That(SessionCache.xmlCombinedHashSinceLastSession, Is.EqualTo(42L));
+                Assert.That(SessionCache.xmlMetadataHashByMod["test.mod"], Is.EqualTo(43L));
+                Assert.That(SessionCache.historicalBakeSpeeds, Is.EqualTo(ExpectedSessionBakeSpeeds));
             }
             finally
             {
@@ -998,11 +998,11 @@ namespace FasterGameLoading.Tests
                 }
 
                 var savedXml = System.IO.File.ReadAllText(savePath);
-                StringAssert.Contains(FGLConsts.LoadedTexturesKey, savedXml);
-                StringAssert.Contains(FGLConsts.LoadedTypesKey, savedXml);
-                StringAssert.Contains(FGLConsts.XmlPathsKey, savedXml);
-                StringAssert.Contains("FGL_XmlCombinedHash", savedXml);
-                StringAssert.Contains(FGLConsts.HistoricalBakeSpeedsKey, savedXml);
+                Assert.That(savedXml, Does.Contain(FGLConsts.LoadedTexturesKey));
+                Assert.That(savedXml, Does.Contain(FGLConsts.LoadedTypesKey));
+                Assert.That(savedXml, Does.Contain(FGLConsts.XmlPathsKey));
+                Assert.That(savedXml, Does.Contain("FGL_XmlCombinedHash"));
+                Assert.That(savedXml, Does.Contain(FGLConsts.HistoricalBakeSpeedsKey));
             }
             finally
             {

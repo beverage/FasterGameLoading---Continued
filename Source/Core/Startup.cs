@@ -102,6 +102,12 @@ namespace FasterGameLoading
                 LongEventHandler.ExecuteWhenFinished(delegate
                 {
                     LoadedModManager.GetMod<FasterGameLoadingMod>().WriteSettings();
+                });
+                // 必須與設定寫入分開排程。LongEventHandler 是逐一回呼各自 try/catch，
+                // 兩者合併成同一個委派時，WriteSettings 失敗（設定目錄唯讀、磁碟已滿、
+                // 被防毒鎖定，或 GetMod 回傳 null）會連帶讓延遲載入協程整個 session 都無法啟動。
+                LongEventHandler.ExecuteWhenFinished(delegate
+                {
                     var delayedActions = FasterGameLoadingMod.delayedActions;
                     if (delayedActions)
                     {

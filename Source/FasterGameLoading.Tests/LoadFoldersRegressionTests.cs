@@ -179,9 +179,9 @@ namespace FasterGameLoading.Tests
 
             var targets = XmlChangeDetector.TargetsFromPaths(new List<string> { tempDir });
 
-            Assert.AreEqual(1, targets.Count);
-            Assert.AreEqual(tempDir.ToLowerInvariant(), targets[0].Key);
-            CollectionAssert.AreEqual(new List<string> { tempDir }, targets[0].Roots);
+            Assert.That(targets.Count, Is.EqualTo(1));
+            Assert.That(targets[0].Key, Is.EqualTo(tempDir.ToLowerInvariant()));
+            Assert.That(targets[0].Roots, Is.EqualTo(new List<string> { tempDir }));
         }
     }
 }

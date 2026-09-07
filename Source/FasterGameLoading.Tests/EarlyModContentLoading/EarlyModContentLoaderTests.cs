@@ -278,5 +278,62 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             Assert.That((int)consecutiveTimeoutsField.GetValue(loader), Is.EqualTo(0));
             Assert.That(pendingEarlyLoadsField.GetValue(loader), Is.Null);
         }
+
+        [Test]
+        public void InvokeReloadContentInt_WhenTargetThrows_UnwrapsException()
+        {
+            var invokeMethod = AccessTools.Method(typeof(EarlyModContentLoader), "InvokeReloadContentInt");
+            mockReloadShouldThrow = true;
+            try
+            {
+                var ex = Assert.Throws<TargetInvocationException>(() =>
+                    invokeMethod.Invoke(null, new object[] { CreateMockModContentPack("test.mod") }));
+                Assert.That(ex.InnerException, Is.TypeOf<InvalidOperationException>());
+                Assert.That(ex.InnerException.Message, Does.Contain("Simulated ReloadContentInt failure"));
+            }
+            finally
+            {
+                mockReloadShouldThrow = false;
+            }
+        }
+
+        [Test]
+        public void LoadOneModContent_WhenInvokeThrows_CatchesAndDoesNotAddToLoadedMods()
+        {
+            var mod = CreateMockModContentPack("test.mod");
+            SetRunningMods(new List<ModContentPack> { mod });
+            mockReloadShouldThrow = true;
+            try
+            {
+                loader.Update(delayedActions);
+                Assert.That(ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(mod), Is.False);
+            }
+            finally
+            {
+                mockReloadShouldThrow = false;
+            }
+        }
+
+        [Test]
+        public void Update_WhenModAddedToLoadedModsMidQueue_SkipsLoading()
+        {
+            var mod1 = CreateMockModContentPack("test.mod.loaded1");
+            var mod2 = CreateMockModContentPack("test.mod.loaded2");
+            SetRunningMods(new List<ModContentPack> { mod1, mod2 });
+
+            reloadedMods.Clear();
+            var field = AccessTools.Field(typeof(EarlyModContentLoader), "pendingEarlyLoads");
+            var queue = new Queue<ModContentPack>();
+            queue.Enqueue(mod1);
+            queue.Enqueue(mod2);
+            field.SetValue(loader, queue);
+
+            ModContentPack_ReloadContentInt_Patch.loadedMods.Add(mod2);
+
+            loader.Update(delayedActions);
+
+            Assert.That(reloadedMods, Does.Contain(mod1));
+            Assert.That(reloadedMods, Does.Not.Contain(mod2));
+        }
     }
 }

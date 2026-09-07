@@ -84,6 +84,11 @@ namespace FasterGameLoading.Tests.Core
         [Test]
         public void StartCleanupInvalidImageOptCaches_ReportsDeletedCountInBackground()
         {
+            var meta = (ModMetaData)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(ModMetaData));
+            AccessTools.Field(typeof(ModMetaData), "rootDirInt").SetValue(meta, new System.IO.DirectoryInfo(@"C:\test_mod"));
+            MockActiveMods.Add(null);
+            MockActiveMods.Add(meta);
+
             AccessTools.Field(typeof(ImageOptCompat), "isActive").SetValue(obj: null, value: true);
             PatchCleanup();
             stubDeletedCount = 3;
@@ -142,6 +147,157 @@ namespace FasterGameLoading.Tests.Core
             typeof(FasterGameLoadingMod)
                 .GetMethod("StartCleanupInvalidImageOptCaches", BindingFlags.NonPublic | BindingFlags.Static)
                 .Invoke(obj: null, parameters: null);
+        }
+
+        [Test]
+        public void StartXmlScan_WhenXPathCachingDisabled_SkipsScanAndMarksComplete()
+        {
+            var originalSetting = FasterGameLoadingSettings.XPathCaching;
+            try
+            {
+                FasterGameLoadingSettings.XPathCaching = false;
+                XmlNode_SelectSingleNode_Patch.isCacheValidated = true;
+                XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
+
+                typeof(FasterGameLoadingMod)
+                    .GetMethod("StartXmlScan", BindingFlags.NonPublic | BindingFlags.Static)
+                    .Invoke(null, null);
+
+                Assert.That(XmlNode_SelectSingleNode_Patch.isCacheValidated, Is.False);
+                Assert.That(XmlNode_SelectSingleNode_Patch.isXmlScanComplete, Is.True);
+            }
+            finally
+            {
+                FasterGameLoadingSettings.XPathCaching = originalSetting;
+            }
+        }
+
+        [Test]
+        public void StartXmlScan_WhenExceptionOccurs_FailsClosedSafely()
+        {
+            var originalSetting = FasterGameLoadingSettings.XPathCaching;
+            try
+            {
+                FasterGameLoadingSettings.XPathCaching = true;
+                SessionCache.xmlPathsSinceLastSession.TryAdd("test", 1);
+
+                var runningModsProp = AccessTools.PropertyGetter(typeof(LoadedModManager), nameof(LoadedModManager.RunningMods));
+                harmony.Patch(runningModsProp, prefix: new HarmonyMethod(AccessTools.Method(typeof(FasterGameLoadingModTests), nameof(Prefix_RunningModsThrows))));
+
+                typeof(FasterGameLoadingMod)
+                    .GetMethod("StartXmlScan", BindingFlags.NonPublic | BindingFlags.Static)
+                    .Invoke(null, null);
+
+                Assert.That(XmlNode_SelectSingleNode_Patch.isCacheValidated, Is.False);
+                Assert.That(XmlNode_SelectSingleNode_Patch.isXmlScanComplete, Is.True);
+                Assert.That(SessionCache.xmlPathsSinceLastSession, Is.Empty);
+            }
+            finally
+            {
+                FasterGameLoadingSettings.XPathCaching = originalSetting;
+            }
+        }
+
+        private static bool Prefix_RunningModsThrows()
+        {
+            throw new InvalidOperationException("stubbed running mods failure");
+        }
+
+        private static List<ModContentPack> runningModsNormalStub;
+        private static bool Prefix_RunningModsNormal(ref IEnumerable<ModContentPack> __result)
+        {
+            __result = runningModsNormalStub;
+            return false;
+        }
+
+        [Test]
+        public void StartXmlScan_WhenNormalMods_CollectsScanTargetsAndStartsScan()
+        {
+            var originalSetting = FasterGameLoadingSettings.XPathCaching;
+            try
+            {
+                FasterGameLoadingSettings.XPathCaching = true;
+
+                // 1. official mod (應被跳過)
+                var officialMod = (ModContentPack)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(ModContentPack));
+                AccessTools.Field(typeof(ModContentPack), "official").SetValue(officialMod, true);
+                AccessTools.Field(typeof(ModContentPack), "rootDirInt").SetValue(officialMod, new System.IO.DirectoryInfo(@"C:\OfficialMod"));
+
+                // 2. 一般 mod，有 foldersToLoadDescendingOrder
+                var modWithFolders = (ModContentPack)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(ModContentPack));
+                AccessTools.Field(typeof(ModContentPack), "rootDirInt").SetValue(modWithFolders, new System.IO.DirectoryInfo(@"C:\NormalMod1"));
+                AccessTools.Field(typeof(ModContentPack), "foldersToLoadDescendingOrder").SetValue(modWithFolders, new List<string> { @"C:\NormalMod1\1.6" });
+
+                // 3. 一般 mod，無 foldersToLoadDescendingOrder (fallback 到 RootDir)
+                var modWithoutFolders = (ModContentPack)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(ModContentPack));
+                AccessTools.Field(typeof(ModContentPack), "rootDirInt").SetValue(modWithoutFolders, new System.IO.DirectoryInfo(@"C:\NormalMod2"));
+
+                var runningModsProp = AccessTools.PropertyGetter(typeof(LoadedModManager), nameof(LoadedModManager.RunningMods));
+                runningModsNormalStub = new List<ModContentPack> { null, officialMod, modWithFolders, modWithoutFolders };
+                harmony.Patch(runningModsProp, prefix: new HarmonyMethod(AccessTools.Method(typeof(FasterGameLoadingModTests), nameof(Prefix_RunningModsNormal))));
+
+                var daProp = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
+                var oldDa = daProp?.GetValue(null);
+                var testDa = new DelayedActions();
+                daProp?.GetSetMethod(nonPublic: true)?.Invoke(null, new object[] { testDa });
+
+                string warn = null;
+                TestSetup.OnLogWarning = text => warn = text;
+
+                try
+                {
+                    typeof(FasterGameLoadingMod)
+                        .GetMethod("StartXmlScan", BindingFlags.NonPublic | BindingFlags.Static)
+                        .Invoke(null, null);
+
+                    Assert.That(warn, Is.Null, "StartXmlScan 發生警告: " + warn);
+                    Assert.That(XmlNode_SelectSingleNode_Patch.isXmlScanComplete, Is.False);
+                }
+                finally
+                {
+                    TestSetup.OnLogWarning = null;
+                    daProp?.GetSetMethod(nonPublic: true)?.Invoke(null, new object[] { oldDa });
+                }
+            }
+            finally
+            {
+                FasterGameLoadingSettings.XPathCaching = originalSetting;
+                runningModsNormalStub = null;
+            }
+        }
+
+        [Test]
+        public void SettingsCategory_ReturnsTranslatedCategory()
+        {
+            var mod = (FasterGameLoadingMod)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(FasterGameLoadingMod));
+            var category = mod.SettingsCategory();
+            Assert.That(category, Is.Not.Null);
+        }
+
+        [Test]
+        public void DoSettingsWindowContents_CallsSettings()
+        {
+            var mod = (FasterGameLoadingMod)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(FasterGameLoadingMod));
+            var method = AccessTools.Method(typeof(FasterGameLoadingSettings), nameof(FasterGameLoadingSettings.DoSettingsWindowContents));
+            var testHarmony = new Harmony("test.mod.dosettings");
+            testHarmony.Patch(method, prefix: new HarmonyMethod(AccessTools.Method(typeof(FasterGameLoadingModTests), nameof(Prefix_DoSettingsStub))));
+            try
+            {
+                mod.DoSettingsWindowContents(new UnityEngine.Rect(0, 0, 100, 100));
+                Assert.That(calledSettingsWindow, Is.True);
+            }
+            finally
+            {
+                testHarmony.Unpatch(method, HarmonyPatchType.Prefix, testHarmony.Id);
+                calledSettingsWindow = false;
+            }
+        }
+
+        private static bool calledSettingsWindow;
+        private static bool Prefix_DoSettingsStub()
+        {
+            calledSettingsWindow = true;
+            return false;
         }
     }
 }

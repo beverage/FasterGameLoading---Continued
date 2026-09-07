@@ -219,11 +219,13 @@ namespace FasterGameLoading
     }
 
     /// <summary>
-    /// 攔截 ModContentPack.LoadPatches，在補丁套用期間標記 isInPatchOperation，
+    /// 攔截 LoadedModManager.ApplyPatches，在補丁實際套用期間標記 isInPatchOperation，
     /// 以免 XPath 查詢被錯誤地全域快取為 null，導致補丁失效。
+    /// LoadPatches 只會讀取並建立 PatchOperation；真正呼叫 PatchOperation.Apply
+    /// 的位置是 ApplyPatches，因此保護範圍必須包住後者。
     /// </summary>
-    [HarmonyPatch(typeof(ModContentPack), nameof(ModContentPack.LoadPatches))]
-    public static class ModContentPack_LoadPatches_Patch
+    [HarmonyPatch(typeof(LoadedModManager), nameof(LoadedModManager.ApplyPatches))]
+    public static class LoadedModManager_ApplyPatches_Patch
     {
         public static void Prefix()
         {

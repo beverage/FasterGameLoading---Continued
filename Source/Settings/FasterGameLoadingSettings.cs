@@ -120,7 +120,7 @@ namespace FasterGameLoading
             ls.Gap(4f);
             if (ls.ButtonText("FGL_ClearTextureCache".Translate()))
             {
-                Find.WindowStack.Add(new Dialog_MessageBox("FGL_ClearTextureCacheConfirmation".Translate(), "Confirm".Translate(), delegate
+                Find.WindowStack.Add(new Dialog_MessageBox("FGL_ClearTextureCacheConfirmation".Translate(), "Confirm".Translate(), static () =>
                 {
                     // 防止 Mod 初始化失敗時 Instance 或 CacheManager 為 null 導致 NRE
                     FasterGameLoadingMod.Instance?.CacheManager?.ClearCache();

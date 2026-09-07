@@ -111,7 +111,7 @@ namespace FasterGameLoading
             // ImageOpt 整合狀態在 Mod 初始化後不會改變；每輪提早載入只判斷一次。
             useImageOptSyncScope = ImageOptEarlyLoadCoordinator.IsInstalled;
             var pending = LoadedModManager.RunningMods
-                .Where(x => !ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(x)
+                .Where(static x => !ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(x)
                             && !EarlyLoadSkipList.ShouldSkip(x));
             pendingEarlyLoads = new Queue<ModContentPack>(pending);
         }

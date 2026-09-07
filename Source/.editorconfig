@@ -53,6 +53,11 @@ dotnet_diagnostic.MA0040.severity = none
 dotnet_diagnostic.MA0042.severity = none
 dotnet_diagnostic.MA0045.severity = none
 dotnet_diagnostic.MA0134.severity = none
+# MA0217: 建議改用 static lambda。
+# 本專案大量使用委派傳遞回呼與快取重置（如 CacheResetter、Startup 等），
+# 許多委派為單次執行或設計上維持一般 lambda 可讀性，強制要求 static 屬於純語法偏好，
+# 且測試專案中的斷言委派加上 static 亦增加排版噪音，故全專案停用。
+dotnet_diagnostic.MA0217.severity = none
 
 # ── 目標框架限制：net472 沒有規則建議的多載 ──
 # MA0106: ConcurrentDictionary.GetOrAdd<TArg> 的 factoryArgument 多載

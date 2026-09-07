@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using NUnit.Framework;
 
@@ -193,6 +193,32 @@ namespace FasterGameLoading.Tests
             Assert.IsTrue(File.Exists(cacheExistPath));
             Assert.IsFalse(File.Exists(cacheDeletedPath));
             Assert.IsFalse(File.Exists(cacheUnreferencedPath));
+        }
+
+        [Test]
+        public void SafeFileExists_WithInvalidCharacters_ReturnsFalse()
+        {
+            var method = typeof(TextureCacheManager).GetMethod("SafeFileExists", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            bool result = (bool)method.Invoke(null, new object[] { "invalid\0path" });
+            Assert.That(result, Is.False);
+        }
+
+        [Test]
+        public void AddResolvedPath_WithInvalidCharacters_FallsBackToRawPath()
+        {
+            var method = typeof(TextureCacheManager).GetMethod("AddResolvedPath", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var set = new System.Collections.Generic.HashSet<string>();
+            method.Invoke(null, new object[] { set, "invalid\0path" });
+            Assert.That(set, Does.Contain("invalid\0path"));
+        }
+
+        [Test]
+        public void RollbackPromotion_WhenMovedStagingCache_DeletesCacheDirectory()
+        {
+            var method = typeof(TextureCacheManager).GetMethod("RollbackPromotion", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.That(Directory.Exists(manager.CacheDirectory), Is.True);
+            method.Invoke(manager, new object[] { true, false, null });
+            Assert.That(Directory.Exists(manager.CacheDirectory), Is.False);
         }
     }
 }

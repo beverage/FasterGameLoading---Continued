@@ -240,5 +240,78 @@ namespace FasterGameLoading.Tests.Compatibility
                 });
             });
         }
+
+        [Test]
+        public void InitializeModRoots_PopulatesTargetModRootsFromRunningMods()
+        {
+            targetModRoots?.Clear();
+            rootsInitializedField?.SetValue(null, false);
+
+            var mod = (ModContentPack)FormatterServices.GetUninitializedObject(typeof(ModContentPack));
+            AccessTools.Field(typeof(ModContentPack), "rootDirInt").SetValue(mod, new System.IO.DirectoryInfo(@"C:\TestModRoot\"));
+            AccessTools.Field(typeof(ModContentPack), "packageIdInt").SetValue(mod, "erdelf.humanoidalienraces");
+
+            var runningModsField = AccessTools.Field(typeof(LoadedModManager), "runningMods");
+            var originalRunning = runningModsField?.GetValue(null);
+            try
+            {
+                runningModsField?.SetValue(null, new List<ModContentPack> { mod });
+                AdaptiveBakingSkipList.InitializeModRoots();
+
+                Assert.That(targetModRoots, Does.Contain("C:/TestModRoot"));
+            }
+            finally
+            {
+                runningModsField?.SetValue(null, originalRunning);
+            }
+        }
+
+        [Test]
+        public void InitializeModRoots_WhenModRootDirThrows_LogsError()
+        {
+            targetModRoots?.Clear();
+            rootsInitializedField?.SetValue(null, false);
+
+            var mod = (ModContentPack)FormatterServices.GetUninitializedObject(typeof(ModContentPack));
+            // 不設定 rootDirInt，使 RootDir getter 存取時拋出 NullReferenceException，測試內部 catch 區塊
+            AccessTools.Field(typeof(ModContentPack), "packageIdInt").SetValue(mod, "erdelf.humanoidalienraces");
+
+            var runningModsField = AccessTools.Field(typeof(LoadedModManager), "runningMods");
+            var originalRunning = runningModsField?.GetValue(null);
+            try
+            {
+                runningModsField?.SetValue(null, new List<ModContentPack> { mod });
+                Assert.DoesNotThrow(() => AdaptiveBakingSkipList.InitializeModRoots());
+            }
+            finally
+            {
+                runningModsField?.SetValue(null, originalRunning);
+            }
+        }
+
+        [Test]
+        public void InitializeModRoots_WhenModIsNotDirectTarget_ChecksDependencies()
+        {
+            targetModRoots?.Clear();
+            rootsInitializedField?.SetValue(null, false);
+
+            var mod = (ModContentPack)FormatterServices.GetUninitializedObject(typeof(ModContentPack));
+            AccessTools.Field(typeof(ModContentPack), "rootDirInt").SetValue(mod, new System.IO.DirectoryInfo(@"C:\OtherModRoot\"));
+            AccessTools.Field(typeof(ModContentPack), "packageIdInt").SetValue(mod, "some.other.mod");
+
+            var runningModsField = AccessTools.Field(typeof(LoadedModManager), "runningMods");
+            var originalRunning = runningModsField?.GetValue(null);
+            try
+            {
+                runningModsField?.SetValue(null, new List<ModContentPack> { mod });
+                AdaptiveBakingSkipList.InitializeModRoots();
+
+                Assert.That(targetModRoots, Does.Not.Contain("C:/OtherModRoot"));
+            }
+            finally
+            {
+                runningModsField?.SetValue(null, originalRunning);
+            }
+        }
     }
 }

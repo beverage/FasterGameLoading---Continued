@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
@@ -31,7 +31,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
                 ref result, typeof(TestRoot));
 
             Assert.That(shouldRunOriginal, Is.False);
-            CollectionAssert.AreEquivalent(new[] { typeof(TestLeaf), typeof(TestSiblingLeaf) }, result);
+            Assert.That(result, Is.EquivalentTo(new[] { typeof(TestLeaf), typeof(TestSiblingLeaf) }));
         }
 
         [Test]
@@ -47,7 +47,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             IEnumerable<Type> second = null;
             GenTypes_AllLeafSubclasses_Patch.Prefix(ref second, typeof(TestRoot));
 
-            CollectionAssert.AreEquivalent(new[] { typeof(TestLeaf) }, second);
+            Assert.That(second, Is.EquivalentTo(new[] { typeof(TestLeaf) }));
         }
 
         [Test]

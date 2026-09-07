@@ -10,6 +10,7 @@ using NUnit.Framework;
 using RimWorld.IO;
 using UnityEngine;
 using Verse;
+using HarmonyLib;
 
 namespace FasterGameLoading.Tests.TextureDownscaler
 {
@@ -627,6 +628,104 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             typeof(FasterGameLoadingMod)
                 .GetProperty(nameof(FasterGameLoadingMod.Instance), BindingFlags.Public | BindingFlags.Static)
                 .SetValue(obj: null, value: mod);
+        }
+
+        [Test]
+        public void Prefix_WhenProtectedModTexturePath_BypassesCacheAndCallsOriginal()
+        {
+            TestSetup.IsInMainThreadOverride = () => true;
+            var roots = (HashSet<string>)HarmonyLib.AccessTools.Field(typeof(AdaptiveBakingSkipList), "targetModRoots").GetValue(null);
+            roots.Add("C:/MockProtectedMod");
+            HarmonyLib.AccessTools.Field(typeof(AdaptiveBakingSkipList), "rootsInitialized").SetValue(null, true);
+
+            var fakeFile = new FakeVirtualFile(@"C:\MockProtectedMod\Textures\Pawn.png");
+            Texture2D result = null;
+            bool __state;
+
+            bool runOriginal = ModContentLoaderTexture2D_LoadTexture_Patch.Prefix(fakeFile, out __state, ref result);
+
+            Assert.That(runOriginal, Is.True);
+            Assert.That(__state, Is.True);
+            Assert.That(result, Is.Null);
+        }
+
+        [Test]
+        public void TryServeFromWeakReferenceCache_WhenTargetCollected_ReturnsFalse()
+        {
+            var tryServe = HarmonyLib.AccessTools.Method(typeof(ModContentLoaderTexture2D_LoadTexture_Patch), "TryServeFromWeakReferenceCache");
+            string path = "test/dead/texture.png";
+            ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures[path] = new System.WeakReference<Texture2D>(null);
+
+            object[] args = new object[] { path, null };
+            bool served = (bool)tryServe.Invoke(null, args);
+
+            Assert.That(served, Is.False);
+            Assert.That(args[1], Is.Null);
+        }
+
+        [Test]
+        public void OnStartupCompleted_WhenCacheHitsGreaterThanZero_LogsMessage()
+        {
+            bool prevVerbose = FasterGameLoadingSettings.VerboseLogging;
+            FasterGameLoadingSettings.VerboseLogging = true;
+            ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits = 5;
+            ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession["foo"] = "bar";
+
+            string logged = null;
+            TestSetup.OnLogMessage = text => logged = text;
+
+            Startup.RegisterOnStartupCompleted(() =>
+            {
+                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string>(ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession, StringComparer.Ordinal);
+                if (ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits > 0)
+                {
+                    FGLLog.Message($"Texture downscale cache hits: {ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits}");
+                }
+            });
+
+            try
+            {
+                var runCallbacks = typeof(Startup).GetMethod("RunStartupCallbacks", BindingFlags.NonPublic | BindingFlags.Static);
+                runCallbacks?.Invoke(null, null);
+                Assert.That(SessionCache.loadedTexturesSinceLastSession, Does.ContainKey("foo"));
+                Assert.That(logged, Does.Contain("5"));
+            }
+            finally
+            {
+                TestSetup.OnLogMessage = null;
+                ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits = 0;
+                FasterGameLoadingSettings.VerboseLogging = prevVerbose;
+                ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession.Clear();
+            }
+        }
+
+        [Test]
+        public void StartPreloadCachedTextures_WhenFilesExist_LoadsBytesIntoPreloadMap()
+        {
+            var mod = (FasterGameLoadingMod)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(FasterGameLoadingMod));
+            var mgr = new TextureCacheManager(tempDir);
+            string sampleFile = Path.Combine(tempDir, "preloaded.png");
+            File.WriteAllBytes(sampleFile, new byte[] { 1, 2, 3, 4 });
+            mgr.SetCacheEntry("test_key", sampleFile);
+
+            AccessTools.PropertySetter(typeof(FasterGameLoadingMod), nameof(FasterGameLoadingMod.CacheManager))
+                ?.Invoke(mod, new object[] { mgr });
+            AccessTools.PropertySetter(typeof(FasterGameLoadingMod), nameof(FasterGameLoadingMod.Instance))
+                ?.Invoke(null, new object[] { mod });
+
+            try
+            {
+                ModContentLoaderTexture2D_LoadTexture_Patch.StartPreloadCachedTextures();
+                SpinWait.SpinUntil(() => ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes.ContainsKey(sampleFile), TimeSpan.FromSeconds(3));
+
+                Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes, Does.ContainKey(sampleFile));
+            }
+            finally
+            {
+                ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes.Clear();
+                AccessTools.PropertySetter(typeof(FasterGameLoadingMod), nameof(FasterGameLoadingMod.Instance))
+                    ?.Invoke(null, new object[] { null });
+            }
         }
     }
 }

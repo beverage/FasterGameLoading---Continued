@@ -152,11 +152,8 @@ namespace FasterGameLoading
                 int newWidth = Math.Max(1, (int)Math.Round(sourceWidth * ratio, MidpointRounding.ToEven));
                 int newHeight = Math.Max(1, (int)Math.Round(sourceHeight * ratio, MidpointRounding.ToEven));
                 // 將寬高對齊至 4 的倍數，確保 Unity 桌面端 DXT 區塊壓縮 (DXT1/DXT5) 正常運作。
-                // 一律向下取整：targetSize 本身就是 4 的倍數，長邊不受影響，向上取整只會墊高短邊
-                // 而扭曲長寬比（例如 1024×40→128×5 會被墊成 128×8，垂直拉伸 60%）。
-                // 不足 4 像素時保留原值，不硬墊到 4，以免結果反而大於原圖。
-                if (newWidth >= 4) newWidth &= ~3;
-                if (newHeight >= 4) newHeight &= ~3;
+                newWidth = AlignToBlockSize(newWidth, sourceWidth);
+                newHeight = AlignToBlockSize(newHeight, sourceHeight);
                 lastOriginalPixelCount += (long)sourceWidth * sourceHeight;
                 lastDownscaledPixelCount += (long)newWidth * newHeight;
                 var cachePath = cacheManager.GetCachePath(candidate.path);
@@ -180,6 +177,21 @@ namespace FasterGameLoading
             {
                 if (originalTexture != null) TextureResizer.DestroyTemporaryUnityObject(originalTexture);
             }
+        }
+
+        /// <summary>
+        /// 將單一邊長對齊到 4 的倍數（DXT 區塊大小）。
+        /// 採「就近取整」而非一律向下取整：targetSize 本身是 4 的倍數，長邊必定落在
+        /// targetSize 上不受影響，但短邊若一律向下取整會壓扁長寬比
+        /// （例如 1024×40→128×5 會被砍成 128×4，垂直壓縮 20%）；就近取整可把誤差
+        /// 控制在半個區塊內。向上取整會超過來源邊長時改為向下取整，
+        /// 不足 4 像素時保留原值，兩者都是為了不讓結果大於原圖。
+        /// </summary>
+        private static int AlignToBlockSize(int length, int sourceLength)
+        {
+            if (length < 4) return length;
+            int aligned = (length + 2) & ~3;
+            return aligned > sourceLength ? length & ~3 : aligned;
         }
 
         /// <summary>嘗試從磁碟載入原始 PNG 紋理。失敗時回傳 false，由呼叫端使用記憶體中的版本。</summary>

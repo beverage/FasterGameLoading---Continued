@@ -16,7 +16,7 @@ namespace FasterGameLoading
 
         static EarlyLoadSkipList()
         {
-            CacheResetter.Register(() =>
+            CacheResetter.Register(static () =>
             {
                 lock (shouldSkipCacheLock)
                 {

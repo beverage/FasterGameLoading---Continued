@@ -119,7 +119,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
 
         static ModContentLoaderTexture2D_LoadTexture_Patch()
         {
-            CacheResetter.Register(() =>
+            CacheResetter.Register(static () =>
             {
                 savedTextures.Clear();
                 // ConditionalWeakTable 沒有 Clear API，且其條目隨鍵被 GC 自動消失；
@@ -131,7 +131,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                 preloadedCacheBytes.Clear();
             });
 
-            Startup.RegisterOnStartupCompleted(() =>
+            Startup.RegisterOnStartupCompleted(static () =>
             {
                 SessionCache.loadedTexturesSinceLastSession = new System.Collections.Generic.Dictionary<string, string>(loadedTexturesThisSession, StringComparer.Ordinal);
                 if (cacheLoadHits > 0
@@ -240,18 +240,21 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
             }
         }
 
-        public static bool Prefix(VirtualFile file, out bool __state, ref Texture2D __result)
+        private static bool TryServeCachedTexture(string fullPath, out Texture2D result)
         {
-            if (ImageOptCompat.IsActive)
+            if (AdaptiveBakingSkipList.IsProtectedModTexturePath(fullPath) || GraphicsSettingsCompat.IsActive)
             {
-                __state = false;
-                return true;
+                result = null;
+                return false;
             }
 
-            // Graphics Settings+ 啟用時，FGL 不需要攔截紋理載入。
-            // 原版 LoadTexture 可以安全在背景執行緒執行，
-            // Graphics Settings+ 自行處理 DDS 載入。
-            if (GraphicsSettingsCompat.IsActive)
+            return TryServeFromWeakReferenceCache(fullPath, out result)
+                || TryServeFromDownscaleCache(fullPath, out result);
+        }
+
+        public static bool Prefix(VirtualFile file, out bool __state, ref Texture2D __result)
+        {
+            if (ImageOptCompat.IsActive || GraphicsSettingsCompat.IsActive)
             {
                 __state = false;
                 return true;
@@ -265,18 +268,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
             }
 
             var fullPath = file.FullPath;
-            var canReplaceTexture = !AdaptiveBakingSkipList.IsProtectedModTexturePath(fullPath)
-                && !GraphicsSettingsCompat.IsActive;
-
-            // 優先檢查 WeakReference 快取中是否已有此紋理
-            if (canReplaceTexture && TryServeFromWeakReferenceCache(fullPath, out __result))
-            {
-                __state = false;
-                return false;
-            }
-
-            // 檢查是否有降質快取版本的紋理可用
-            if (canReplaceTexture && TryServeFromDownscaleCache(fullPath, out __result))
+            if (TryServeCachedTexture(fullPath, out __result))
             {
                 __state = false;
                 return false;

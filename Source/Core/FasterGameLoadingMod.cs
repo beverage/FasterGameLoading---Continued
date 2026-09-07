@@ -70,6 +70,15 @@ namespace FasterGameLoading
 
         private static void StartXmlScan()
         {
+            if (!FasterGameLoadingSettings.XPathCaching || Utils.IsMissileGirlActive)
+            {
+                // 快取功能關閉或交由 Missile Girl 接管時，掃描結果不會被使用；略過整輪
+                // Defs/Patches 目錄列舉，避免與啟動期 XML 載入競爭磁碟 I/O。
+                XmlNode_SelectSingleNode_Patch.isCacheValidated = false;
+                XmlNode_SelectSingleNode_Patch.isXmlScanComplete = true;
+                return;
+            }
+
             // XML metadata 僅在背景執行緒讀取；快取狀態由 Update 主執行緒提交。
             try
             {

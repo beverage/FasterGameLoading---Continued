@@ -21,7 +21,7 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
         {
             CacheResetter.Register(ClearCache);
 
-            Startup.RegisterOnStartupCompleted(() =>
+            Startup.RegisterOnStartupCompleted(static () =>
             {
                 SessionCache.loadedTypesByFullNameSinceLastSession = new System.Collections.Concurrent.ConcurrentDictionary<string, string>(loadedTypesThisSession, StringComparer.Ordinal);
             });

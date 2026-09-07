@@ -35,14 +35,16 @@ namespace FasterGameLoading
             public readonly long ElapsedMilliseconds;
             public readonly Exception Exception;
             public readonly bool Bypassed;
+            public readonly bool IsComplete;
 
-            public XmlScanResult(Dictionary<string, long> metadataHashes, int fileCount, long elapsedMilliseconds = 0, Exception exception = null, bool bypassed = false)
+            public XmlScanResult(Dictionary<string, long> metadataHashes, int fileCount, long elapsedMilliseconds = 0, Exception exception = null, bool bypassed = false, bool isComplete = true)
             {
                 MetadataHashes = metadataHashes ?? new Dictionary<string, long>(StringComparer.Ordinal);
                 FileCount = fileCount;
                 ElapsedMilliseconds = elapsedMilliseconds;
                 Exception = exception;
                 Bypassed = bypassed;
+                IsComplete = isComplete;
             }
         }
 
@@ -142,6 +144,7 @@ namespace FasterGameLoading
             {
                 var nextMetadataHashes = new Dictionary<string, long>(StringComparer.Ordinal);
                 int totalXmlCount = 0;
+                bool isComplete = true;
 
                 // 1. 掃描所有 Mod
                 if (targets != null)
@@ -151,11 +154,11 @@ namespace FasterGameLoading
                         if (target == null || string.IsNullOrEmpty(target.Key))
                             continue;
 
-                        nextMetadataHashes[target.Key] = ScanSingleTarget(target, ref totalXmlCount);
+                        nextMetadataHashes[target.Key] = ScanSingleTarget(target, ref totalXmlCount, ref isComplete);
                     }
                 }
 
-                return new XmlScanResult(nextMetadataHashes, totalXmlCount, stopwatch.ElapsedMilliseconds);
+                return new XmlScanResult(nextMetadataHashes, totalXmlCount, stopwatch.ElapsedMilliseconds, isComplete: isComplete);
             }
             catch (Exception ex)
             {
@@ -177,7 +180,7 @@ namespace FasterGameLoading
         /// already used for files in ScanDirectoryMetadata and for mods in
         /// CombineMetadataHashes.
         /// </summary>
-        private static long ScanSingleTarget(ModScanTarget target, ref int totalXmlCount)
+        private static long ScanSingleTarget(ModScanTarget target, ref int totalXmlCount, ref bool isComplete)
         {
             long metadataHash = 0;
             int xmlCount = 0;
@@ -196,14 +199,14 @@ namespace FasterGameLoading
                 var defsPath = Path.Combine(root, FGLConsts.DefsDirName);
                 if (Directory.Exists(defsPath))
                 {
-                    ScanDirectoryMetadata(defsPath, ref metadataHash, ref xmlCount);
+                    ScanDirectoryMetadata(defsPath, ref metadataHash, ref xmlCount, ref isComplete);
                 }
 
                 // 掃描 Patches 目錄
                 var patchesPath = Path.Combine(root, FGLConsts.PatchesDirName);
                 if (Directory.Exists(patchesPath))
                 {
-                    ScanDirectoryMetadata(patchesPath, ref metadataHash, ref xmlCount);
+                    ScanDirectoryMetadata(patchesPath, ref metadataHash, ref xmlCount, ref isComplete);
                 }
             }
 
@@ -215,7 +218,7 @@ namespace FasterGameLoading
         {
             try
             {
-                if (result == null || result.Exception != null)
+                if (result == null || result.Exception != null || !result.IsComplete)
                 {
                     // 掃描失敗：本 session 無法驗證快取基準，因此清空持久化 miss 快取
                     // 並以冷啟動語義運作（fail-closed）。安全動作先於記錄執行 —
@@ -227,7 +230,7 @@ namespace FasterGameLoading
                     // throwing logger must not be able to skip it.
                     XmlNode_SelectSingleNode_Patch.isCacheValidated = false;
                     SessionCache.xmlPathsSinceLastSession.Clear();
-                    FGLLog.Warning("Error during background XML file scan:", result?.Exception);
+                    FGLLog.Warning("Background XML file scan did not complete safely:", result?.Exception);
                     return;
                 }
                 if (result.Bypassed)
@@ -288,7 +291,7 @@ namespace FasterGameLoading
             }
         }
 
-        private static void ScanDirectoryMetadata(string dirPath, ref long combinedHash, ref int xmlCount)
+        private static void ScanDirectoryMetadata(string dirPath, ref long combinedHash, ref int xmlCount, ref bool isComplete)
         {
             try
             {
@@ -314,13 +317,16 @@ namespace FasterGameLoading
                     }
                     catch
                     {
-                        // 忽略個別檔案讀取權限異常
+                        // 無法取得 metadata 時不可把掃描當成成功，否則持久化 XPath miss
+                        // 可能會套用到未驗證的 XML 基準。
+                        isComplete = false;
                     }
                 }
             }
             catch
             {
-                // 忽略整個目錄權限異常
+                // 目錄列舉失敗同樣必須使本次快取 fail-closed。
+                isComplete = false;
             }
         }
 

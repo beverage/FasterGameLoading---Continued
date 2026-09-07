@@ -34,7 +34,7 @@ namespace FasterGameLoading
 
         static AdaptiveBakingSkipList()
         {
-            CacheResetter.Register(() =>
+            CacheResetter.Register(static () =>
             {
                 lock (rootsLock)
                 {

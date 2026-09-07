@@ -21,7 +21,12 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         private DelayedActions delayedActions;
 
         private static bool PrefixSkip() => false;
-        private static bool MockIsInMainThread() => true;
+        private static bool mockIsInMainThread = true;
+        private static bool MockIsInMainThread(ref bool __result)
+        {
+            __result = mockIsInMainThread;
+            return false;
+        }
 
         private static bool MockContentFinderGet(string itemPath, bool reportFailure, ref Texture2D __result)
         {
@@ -356,6 +361,173 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         public void UpdateMapMeshForLoadedDefs_WhenCurrentGameNull_RunsSafely()
         {
             Assert.DoesNotThrow(() => DeferredLoader.UpdateMapMeshForLoadedDefs(new List<ThingDef>()));
+        }
+
+        [Test]
+        public void LoadDeferredGraphicsCoroutine_WhenOverBudget_YieldsAndRestartsStopwatch()
+        {
+            var def1 = CreateMockThingDef("TestDef1");
+            var def2 = CreateMockThingDef("TestDef2");
+
+            delayedActions.EnqueueGraphic(def1, () => { });
+            delayedActions.EnqueueGraphic(def2, () => { });
+
+            var getter = AccessTools.PropertyGetter(typeof(DelayedActions), nameof(DelayedActions.IsOverBudget));
+            var patch = new HarmonyMethod(AccessTools.Method(typeof(DeferredLoaderTests), nameof(MockOverBudgetTrue)));
+            harmony.Patch(getter, prefix: patch);
+
+            try
+            {
+                var coroutine = DeferredLoader.LoadDeferredGraphicsCoroutine(delayedActions, new List<ThingDef>());
+                bool moved = coroutine.MoveNext();
+                Assert.That(moved, Is.True);
+                Assert.That(coroutine.Current, Is.EqualTo(0));
+                Assert.That(delayedActions.GraphicsToLoadCount, Is.EqualTo(2));
+            }
+            finally
+            {
+                harmony.Unpatch(getter, patch.method);
+            }
+        }
+
+        private static bool MockOverBudgetTrue(ref bool __result)
+        {
+            __result = true;
+            return false;
+        }
+
+        [Test]
+        public void LoadDeferredIconsCoroutine_WhenNotInMainThread_YieldsAndContinues()
+        {
+            var iconDef = (BuildableDef)FormatterServices.GetUninitializedObject(typeof(ThingDef));
+            delayedActions.EnqueueIcon(iconDef, () => { });
+
+            mockIsInMainThread = false;
+            TestSetup.IsInMainThreadOverride = () => false;
+            try
+            {
+                var coroutine = DeferredLoader.LoadDeferredIconsCoroutine(delayedActions);
+                bool moved = coroutine.MoveNext();
+
+                Assert.That(moved, Is.True);
+                Assert.That(coroutine.Current, Is.EqualTo(0));
+                Assert.That(delayedActions.IconsToLoadCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                mockIsInMainThread = true;
+                TestSetup.IsInMainThreadOverride = null;
+            }
+        }
+
+        [Test]
+        public void LoadDeferredGraphicsCoroutine_WhenNotInMainThread_YieldsAndContinues()
+        {
+            var def = CreateMockThingDef("TestDef");
+            delayedActions.EnqueueGraphic(def, () => { });
+
+            mockIsInMainThread = false;
+            TestSetup.IsInMainThreadOverride = () => false;
+            try
+            {
+                var coroutine = DeferredLoader.LoadDeferredGraphicsCoroutine(delayedActions, new List<ThingDef>());
+                bool moved = coroutine.MoveNext();
+
+                Assert.That(moved, Is.True);
+                Assert.That(coroutine.Current, Is.EqualTo(0));
+                Assert.That(delayedActions.GraphicsToLoadCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                mockIsInMainThread = true;
+                TestSetup.IsInMainThreadOverride = null;
+            }
+        }
+
+        [Test]
+        public void LoadDeferredIconsCoroutine_WhenOverBudget_YieldsAndRestartsStopwatch()
+        {
+            var iconDef1 = (BuildableDef)FormatterServices.GetUninitializedObject(typeof(ThingDef));
+            var iconDef2 = (BuildableDef)FormatterServices.GetUninitializedObject(typeof(ThingDef));
+            delayedActions.EnqueueIcon(iconDef1, () => { });
+            delayedActions.EnqueueIcon(iconDef2, () => { });
+
+            var getter = AccessTools.PropertyGetter(typeof(DelayedActions), nameof(DelayedActions.IsOverBudget));
+            var patch = new HarmonyMethod(AccessTools.Method(typeof(DeferredLoaderTests), nameof(MockOverBudgetTrue)));
+            harmony.Patch(getter, prefix: patch);
+
+            try
+            {
+                var coroutine = DeferredLoader.LoadDeferredIconsCoroutine(delayedActions);
+                bool moved = coroutine.MoveNext();
+                Assert.That(moved, Is.True);
+                Assert.That(coroutine.Current, Is.EqualTo(0));
+                Assert.That(delayedActions.IconsToLoadCount, Is.EqualTo(2));
+            }
+            finally
+            {
+                harmony.Unpatch(getter, patch.method);
+            }
+        }
+
+        [Test]
+        public void ResolveSubSoundDefsCoroutine_WhenOverBudget_YieldsAndRestartsStopwatch()
+        {
+            var subSound1 = (SubSoundDef)FormatterServices.GetUninitializedObject(typeof(SubSoundDef));
+            var subSound2 = (SubSoundDef)FormatterServices.GetUninitializedObject(typeof(SubSoundDef));
+            delayedActions.EnqueueSubSound(subSound1, () => { });
+            delayedActions.EnqueueSubSound(subSound2, () => { });
+
+            var getter = AccessTools.PropertyGetter(typeof(DelayedActions), nameof(DelayedActions.IsOverBudget));
+            var patch = new HarmonyMethod(AccessTools.Method(typeof(DeferredLoaderTests), nameof(MockOverBudgetTrue)));
+            harmony.Patch(getter, prefix: patch);
+
+            try
+            {
+                var coroutine = DeferredLoader.ResolveSubSoundDefsCoroutine(delayedActions);
+                bool moved = coroutine.MoveNext();
+                Assert.That(moved, Is.True);
+                Assert.That(coroutine.Current, Is.EqualTo(0));
+                Assert.That(delayedActions.SubSoundDefToResolveCount, Is.EqualTo(2));
+            }
+            finally
+            {
+                harmony.Unpatch(getter, patch.method);
+            }
+        }
+
+        private static bool MockCurrentGame(ref Game __result)
+        {
+            __result = (Game)FormatterServices.GetUninitializedObject(typeof(Game));
+            return false;
+        }
+
+        private static bool MockFindMapsThrows(ref List<Map> __result)
+        {
+            throw new InvalidOperationException("Simulated map error");
+        }
+
+        [Test]
+        public void UpdateMapMeshForLoadedDefs_WhenFindMapsThrows_CatchesAndLogsWarning()
+        {
+            var gameProp = AccessTools.PropertyGetter(typeof(Current), nameof(Current.Game));
+            var mapsProp = AccessTools.PropertyGetter(typeof(Find), nameof(Find.Maps));
+
+            var patchGame = new HarmonyMethod(AccessTools.Method(typeof(DeferredLoaderTests), nameof(MockCurrentGame)));
+            var patchMaps = new HarmonyMethod(AccessTools.Method(typeof(DeferredLoaderTests), nameof(MockFindMapsThrows)));
+
+            harmony.Patch(gameProp, prefix: patchGame);
+            harmony.Patch(mapsProp, prefix: patchMaps);
+
+            try
+            {
+                Assert.DoesNotThrow(() => DeferredLoader.UpdateMapMeshForLoadedDefs(new List<ThingDef> { CreateMockThingDef("TestA") }));
+            }
+            finally
+            {
+                harmony.Unpatch(gameProp, patchGame.method);
+                harmony.Unpatch(mapsProp, patchMaps.method);
+            }
         }
     }
 }

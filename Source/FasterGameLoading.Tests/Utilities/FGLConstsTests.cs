@@ -1,4 +1,4 @@
-﻿using NUnit.Framework;
+using NUnit.Framework;
 
 namespace FasterGameLoading.Tests.Utilities
 {
@@ -27,7 +27,7 @@ namespace FasterGameLoading.Tests.Utilities
             Assert.That(FGLConsts.PlaceholderTextureSize, Is.EqualTo(2));
             Assert.That(FGLConsts.AccessToolsPreloadDelayMs, Is.EqualTo(50));
             Assert.That(FGLConsts.TexturePreloadDelayMs, Is.EqualTo(150));
-            CollectionAssert.AreEqual(ExpectedFurnitureKeywords, FGLConsts.FurnitureKeywords);
+            Assert.That(FGLConsts.FurnitureKeywords, Is.EqualTo(ExpectedFurnitureKeywords));
             Assert.That(FGLConsts.AlienRaceAssemblyName, Is.EqualTo("AlienRace"));
             Assert.That(FGLConsts.LoadGraphicsHookMethodName, Is.EqualTo("LoadGraphicsHook"));
         }

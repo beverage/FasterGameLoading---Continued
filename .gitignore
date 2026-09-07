@@ -24,6 +24,8 @@ obj/
 # 測試與掃描產物
 TestResults/
 .sonarqube/
+coverage.xml
+*.coverage
 
 # 本機建置/測試產生的偵錯符號
 *.pdb

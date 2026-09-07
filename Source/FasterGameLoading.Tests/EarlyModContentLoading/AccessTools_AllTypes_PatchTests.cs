@@ -158,5 +158,31 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             capturedExecuteWhenFinishedAction();
             Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.ContainsKey(typeof(AccessTools_AllTypes_Patch).FullName), Is.True);
         }
+
+        [Test]
+        public void BuildTypeList_WhenAssemblyThrows_SwallowsExceptionAndContinues()
+        {
+            var method = typeof(AccessTools_AllTypes_Patch).GetMethod("BuildTypeList", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(method, Is.Not.Null);
+
+            var getTypesMethod = AccessTools.Method(typeof(AccessTools), nameof(AccessTools.GetTypesFromAssembly));
+            var testHarmony = new Harmony("FasterGameLoading.Tests.BuildTypeListThrow");
+            testHarmony.Patch(getTypesMethod, prefix: new HarmonyMethod(AccessTools.Method(typeof(AccessTools_AllTypes_PatchTests), nameof(Prefix_GetTypesThrows))));
+
+            try
+            {
+                var result = (List<Type>)method.Invoke(null, new object[] { new Assembly[] { typeof(AccessTools_AllTypes_PatchTests).Assembly } });
+                Assert.That(result, Is.Empty);
+            }
+            finally
+            {
+                testHarmony.UnpatchAll("FasterGameLoading.Tests.BuildTypeListThrow");
+            }
+        }
+
+        private static bool Prefix_GetTypesThrows(ref Type[] __result)
+        {
+            throw new ReflectionTypeLoadException(Array.Empty<Type>(), Array.Empty<Exception>());
+        }
     }
 }

@@ -153,5 +153,49 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             Assert.That(result, Is.True);
             Assert.That(LastCapturedDrawSize, Is.EqualTo(Vector2.one));
         }
+
+        [Test]
+        public void FormatBytes_FormatsWithOneDecimalAndMiB()
+        {
+            var method = typeof(TextureResize).GetMethod("FormatBytes", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(method, Is.Not.Null);
+
+            string formatted = (string)method.Invoke(null, new object[] { 2 * 1024 * 1024L });
+            Assert.That(formatted, Is.EqualTo("2.0 MiB"));
+        }
+
+        [Test]
+        public void TryGetGraphicApparel_WhenGraphicDataNotNull_UsesCustomDrawSize()
+        {
+            var def = Uninitialized<ThingDef>();
+            def.apparel = Uninitialized<ApparelProperties>();
+            def.apparel.layers = new List<ApparelLayerDef>();
+            def.graphicData = Uninitialized<GraphicData>();
+            def.graphicData.drawSize = new Vector2(3f, 4f);
+
+            var bodyType = Uninitialized<BodyTypeDef>();
+            bodyType.defName = "Female";
+
+            LastCapturedDrawSize = null;
+            Graphic rec = null;
+            bool result = TextureResize.TryGetGraphicApparel(def, "Things/Pawn/Humanlike/Apparel/Custom", bodyType, out rec);
+
+            Assert.That(result, Is.True);
+            Assert.That(LastCapturedDrawSize, Is.EqualTo(new Vector2(3f, 4f)));
+        }
+
+        [Test]
+        public void TryGetGraphicApparel_WhenDevelopmentalStageFilterMismatches_ReturnsFalse()
+        {
+            var def = Uninitialized<ThingDef>();
+            def.apparel = Uninitialized<ApparelProperties>();
+            def.apparel.developmentalStageFilter = DevelopmentalStage.Adult;
+
+            Graphic rec = null;
+            bool result = TextureResize.TryGetGraphicApparel(def, "Things/Pawn/Humanlike/Apparel/BabyApparel", BodyTypeDefOf.Baby, out rec);
+
+            Assert.That(result, Is.False);
+            Assert.That(rec, Is.Null);
+        }
     }
 }
