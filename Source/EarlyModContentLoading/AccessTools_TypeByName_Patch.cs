@@ -1,69 +1,47 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using HarmonyLib;
-using Verse;
 
 namespace FasterGameLoading
 {
     /// <summary>
-    /// 攔截 AccessTools.TypeByName 以使用跨 session 快取。
-    /// 優先查詢上次 session 中記錄的完整型別名稱對照表，
-    /// 再查詢本次 session 的執行期快取。
+    /// 攔截 AccessTools.TypeByName，以本次 session 的執行期快取加速重複查詢。
+    /// 刻意不與 GenTypes_GetTypeInAnyAssemblyInt_Patch 共用快取、也不寫入跨 session 對照：
+    /// AccessTools.TypeByName 會以短名稱跨任意命名空間比對，而 GenTypes 只查預設命名空間且不分大小寫，
+    /// 兩者解析規則不同，共用結果會讓一方拿到另一方規則下才會解析出的型別。
     /// </summary>
     [HarmonyPatch(typeof(AccessTools), "TypeByName")]
     public static class AccessTools_TypeByName_Patch
     {
-        /// <summary>
-        /// 前置處理：優先使用已快取的類型解析名稱並查找緩存。
-        /// </summary>
-        public static bool Prefix(ref Type __result, out (bool isCached, string originalName) __state, ref string name)
-        {
-            var oldName = name;
-            if (string.IsNullOrEmpty(name))
-            {
-                __state = (false, oldName);
-                return true;
-            }
+        internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new ConcurrentDictionary<string, Type>(StringComparer.Ordinal);
 
-            if (SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(name, out var fullName))
-            {
-                name = fullName;
-            }
-            if (GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.TryGetValue(name, out var result))
+        static AccessTools_TypeByName_Patch()
+        {
+            CacheResetter.Register(static () => cachedResults.Clear());
+        }
+
+        /// <summary>
+        /// 前置處理：命中執行期快取時直接回傳並跳過原方法。
+        /// </summary>
+        public static bool Prefix(ref Type __result, string name)
+        {
+            if (!string.IsNullOrEmpty(name) && cachedResults.TryGetValue(name, out var result))
             {
                 __result = result;
-                __state = (true, oldName);
                 return false;
             }
-
-            __state = (false, oldName);
             return true;
         }
 
         /// <summary>
-        /// 後置處理：若為非快取路徑，將解析出的結果寫入執行期和跨 session 快取。
+        /// 後置處理：只記錄原方法實際解析成功的結果；查無結果不快取，
+        /// 因為之後載入的組件可能才定義該型別。
         /// </summary>
-        public static void Postfix(Type __result, string name, (bool isCached, string originalName) __state)
+        public static void Postfix(Type __result, string name, bool __runOriginal)
         {
-            if (!__state.isCached && __result != null)
+            if (__runOriginal && __result != null && !string.IsNullOrEmpty(name))
             {
-                var fullName = __result.FullName;
-                if (string.IsNullOrEmpty(fullName))
-                {
-                    return;
-                }
-
-                // 短名稱也可安全寫入 cachedResults：此處的對照來自「實際解析結果」，
-                // 對相同字串重複查詢必然一致（與 GenTypes_GetTypeInAnyAssemblyInt_Patch.Postfix 行為一致）。
-                // 不可寫入短名稱的是 WarmupTypeCache 的「預先填充」路徑
-                // （列舉順序與解析順序可能不同，見 AccessTools_AllTypes_Patch.cs WarmupTypeCache 備註）。
-                GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults[__state.originalName] = __result;
-                if (!string.Equals(fullName, __state.originalName, StringComparison.Ordinal))
-                {
-                    // 記錄短名稱→完整名稱的對照到 session 快取供下次查詢加速
-                    SessionCache.loadedTypesByFullNameSinceLastSession[__state.originalName] = fullName;
-                    GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults[fullName] = __result;
-                }
+                cachedResults[name] = __result;
             }
         }
     }

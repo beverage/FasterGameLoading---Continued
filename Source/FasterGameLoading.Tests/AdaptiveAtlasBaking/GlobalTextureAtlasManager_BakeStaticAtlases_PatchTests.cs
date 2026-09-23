@@ -77,12 +77,13 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
         }
 
         [Test]
-        public void Prefix_WithoutDelayAndWithAdaptiveBake_PerformsSynchronousBakeAndReturnsFalse()
+        public void Prefix_WithoutDelayAndWithAdaptiveBake_LetsVanillaRun()
         {
+            // 同步路徑沒有分幀的空間，自適應分批只會把圖集切碎；一律交給原版。
             FasterGameLoadingSettings.DelayGraphicLoading = false;
             FasterGameLoadingSettings.StaticAtlasesBaking = true;
 
-            Assert.That(GlobalTextureAtlasManager_BakeStaticAtlases_Patch.Prefix(), Is.False);
+            Assert.That(GlobalTextureAtlasManager_BakeStaticAtlases_Patch.Prefix(), Is.True);
         }
 
         [Test]

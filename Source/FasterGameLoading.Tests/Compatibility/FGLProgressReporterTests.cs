@@ -158,29 +158,6 @@ namespace FasterGameLoading.Tests.Compatibility
             Assert.That(FasterGameLoadingMod.settings, Is.Null);
         }
 
-        [Test]
-        public void StartXmlScan_WithNoRunningMods_CompletesSafely()
-        {
-            // 反射呼叫 private static StartXmlScan()：RunningMods 為空時只建立空 scanTargets，
-            // 直接跳過迴圈並嘗試啟動掃描，不應拋出例外（覆蓋 L71/L81）。
-            var runningModsField = AccessTools.Field(typeof(LoadedModManager), "runningMods");
-            var originalRunningMods = runningModsField?.GetValue(null);
-            var capturedOriginalDelayedActions = FasterGameLoadingMod.delayedActions;
-            try
-            {
-                runningModsField?.SetValue(null, new List<ModContentPack>());
-
-                var method = typeof(FasterGameLoadingMod).GetMethod("StartXmlScan",
-                    BindingFlags.NonPublic | BindingFlags.Static);
-                Assert.That(method, Is.Not.Null);
-                Assert.DoesNotThrow(() => method.Invoke(obj: null, parameters: null));
-            }
-            finally
-            {
-                runningModsField?.SetValue(null, originalRunningMods);
-            }
-        }
-
         private static DelayedActions CreateDelayedActions(bool earlyLoadingComplete)
         {
             var delayedActions = (DelayedActions)FormatterServices.GetUninitializedObject(typeof(DelayedActions));

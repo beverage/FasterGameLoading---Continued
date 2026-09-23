@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using NUnit.Framework;
 
 namespace FasterGameLoading.Tests.EarlyModContentLoading
@@ -10,6 +9,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [SetUp]
         public void SetUp()
         {
+            AccessTools_TypeByName_Patch.cachedResults.Clear();
             GenTypes_GetTypeInAnyAssemblyInt_Patch.ClearCache();
             SessionCache.loadedTypesByFullNameSinceLastSession.Clear();
         }
@@ -17,94 +17,82 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         [TearDown]
         public void TearDown()
         {
+            AccessTools_TypeByName_Patch.cachedResults.Clear();
             GenTypes_GetTypeInAnyAssemblyInt_Patch.ClearCache();
             SessionCache.loadedTypesByFullNameSinceLastSession.Clear();
         }
 
         [Test]
-        public void Prefix_WhenNullOrEmptyName_ReturnsTrueAndSetsState()
+        public void Prefix_WhenNullOrEmptyName_RunsOriginal()
         {
             Type result = null;
-            string name = null;
-            bool shouldRun = AccessTools_TypeByName_Patch.Prefix(ref result, out var state, ref name);
 
-            Assert.That(shouldRun, Is.True);
-            Assert.That(state.isCached, Is.False);
-            Assert.That(state.originalName, Is.Null);
+            Assert.That(AccessTools_TypeByName_Patch.Prefix(ref result, name: null), Is.True);
+            Assert.That(AccessTools_TypeByName_Patch.Prefix(ref result, string.Empty), Is.True);
+            Assert.That(result, Is.Null);
         }
 
         [Test]
         public void Prefix_WhenCachedResultsHit_SetsResultAndReturnsFalse()
         {
-            GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults["TestClass"] = typeof(string);
+            AccessTools_TypeByName_Patch.cachedResults["TestClass"] = typeof(string);
 
             Type result = null;
-            string name = "TestClass";
-            bool shouldRun = AccessTools_TypeByName_Patch.Prefix(ref result, out var state, ref name);
+            bool shouldRun = AccessTools_TypeByName_Patch.Prefix(ref result, "TestClass");
 
             Assert.That(shouldRun, Is.False);
             Assert.That(result, Is.EqualTo(typeof(string)));
-            Assert.That(state.isCached, Is.True);
-            Assert.That(state.originalName, Is.EqualTo("TestClass"));
         }
 
         [Test]
-        public void Prefix_WhenSessionCacheHit_UpdatesNameToFullNameAndReturnsTrue()
+        public void Prefix_IgnoresGenTypesCachesAndSessionMapping()
         {
+            // GenTypes 的快取與跨 session 對照依 GenTypes 的解析規則產生，這裡不得沿用。
+            GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults["ShortClass"] = typeof(string);
             SessionCache.loadedTypesByFullNameSinceLastSession["ShortClass"] = "System.Text.StringBuilder";
 
             Type result = null;
-            string name = "ShortClass";
-            bool shouldRun = AccessTools_TypeByName_Patch.Prefix(ref result, out var state, ref name);
+            bool shouldRun = AccessTools_TypeByName_Patch.Prefix(ref result, "ShortClass");
 
             Assert.That(shouldRun, Is.True);
-            Assert.That(name, Is.EqualTo("System.Text.StringBuilder"));
-            Assert.That(state.isCached, Is.False);
-            Assert.That(state.originalName, Is.EqualTo("ShortClass"));
+            Assert.That(result, Is.Null);
         }
 
         [Test]
-        public void Postfix_WhenNotCachedAndResultNotNull_CachesResults()
+        public void Postfix_WhenOriginalResolvedType_CachesOnlyInOwnCache()
         {
-            var state = (isCached: false, originalName: "String");
-            AccessTools_TypeByName_Patch.Postfix(typeof(string), "String", state);
+            AccessTools_TypeByName_Patch.Postfix(typeof(string), "String", __runOriginal: true);
 
-            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.TryGetValue("String", out var type), Is.True);
+            Assert.That(AccessTools_TypeByName_Patch.cachedResults.TryGetValue("String", out var type), Is.True);
             Assert.That(type, Is.EqualTo(typeof(string)));
-            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.TryGetValue("System.String", out var typeFull), Is.True);
-            Assert.That(typeFull, Is.EqualTo(typeof(string)));
-            Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue("String", out var fullName), Is.True);
-            Assert.That(fullName, Is.EqualTo("System.String"));
+            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults, Is.Empty);
+            Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession, Is.Empty);
         }
 
         [Test]
-        public void Postfix_WhenAlreadyCached_DoesNotOverwriteOrThrow()
+        public void Postfix_WhenServedFromCache_DoesNotRewriteCache()
         {
-            var state = (isCached: true, originalName: "String");
-            Assert.DoesNotThrow(() => AccessTools_TypeByName_Patch.Postfix(typeof(string), "String", state));
+            AccessTools_TypeByName_Patch.Postfix(typeof(string), "String", __runOriginal: false);
+
+            Assert.That(AccessTools_TypeByName_Patch.cachedResults, Is.Empty);
         }
 
         [Test]
-        public void Postfix_WhenResultIsNull_DoesNotThrow()
+        public void Postfix_WhenResultIsNull_DoesNotCache()
         {
-            var state = (isCached: false, originalName: "NonExistentType");
-            Assert.DoesNotThrow(() => AccessTools_TypeByName_Patch.Postfix(null, "NonExistentType", state));
-        }
+            AccessTools_TypeByName_Patch.Postfix(null, "NonExistentType", __runOriginal: true);
 
-        private sealed class MockTypeWithoutFullName : TypeDelegator
-        {
-            public MockTypeWithoutFullName() : base(typeof(string)) { }
-            public override string FullName => null;
+            Assert.That(AccessTools_TypeByName_Patch.cachedResults, Is.Empty);
         }
 
         [Test]
-        public void Postfix_WhenResultFullNameIsNull_DoesNotThrowAndDoesNotCrash()
+        public void CacheResetter_ResetAll_ClearsCache()
         {
-            var mockType = new MockTypeWithoutFullName();
-            var state = (isCached: false, originalName: "SpecialGenericParam");
+            AccessTools_TypeByName_Patch.cachedResults["Test"] = typeof(string);
 
-            Assert.DoesNotThrow(() => AccessTools_TypeByName_Patch.Postfix(mockType, "SpecialGenericParam", state));
-            Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession.ContainsKey("SpecialGenericParam"), Is.False);
+            CacheResetter.ResetAll();
+
+            Assert.That(AccessTools_TypeByName_Patch.cachedResults, Is.Empty);
         }
     }
 }

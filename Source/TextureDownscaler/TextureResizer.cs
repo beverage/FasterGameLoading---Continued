@@ -74,16 +74,37 @@ namespace FasterGameLoading
 
         /// <summary>
         /// 使用 RenderTexture 將來源紋理縮放到目標尺寸，輸出為 PNG 位元組陣列。
+        /// 雙線性 Blit 每個輸出像素只取樣 2×2 個來源像素，一次縮小超過 2 倍會跳過大部分像素而產生鋸齒；
+        /// 因此先逐次減半到目標的 2 倍以內，再做最後一次縮放。
         /// </summary>
         public static byte[] ResizeTextureToPng(Texture source, int width, int height)
         {
             var previous = RenderTexture.active;
             var renderTexture = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
+            RenderTexture intermediate = null;
             Texture2D readable = null;
 
             try
             {
-                Graphics.Blit(source, renderTexture);
+                Texture current = source;
+                int currentWidth = source.width;
+                int currentHeight = source.height;
+                while (currentWidth / 2 >= width && currentHeight / 2 >= height)
+                {
+                    currentWidth /= 2;
+                    currentHeight /= 2;
+                    var halved = RenderTexture.GetTemporary(currentWidth, currentHeight, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
+                    halved.filterMode = FilterMode.Bilinear;
+                    Graphics.Blit(current, halved);
+                    if (intermediate != null)
+                    {
+                        RenderTexture.ReleaseTemporary(intermediate);
+                    }
+                    intermediate = halved;
+                    current = halved;
+                }
+
+                Graphics.Blit(current, renderTexture);
                 RenderTexture.active = renderTexture;
                 readable = new Texture2D(width, height, TextureFormat.RGBA32, mipChain: false);
                 readable.ReadPixels(new Rect(0, 0, width, height), 0, 0);
@@ -94,6 +115,7 @@ namespace FasterGameLoading
             {
                 RenderTexture.active = previous;
                 RenderTexture.ReleaseTemporary(renderTexture);
+                if (intermediate != null) RenderTexture.ReleaseTemporary(intermediate);
                 if (readable != null) DestroyTemporaryUnityObject(readable);
             }
         }

@@ -21,6 +21,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 
         private static Harmony harmony;
         private static bool forceTryBakeSingleBatchFailure = false;
+        private static int tryBakeSingleBatchCallCount;
 
         private object previousBuildQueue;
         private object previousBuildQueueMasks;
@@ -233,6 +234,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
 #pragma warning disable MA0045 // 測試輔助工具的同步輸出，無需非同步
             TestContext.Progress.WriteLine($"PrefixTryBakeSingleBatch called! force={forceTryBakeSingleBatchFailure}");
 #pragma warning restore MA0045
+            tryBakeSingleBatchCallCount++;
             if (forceTryBakeSingleBatchFailure)
             {
                 __result = false;
@@ -258,6 +260,7 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
         public void SetUp()
         {
             forceTryBakeSingleBatchFailure = false;
+            tryBakeSingleBatchCallCount = 0;
 
             previousBuildQueue = BuildQueueField?.GetValue(null);
             previousBuildQueueMasks = BuildQueueMasksField?.GetValue(null);
@@ -381,6 +384,27 @@ namespace FasterGameLoading.Tests.AdaptiveAtlasBaking
             while (iterator.MoveNext()) { }
 
             Assert.That(SessionCache.historicalBakeSpeeds.Count, Is.EqualTo(SessionCache.HISTORY_SIZE));
+        }
+
+        [Test]
+        public void PerformAdaptiveStaticAtlasBake_SmallTexturesShareOneAtlas()
+        {
+            // 四張 256×256 共 262,144 像素，低於 1024×1024 的 slice 下限：
+            // 必須合併成一張圖集，而不是各自切成小圖集（舊參數 256×256 起跳會拆成四張）。
+            var queue = new Dictionary<TextureAtlasGroupKey, (List<Texture2D>, HashSet<Texture2D>)>();
+            var key = new TextureAtlasGroupKey { hasMask = false };
+            var textures = new List<Texture2D>();
+            for (int i = 0; i < 4; i++)
+            {
+                textures.Add(MockTextureHelper.CreateTexture(256, 256, "Small" + i.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
+            queue[key] = (textures, new HashSet<Texture2D>());
+            BuildQueueField.SetValue(null, queue);
+
+            var iterator = AdaptiveAtlasBaker.PerformAdaptiveStaticAtlasBake(delayedActions: null);
+            while (iterator.MoveNext()) { }
+
+            Assert.That(tryBakeSingleBatchCallCount, Is.EqualTo(1));
         }
 
         [Test]

@@ -30,6 +30,10 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         private bool originalVerboseLogging;
         private bool? originalImageOptActive;
         private bool? originalGraphicsSettingsActive;
+        private int originalRedirectTimeoutMs;
+
+        /// <summary>測試用的轉交逾時；正式值為 10 秒，會讓「泵送從未執行」的測試空等太久。</summary>
+        private const int TestRedirectTimeoutMs = 1000;
 
         /// <summary>不觸碰檔案系統的 VirtualFile 替身，只需要 FullPath 可讀。</summary>
         private sealed class FakeVirtualFile : VirtualFile
@@ -67,6 +71,8 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             originalInstance = FasterGameLoadingMod.Instance;
             originalImageOptActive = GetCompatFlag(typeof(ImageOptCompat));
             originalGraphicsSettingsActive = GetCompatFlag(typeof(GraphicsSettingsCompat));
+            originalRedirectTimeoutMs = ModContentLoaderTexture2D_LoadTexture_Patch.mainThreadRedirectTimeoutMs;
+            ModContentLoaderTexture2D_LoadTexture_Patch.mainThreadRedirectTimeoutMs = TestRedirectTimeoutMs;
 
             // 兩個相容性旗標一律固定為「未啟用」，否則 Prefix 會在第一個分支就短路。
             SetCompatFlag(typeof(ImageOptCompat), value: false);
@@ -84,6 +90,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         public void TearDown()
         {
             TestSetup.IsInMainThreadOverride = null;
+            ModContentLoaderTexture2D_LoadTexture_Patch.mainThreadRedirectTimeoutMs = originalRedirectTimeoutMs;
             DrainQueueSilently();
             ClearPatchState();
             ResetBakingSkipListState();
@@ -227,6 +234,42 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             Assert.That(result, Is.Null);
         }
 
+        [Test]
+        public void Prefix_OffMainThread_WhenTimeoutRacesWithMainThreadLoad_ReturnsLoadedTexture()
+        {
+            // 主執行緒已取得處理權，但完成時間晚於逾時：等待端不得放棄，
+            // 否則主執行緒載入出的貼圖會無人持有而洩漏，呼叫端也拿不到貼圖。
+            var expected = NewDetachedTexture();
+            TestSetup.IsInMainThreadOverride = () => false;
+
+            var pump = Task.Run(() =>
+            {
+                var queue = GetQueue();
+                var tryDequeue = queue.GetType().GetMethod("TryDequeue");
+                var args = new object[] { null };
+                if (!SpinWait.SpinUntil(() => (bool)tryDequeue.Invoke(queue, args), TestRedirectTimeoutMs))
+                {
+                    return;
+                }
+
+                var request = args[0];
+                request.GetType().GetMethod("TryTake").Invoke(request, parameters: null);
+                Thread.Sleep(TestRedirectTimeoutMs + 300);
+                request.GetType().GetField("Result").SetValue(request, expected);
+                ((ManualResetEventSlim)GetRequestField(request, "CompletedEvent")).Set();
+            });
+
+            Texture2D result = null;
+            bool runOriginal = ModContentLoaderTexture2D_LoadTexture_Patch.Prefix(
+                new FakeVirtualFile(Path.Combine(tempDir, "race.png")), out bool state, ref result);
+
+            pump.Wait(5000);
+
+            Assert.That(runOriginal, Is.False);
+            Assert.That(state, Is.False);
+            Assert.That(result, Is.SameAs(expected));
+        }
+
         // ── Prefix：相容性旗標的短路分支 ──
 
         [Test]
@@ -355,7 +398,7 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         }
 
         [Test]
-        public void RegisterSkippedBakingTextureIfApplicable_RegistersInstanceAndFileName()
+        public void RegisterSkippedBakingTextureIfApplicable_RegistersInstance()
         {
             string modRoot = Path.Combine(tempDir, "TargetMod").Replace('\\', '/');
             SeedBakingSkipListRoot(modRoot);
@@ -367,7 +410,6 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             ModContentLoaderTexture2D_LoadTexture_Patch.RegisterSkippedBakingTextureIfApplicable(texturePath, texture);
 
             Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.ContainsKey(texture), Is.True);
-            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextureNames.ContainsKey("head"), Is.True);
         }
 
         [Test]
@@ -382,7 +424,6 @@ namespace FasterGameLoading.Tests.TextureDownscaler
                 Path.Combine(tempDir, "OtherMod", "Textures", "rock.png"), texture);
 
             Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures, Is.Empty);
-            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextureNames, Is.Empty);
         }
 
         // ── Postfix ──
@@ -575,7 +616,6 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession.Clear();
             ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes.Clear();
             ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.Clear();
-            ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextureNames.Clear();
         }
 
         /// <summary>直接把根目錄塞進排除名單並鎖定初始化旗標，繞過需要 RunningMods 的探測流程。</summary>

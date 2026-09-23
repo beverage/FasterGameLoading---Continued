@@ -22,19 +22,34 @@ namespace FasterGameLoading
     {
         private static readonly ConcurrentQueue<LoadRequest> mainThreadLoadRequests = new ConcurrentQueue<LoadRequest>();
 
+        /// <summary>背景執行緒等待主執行緒代為載入貼圖的上限。可於測試中調低。</summary>
+        internal static int mainThreadRedirectTimeoutMs = 10_000;
+
         private sealed class LoadRequest
         {
+            private const int Pending = 0;
+            private const int Taken = 1;
+            private const int Cancelled = 2;
+
             public VirtualFile File;
             public Texture2D Result;
             public Exception Exception;
             public ManualResetEventSlim CompletedEvent = new ManualResetEventSlim(initialState: false);
-            private int cancelled;
+            private int state;
 
-            public bool IsCancelled => Volatile.Read(ref cancelled) is not 0;
-
-            public void Cancel()
+            /// <summary>主執行緒取得處理權；請求已被等待端放棄時回傳 false。</summary>
+            public bool TryTake()
             {
-                Interlocked.Exchange(ref cancelled, 1);
+                return Interlocked.CompareExchange(ref state, Taken, Pending) is Pending;
+            }
+
+            /// <summary>
+            /// 等待端放棄請求；主執行緒已開始處理時回傳 false，
+            /// 呼叫端必須等它完成並接手結果，否則載入出的貼圖會無人持有而洩漏。
+            /// </summary>
+            public bool Cancel()
+            {
+                return Interlocked.CompareExchange(ref state, Cancelled, Pending) is Pending;
             }
         }
 
@@ -42,7 +57,7 @@ namespace FasterGameLoading
         {
             while (mainThreadLoadRequests.TryDequeue(out var request))
             {
-                if (request.IsCancelled)
+                if (!request.TryTake())
                 {
                     continue;
                 }
@@ -100,8 +115,6 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
         }
         /// <summary>排除烘焙的目標 Mod 紋理快取，用於 O(1) 快速查詢。</summary>
         public static ConcurrentDictionary<Texture2D, bool> skippedBakingTextures { get; } = new ConcurrentDictionary<Texture2D, bool>();
-        /// <summary>排除烘焙的目標 Mod 紋理名稱快取，用於處理克隆實體時的反向比對。以 ConcurrentDictionary 實作執行緒安全。</summary>
-        public static ConcurrentDictionary<string, byte> skippedBakingTextureNames { get; } = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         /// <summary>紋理快取命中次數。</summary>
         private static int cacheLoadHitsValue;
         public static int cacheLoadHits
@@ -127,7 +140,6 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                 // 不影響正確性。故此處不另作清理。
                 loadedTexturesThisSession.Clear();
                 skippedBakingTextures.Clear();
-                skippedBakingTextureNames.Clear(); // ConcurrentDictionary.Clear() 為執行緒安全
                 preloadedCacheBytes.Clear();
             });
 
@@ -192,11 +204,6 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
             if (tex != null && AdaptiveBakingSkipList.ShouldSkipBaking(path))
             {
                 skippedBakingTextures[tex] = true;
-                string filename = Path.GetFileNameWithoutExtension(path);
-                if (!string.IsNullOrEmpty(filename))
-                {
-                    skippedBakingTextureNames.TryAdd(filename, 0);
-                }
             }
         }
 
@@ -294,31 +301,32 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
             // 泵送合約：DelayedActions（MonoBehaviour）的 Update() 每幀在主執行緒呼叫
             // ProcessPendingMainThreadRequests()，確保此請求在下一幀內被處理。
             // 參見 Source\DelayGraphicAndIconLoading\DelayedActions.cs:Update()。
-            if (request.CompletedEvent.Wait(1000))
+            if (!request.CompletedEvent.Wait(mainThreadRedirectTimeoutMs))
             {
-                if (request.Exception != null)
+                if (request.Cancel())
                 {
-                    FGLLog.Warning($"Error loading texture on main thread redirect: {request.Exception.Message}");
+                    FGLLog.Warning($"Timeout waiting for texture loading on main thread: {file.FullPath}");
                     return null;
                 }
-                if (request.Result != null)
-                {
-                    return request.Result;
-                }
-            }
-            else
-            {
-                FGLLog.Warning($"Timeout waiting for texture loading on main thread: {file.FullPath}");
+
+                // 逾時的同時主執行緒已取得處理權：等它完成並接手結果，避免貼圖洩漏。
+                request.CompletedEvent.Wait();
             }
 
-            request.Cancel();
-            return null;
+            if (request.Exception != null)
+            {
+                FGLLog.Warning($"Error loading texture on main thread redirect: {request.Exception.Message}");
+                return null;
+            }
+            return request.Result;
         }
 
         /// <summary>本 session 已載入過同一路徑時，直接沿用 WeakReference 快取中的紋理。</summary>
         private static bool TryServeFromWeakReferenceCache(string fullPath, out Texture2D result)
         {
-            if (savedTextures.TryGetValue(fullPath, out var weakRef) && weakRef.TryGetTarget(out result))
+            if (savedTextures.TryGetValue(fullPath, out var weakRef) && weakRef.TryGetTarget(out result)
+                // WeakReference 只追蹤 C# 物件：Unity 端已銷毀的貼圖仍取得回來，必須以 Unity 的 null 比較排除。
+                && result != null)
             {
                 RegisterSkippedBakingTextureIfApplicable(fullPath, result);
                 return true;
@@ -347,16 +355,15 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                     data = File.ReadAllBytes(cachePath);
                 }
                 bool useMipmaps = fullPath.NormalizePath().IndexOf(FGLConsts.UIDirSlash, StringComparison.Ordinal) < 0;
-                var tex = new Texture2D(FGLConsts.PlaceholderTextureSize, FGLConsts.PlaceholderTextureSize, TextureFormat.RGBA32, useMipmaps);
+                var tex = new Texture2D(FGLConsts.PlaceholderTextureSize, FGLConsts.PlaceholderTextureSize, TextureFormat.Alpha8, useMipmaps);
                 var textureAccepted = false;
 
                 try
                 {
                     if (tex.LoadImage(data) && tex.width > 0 && tex.height > 0)
                     {
+                        tex = FinishLoadingLikeVanilla(tex, data, useMipmaps);
                         tex.name = Path.GetFileNameWithoutExtension(fullPath);
-                        tex.Compress(highQuality: true);
-                        tex.Apply(updateMipmaps: true, makeNoLongerReadable: true);
                         SaveTexturePath(fullPath, tex);
                         RegisterSkippedBakingTextureIfApplicable(fullPath, tex);
                         Interlocked.Increment(ref cacheLoadHitsValue);
@@ -384,6 +391,60 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
             FasterGameLoadingMod.Instance.CacheManager.RemoveCachedTexturePath(fullPath);
             Interlocked.Increment(ref cacheLoadFailuresValue);
             return false;
+        }
+
+        /// <summary>
+        /// 依原版 ModContentLoader.LoadTextureViaImageConversion 的流程完成貼圖：
+        /// 尊重 Prefs.TextureCompression、使用 Trilinear 與 anisoLevel 2，
+        /// 並在支援 compute shader 時改用 GPU 壓縮（FastCompressDXT），
+        /// 避免降質貼圖與原版貼圖外觀不同，也避免在主執行緒上做昂貴的 CPU 高品質壓縮。
+        /// 回傳值可能是新的 Texture2D（傳入的實體已被銷毀）。
+        /// 拋出例外時，若已換成新貼圖，會先銷毀新貼圖；傳入的實體仍由呼叫端負責清理。
+        /// </summary>
+        private static Texture2D FinishLoadingLikeVanilla(Texture2D texture, byte[] data, bool useMipmaps)
+        {
+            var original = texture;
+            try
+            {
+                if (useMipmaps && Prefs.TextureCompression && !UnityData.ComputeShadersSupported
+                    && (texture.width < 4 || texture.height < 4 || !Mathf.IsPowerOfTwo(texture.width) || !Mathf.IsPowerOfTwo(texture.height)))
+                {
+                    // 非 2 的冪次尺寸：限制 mipmap 層數，確保每一層都能做 DXT 區塊壓縮。
+                    int mipCount = StaticTextureAtlas.CalculateMaxMipmapsForDxtSupport(texture);
+                    var reduced = new Texture2D(texture.width, texture.height, TextureFormat.Alpha8, mipCount, linear: false);
+                    UnityEngine.Object.DestroyImmediate(texture);
+                    texture = reduced;
+                    texture.LoadImage(data);
+                }
+
+                texture.filterMode = FilterMode.Trilinear;
+                texture.anisoLevel = 2;
+                bool blockAligned = texture.width % 4 == 0 && texture.height % 4 == 0;
+                if (Prefs.TextureCompression && blockAligned)
+                {
+                    if (!UnityData.ComputeShadersSupported)
+                    {
+                        texture.Compress(highQuality: true);
+                        texture.Apply(updateMipmaps: true, makeNoLongerReadable: true);
+                        return texture;
+                    }
+
+                    texture.Apply(updateMipmaps: true, makeNoLongerReadable: true);
+                    return StaticTextureAtlas.FastCompressDXT(texture, deleteOriginal: true);
+                }
+
+                texture.Apply(updateMipmaps: true, makeNoLongerReadable: true);
+                return texture;
+            }
+            catch
+            {
+                // 呼叫端手上只有原本的實體，這裡換上的新貼圖若不釋放就會洩漏。
+                if (!ReferenceEquals(texture, original))
+                {
+                    UnityEngine.Object.DestroyImmediate(texture);
+                }
+                throw;
+            }
         }
 
         /// <summary>把此紋理的 Textures/ 相對路徑記入本 session 的載入清單，供跨 session 快取使用。</summary>

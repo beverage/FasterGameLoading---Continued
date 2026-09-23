@@ -73,6 +73,31 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             Assert.That(GraphicData_Init_Patch.IsSameGraphicData(current, other), Is.False);
         }
 
+        // 共用的 Graphic 會從第一份 GraphicData 讀取這些欄位；任一方不同就不得共用。
+        private static IEnumerable<TestCaseData> FieldsThatPreventSharing()
+        {
+            yield return new TestCaseData((System.Action<GraphicData>)(d => d.addTopAltitudeBias = true)).SetName("{m}(addTopAltitudeBias)");
+            yield return new TestCaseData((System.Action<GraphicData>)(d => d.ignoreThingDrawColor = true)).SetName("{m}(ignoreThingDrawColor)");
+            yield return new TestCaseData((System.Action<GraphicData>)(d => d.maxSnS = new Vector2(0.1f, 0.1f))).SetName("{m}(maxSnS)");
+            yield return new TestCaseData((System.Action<GraphicData>)(d => d.offsetSnS = new Vector2(0.1f, 0.1f))).SetName("{m}(offsetSnS)");
+            yield return new TestCaseData((System.Action<GraphicData>)(d => d.cornerOverlayPath = "Things/Corner")).SetName("{m}(cornerOverlayPath)");
+            yield return new TestCaseData((System.Action<GraphicData>)(d => d.shadowData = (ShadowData)FormatterServices.GetUninitializedObject(typeof(ShadowData)))).SetName("{m}(shadowData)");
+            yield return new TestCaseData((System.Action<GraphicData>)(d => d.damageData = (DamageGraphicData)FormatterServices.GetUninitializedObject(typeof(DamageGraphicData)))).SetName("{m}(damageData)");
+            yield return new TestCaseData((System.Action<GraphicData>)(d => d.attachments = new List<GraphicData>())).SetName("{m}(attachments)");
+            yield return new TestCaseData((System.Action<GraphicData>)(d => d.attachPoints = new List<RimWorld.AttachPoint>())).SetName("{m}(attachPoints)");
+        }
+
+        [TestCaseSource(nameof(FieldsThatPreventSharing))]
+        public void IsSameGraphicData_WhenFieldSetOnOneSideReturnsFalse(System.Action<GraphicData> setField)
+        {
+            var current = new GraphicData();
+            var other = new GraphicData();
+            setField(current);
+
+            Assert.That(GraphicData_Init_Patch.IsSameGraphicData(current, other), Is.False);
+            Assert.That(GraphicData_Init_Patch.IsSameGraphicData(other, current), Is.False);
+        }
+
         [Test]
         public void Prefix_ForFirstTexturePathAllowsOriginalInitAndRecordsState()
         {

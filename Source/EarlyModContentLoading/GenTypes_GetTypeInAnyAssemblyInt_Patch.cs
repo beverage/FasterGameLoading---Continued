@@ -17,6 +17,13 @@ namespace FasterGameLoading
 internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new ConcurrentDictionary<string, Type>(StringComparer.Ordinal);
         internal static ConcurrentDictionary<string, string> loadedTypesThisSession { get; } = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
 
+        /// <summary>
+        /// 指向（已套用本補丁的）GenTypes.GetTypeInAnyAssemblyInt，供舊對照失效時以原名重查。
+        /// 該方法為 private，直接呼叫會觸發 MethodAccessException，故經由委派呼叫；
+        /// 延遲建立以確保在 Harmony 套用補丁之後才取得。
+        /// </summary>
+        private static Func<string, string, Type> resolveUncached;
+
         static GenTypes_GetTypeInAnyAssemblyInt_Patch()
         {
             CacheResetter.Register(ClearCache);
@@ -36,30 +43,45 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
         /// <summary>
         /// 前置處理：優先使用執行期型別快取或跨 session 快取比對，命中時返回並跳過原方法。
         /// </summary>
-        public static bool Prefix(ref Type __result, out (string originalTypeName, string namespaceIfAmbiguous, string cacheKey, bool isCached) __state, ref string typeName, string namespaceIfAmbiguous)
+        public static bool Prefix(ref Type __result, out (string originalTypeName, string namespaceIfAmbiguous, string cacheKey, bool isCached, bool usedSessionMapping) __state, ref string typeName, string namespaceIfAmbiguous)
         {
             var cacheKey = MakeCacheKey(typeName, namespaceIfAmbiguous);
             if (cachedResults.TryGetValue(cacheKey, out var result))
             {
                 __result = result;
-                __state = (typeName, namespaceIfAmbiguous, cacheKey, true);
+                __state = (typeName, namespaceIfAmbiguous, cacheKey, true, false);
                 return false;
             }
 
-            __state = (typeName, namespaceIfAmbiguous, cacheKey, false);
+            var originalTypeName = typeName;
+            bool usedSessionMapping = false;
             if (SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(cacheKey, out var fullName)
                 || (string.IsNullOrEmpty(namespaceIfAmbiguous) && SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(typeName, out fullName)))
             {
+                usedSessionMapping = !string.Equals(fullName, typeName, StringComparison.Ordinal);
                 typeName = fullName;
             }
+            __state = (originalTypeName, namespaceIfAmbiguous, cacheKey, false, usedSessionMapping);
             return true;
         }
 
         /// <summary>
         /// 後置處理：若為非快取查詢，將結果寫入執行期和 session 的名稱映射快取。
+        /// 上次 session 的對照查不到型別時（例如 mod 更新後類別改名），捨棄該對照並以原名重查。
         /// </summary>
-        public static void Postfix(Type __result, (string originalTypeName, string namespaceIfAmbiguous, string cacheKey, bool isCached) __state)
+        public static void Postfix(ref Type __result, (string originalTypeName, string namespaceIfAmbiguous, string cacheKey, bool isCached, bool usedSessionMapping) __state)
         {
+            if (__result == null && __state.usedSessionMapping)
+            {
+                // 沒有命名空間時 cacheKey 就是原名，因此只需移除這一個鍵。
+                SessionCache.loadedTypesByFullNameSinceLastSession.TryRemove(__state.cacheKey, out _);
+                resolveUncached ??= AccessTools.MethodDelegate<Func<string, string, Type>>(
+                    AccessTools.Method(typeof(GenTypes), "GetTypeInAnyAssemblyInt"));
+                // 重新進入本補丁：對照已移除，因此會走原始解析並由內層 Postfix 正常記錄結果。
+                __result = resolveUncached(__state.originalTypeName, __state.namespaceIfAmbiguous);
+                return;
+            }
+
             if (__result != null)
             {
                 var fullName = __result.FullName;

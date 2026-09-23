@@ -63,61 +63,6 @@ namespace FasterGameLoading
                     // 補丁類別 "SoundStarter" 尚未被註冊或已經被解除補丁 — 靜默跳過
                 }
             });
-
-            StartXmlScan();
-
-        }
-
-        private static void StartXmlScan()
-        {
-            if (!FasterGameLoadingSettings.XPathCaching || Utils.IsMissileGirlActive)
-            {
-                // 快取功能關閉或交由 Missile Girl 接管時，掃描結果不會被使用；略過整輪
-                // Defs/Patches 目錄列舉，避免與啟動期 XML 載入競爭磁碟 I/O。
-                XmlNode_SelectSingleNode_Patch.isCacheValidated = false;
-                XmlNode_SelectSingleNode_Patch.isXmlScanComplete = true;
-                return;
-            }
-
-            // XML metadata 僅在背景執行緒讀取；快取狀態由 Update 主執行緒提交。
-            try
-            {
-                // 掃描目標取自引擎已解析的內容根目錄清單
-                // (ModContentPack.foldersToLoadDescendingOrder)，而非自行探測目錄佈局：
-                // 該清單已涵蓋版本資料夾、Common，以及 LoadFolders.xml 宣告的任意深度
-                // 路徑，因此像 1.6/ModSupport/Royalty/Defs 這種兩層以上的內容也會被看見
-                // （issue #5）。此欄位由 ModContentPack 建構式填入，早於 CreateModClasses，
-                // 所以在本建構式執行時已就緒。
-                var scanTargets = new List<XmlChangeDetector.ModScanTarget>();
-                foreach (var contentPack in LoadedModManager.RunningMods)
-                {
-                    if (contentPack == null || contentPack.IsOfficialMod || string.IsNullOrEmpty(contentPack.RootDir))
-                    {
-                        continue;
-                    }
-
-                    var roots = contentPack.foldersToLoadDescendingOrder;
-                    if (roots == null || roots.Count is 0)
-                    {
-                        roots = new List<string> { contentPack.RootDir };
-                    }
-
-                    // 鍵沿用 Mod 根目錄，與先前版本一致，避免升級時整批快取失效。
-                    scanTargets.Add(new XmlChangeDetector.ModScanTarget(contentPack.RootDir.ToLowerInvariant(), roots));
-                }
-                XmlNode_SelectSingleNode_Patch.isXmlScanComplete = false;
-                XmlChangeDetector.StartScanAsync(scanTargets, configPath: null, delayedActions.EnqueueMainThreadAction);
-            }
-            catch (System.Exception ex)
-            {
-                // 掃描無法啟動：標記完成以免流程永久懸置，但不驗證快取
-                // （isCacheValidated 保持 false），並清空持久化 miss 快取，
-                // 以冷啟動語義運作（fail-closed）。安全動作先於記錄執行。
-                XmlNode_SelectSingleNode_Patch.isCacheValidated = false;
-                XmlNode_SelectSingleNode_Patch.isXmlScanComplete = true;
-                SessionCache.xmlPathsSinceLastSession.Clear();
-                FGLLog.Warning("Failed to start XML file scan:", ex);
-            }
         }
 
         private static void StartCleanupInvalidImageOptCaches()

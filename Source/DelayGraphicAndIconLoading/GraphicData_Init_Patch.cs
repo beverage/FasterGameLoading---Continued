@@ -99,6 +99,17 @@ namespace FasterGameLoading
                 current.onGroundRandomRotateAngle == other.onGroundRandomRotateAngle &&
                 current.overlayOpacity == other.overlayOpacity &&
                 current.renderQueue == other.renderQueue &&
+                current.addTopAltitudeBias == other.addTopAltitudeBias &&
+                current.ignoreThingDrawColor == other.ignoreThingDrawColor &&
+                current.maxSnS == other.maxSnS &&
+                current.offsetSnS == other.offsetSnS &&
+                string.Equals(current.cornerOverlayPath, other.cornerOverlayPath, StringComparison.Ordinal) &&
+                // 共用的 Graphic 內部會指回第一份 GraphicData（Graphic.data），陰影、損傷圖與附件都由它讀取。
+                // 這些是 XML 反序列化出的獨立物件，無法可靠地逐欄比對，因此只在兩邊都沒有設定時才共用。
+                current.shadowData == null && other.shadowData == null &&
+                current.damageData == null && other.damageData == null &&
+                current.attachments == null && other.attachments == null &&
+                current.attachPoints == null && other.attachPoints == null &&
                 string.Equals(current.maskPath, other.maskPath, StringComparison.Ordinal) &&
                 IsSameShaderParameters(current.shaderParameters, other.shaderParameters) &&
                 IsSameAsymmetricLink(current.asymmetricLink, other.asymmetricLink))

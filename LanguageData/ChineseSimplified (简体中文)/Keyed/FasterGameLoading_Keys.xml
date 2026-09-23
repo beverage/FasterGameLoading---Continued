@@ -7,7 +7,6 @@
     <FGL_DelayGraphicLoading>延迟图形和图示载入</FGL_DelayGraphicLoading>
     <FGL_StaticAtlasesBaking>自适应图集烘焙</FGL_StaticAtlasesBaking>    
     <FGL_MultiThreading>多线程预载入</FGL_MultiThreading>
-    <FGL_XPathCaching>XPath 缓存</FGL_XPathCaching>    
     <FGL_VerboseLogging>启用详细日志</FGL_VerboseLogging>
 
     <!-- Texture Resizing -->

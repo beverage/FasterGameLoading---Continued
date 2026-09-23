@@ -17,7 +17,7 @@
         public const string HistoricalBakeSpeedsKey = "historicalBakeSpeeds";
         public const string LoadedTexturesKey = "loadedTexturesSinceLastSession";
         public const string LoadedTypesKey = "loadedTypesByFullNameSinceLastSession";
-        public const string XmlPathsKey = "xmlPathsSinceLastSession";
+        public const string TypeCacheAssemblyFingerprintKey = "typeCacheAssemblyFingerprint";
         public const string ModsInLastSessionKey = "modsInLastSession";
 
         // ── Humanoid Alien Races 反射字串常數 ──
@@ -36,8 +36,5 @@
 
         public const int AccessToolsPreloadDelayMs = 50;
         public const int TexturePreloadDelayMs = 150;
-
-        public const string DefsDirName = "Defs";
-        public const string PatchesDirName = "Patches";
     }
 }

@@ -7,7 +7,6 @@
     <FGL_DelayGraphicLoading>Delay graphic and icon loading</FGL_DelayGraphicLoading>
     <FGL_StaticAtlasesBaking>Adaptive atlas baking</FGL_StaticAtlasesBaking>   
     <FGL_MultiThreading>Multi-threaded preloading</FGL_MultiThreading>
-    <FGL_XPathCaching>XPath caching</FGL_XPathCaching>    
     <FGL_VerboseLogging>Verbose logging</FGL_VerboseLogging>
 
     <!-- Texture Resizing -->

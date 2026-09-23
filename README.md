@@ -25,8 +25,6 @@ graph TD
     A[Game startup] --> B[Assemblies and type reflection]
     B --> C[Mod content loading]
     C --> D[XML / Defs loading]
-    D --> E[XPath queries]
-    E --> F[Background XML metadata check]
     D --> G[Main menu]
     G --> H[Texture loading]
     H --> I[Downscaled texture cache]
@@ -41,24 +39,24 @@ Enabled by default:
 
 - **Load mod content early**: Processes pending mod content and type reflection during idle loading gaps before RimWorld's normal `ReloadContentInt` pass reaches those mods.
 - **Multi-threaded preloading**: Loads XML assets in parallel while preserving RimWorld's original load-folder override order.
-- **XPath caching**: Caches only XML queries that never matched in the observed startup session. Metadata validation scans Mod `Defs` and `Patches` in the background; its result is committed on the Unity main thread before persisted misses are used. Persisted misses are trusted only after a complete scan actually commits a baseline; an incomplete scan, a failure, or a scan that never starts clears the persisted misses and falls back to RimWorld's original lookup. The cache is disabled while patches are applied and after startup, so patching and runtime XML queries always use RimWorld's original lookup.
+
+Always on:
+
+- **Type lookup cache**: Remembers how RimWorld resolved short type names in the previous session. The cache is discarded when the mod list or any game/mod assembly changes, and a stale entry falls back to RimWorld's original lookup. Harmony `AccessTools.TypeByName` keeps its own per-session cache so the two lookup rules never mix.
 
 Disabled by default:
 
 - **Delay graphic and icon loading**: Moves some non-essential visual and icon work to batched processing after entering the game.
-- **Adaptive atlas baking**: Batches static atlas work based on hardware behavior and avoids known risky race/multi-mask textures.
+- **Adaptive atlas baking**: Only takes effect together with **Delay graphic and icon loading**. The deferred static atlases are baked one atlas per frame, sized from the measured GPU speed but never smaller than 1024×1024 pixels, so rendering still benefits from batching. Without delayed loading, RimWorld's original baking is used. Known risky race/multi-mask textures are kept out of static atlases.
 - **Verbose logging**: Prints debugging messages.
 
 Manual tool:
 
-- **Downscale textures**: Downscales high-resolution textures into a separate cache. Original mod files are never modified. If you already use Graphics Settings+ or RimSort Optimize Texture, you usually do not need this.
+- **Downscale textures**: Downscales high-resolution textures into a separate cache (in successive halving steps to avoid aliasing). Original mod files are never modified, and cached textures are loaded with the same filtering and compression pipeline RimWorld uses. If you already use Graphics Settings+ or RimSort Optimize Texture, you usually do not need this.
 - **Clear texture cache**: Removes cached downscaled textures so original textures are used on the next startup.
 
 > [!NOTE]
 > Brief startup unresponsiveness can be normal, especially with large mod lists. Startup sound playback is temporarily held until deferred sound definitions finish resolving, then released automatically.
-> XPath caching may rebuild after the first launch, mod updates, or XML edits.
-> XPath caching applies only while RimWorld is starting; it does not intercept XML queries at the main menu or during gameplay.
-> Mod `Defs` and `Patches` XML edits are detected when file path, size, or modified time changes; Mod settings XML is ignored.
 > **Delay graphic and icon loading** is an advanced option. If you see texture or icon timing issues, disable it first.
 > Downscaled texture cache can be cleared from the mod settings.
 
@@ -67,10 +65,8 @@ Manual tool:
 Compatibility handling exists for:
 
 - [Loading Progress](https://github.com/ilyvion/LoadingProgress)
-- [Missile Girl - Performance Mod](https://github.com/ViralReaction/MissileGirl)
 - [Graphics Settings+](https://github.com/RealTelefonmast/GraphicsSetter)
 - [HugsLib](https://github.com/UnlimitedHugs/RimworldHugsLib)
-- [XmlExtensions](https://github.com/15adhami/XmlExtensions)
 - [AyaTweaks](https://gitlab.com/WRelicK/AyaTweaks2.0) / Ayameduki mods
 - [Humanoid Alien Races](https://github.com/erdelf/AlienRaces)
 - [Ancot Library](https://steamcommunity.com/sharedfiles/filedetails/?id=2988801276)
@@ -78,8 +74,7 @@ Compatibility handling exists for:
 
 Important behavior:
 
-- When Missile Girl is active, XPath caching and background XML change scanning are disabled to avoid conflicting with its cache system.
-- [DefLoadCache](https://github.com/FluxxField/rimworld-defload-cache) has no dedicated compatibility code in this mod. It is expected to work alongside Faster Game Loading, but use either Missile Girl or DefLoadCache, not both.
+- [Missile Girl - Performance Mod](https://github.com/ViralReaction/MissileGirl) and [DefLoadCache](https://github.com/FluxxField/rimworld-defload-cache) have no dedicated compatibility code in this mod. They are expected to work alongside Faster Game Loading, but use either Missile Girl or DefLoadCache, not both.
 - [Image Opt](https://steamcommunity.com/sharedfiles/filedetails/?id=3543873568) compatibility is no longer maintained. When Faster Game Loading and Image Opt are enabled together, mods that depend on [Ancot Library](https://steamcommunity.com/sharedfiles/filedetails/?id=2988801276) may encounter graphical loading errors, missing textures, or black textures under some loading conditions. Using both mods together is not recommended.
 - Existing Image Opt safeguards, such as downscaled-texture bypass and invalid `.dds` / `.dds.zstd` cache cleanup, do not guarantee compatibility.
 - HAR and Ancot-related race mods skip some early-loading and atlas-baking paths to reduce bodyAddon, hair, ear, and multi-mask texture issues.
@@ -90,7 +85,7 @@ Most players should start with the defaults.
 
 If loading is still slow:
 
-1. Keep **Load mod content early**, **Multi-threaded preloading**, and **XPath caching** enabled.
+1. Keep **Load mod content early** and **Multi-threaded preloading** enabled.
 2. For large texture-heavy mod lists, prefer Graphics Settings+ or RimSort Optimize Texture. Image Opt compatibility is no longer maintained.
 3. If you do not use an external texture tool, consider FGL's **Downscale textures** tool.
 4. Enable **Delay graphic and icon loading** or **Adaptive atlas baking** only if you are willing to troubleshoot compatibility issues.
@@ -106,7 +101,7 @@ FasterGameLoading/
 ├── Source/
 │   ├── Core/                      # Mod entry point and startup cleanup
 │   ├── Settings/                  # Settings and cross-session cache data
-│   ├── XMLLoadingCache/           # XML loading and XPath caching
+│   ├── XMLLoadingCache/           # Parallel XML loading
 │   ├── EarlyModContentLoading/    # Load mod content early and reflection cache
 │   ├── TextureDownscaler/         # Downscale textures and cache loading
 │   ├── AdaptiveAtlasBaking/       # Adaptive atlas baking

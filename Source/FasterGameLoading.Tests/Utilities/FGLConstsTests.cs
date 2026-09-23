@@ -17,8 +17,6 @@ namespace FasterGameLoading.Tests.Utilities
             Assert.That(FGLConsts.UIDirSlash, Is.EqualTo("/UI/"));
             Assert.That(FGLConsts.TexturesDirName, Is.EqualTo("Textures"));
             Assert.That(FGLConsts.TexturesDirSlash, Is.EqualTo("Textures/"));
-            Assert.That(FGLConsts.DefsDirName, Is.EqualTo("Defs"));
-            Assert.That(FGLConsts.PatchesDirName, Is.EqualTo("Patches"));
         }
 
         [Test]

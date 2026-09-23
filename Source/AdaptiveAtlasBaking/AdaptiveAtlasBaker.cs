@@ -69,12 +69,14 @@ namespace FasterGameLoading
         {
             FGLLog.Message("Starting adaptive static atlas bake");
 
-            // 初始保守估計：256×256 像素。這是時間切片大小，不是圖集最終尺寸。
-            const int INITIAL_PIXELS_PER_SLICE = 256 * 256;
+            // 每個 slice 就是一張圖集，slice 大小直接決定圖集大小與數量。
+            // 沿用原作（Taranchuk）的參數：小於 1024×1024 的圖集對繪製批次合併幾乎沒有幫助，
+            // 過小的下限會把貼圖拆成大量小圖集，反而增加遊戲中的 draw call。
+            const int INITIAL_PIXELS_PER_SLICE = 1024 * 1024;
             var tuning = new AdaptiveBakeTuning(
                 targetBakeTime: 0.008f,
                 adaptationFactor: 0.2f,
-                minPixelsPerSlice: 64 * 64,
+                minPixelsPerSlice: INITIAL_PIXELS_PER_SLICE,
                 // 高效能 GPU 的上限
                 maxPixelsPerSlice: 4096 * 4096,
                 // 0.7–0.9 可減少圖集中的空白區域
@@ -237,7 +239,14 @@ namespace FasterGameLoading
                     // 審查曾疑慮「UV 退化」與「material 重建」，經反編譯確認：
                     //   - BuildMeshesForUvs 完整建立 tiles，無 UV 退化問題；
                     //   - StaticTextureAtlasTile 無 material 欄位，material 疑慮不成立。
+                    // 建構子已建立 1×1 的佔位 colorTexture；改指向原始貼圖前先釋放，
+                    // 否則每個單張批次都會洩漏一張貼圖。
+                    var placeholder = atlas.colorTexture;
                     atlas.colorTexture = batch[0].main;
+                    if (placeholder != null)
+                    {
+                        UnityEngine.Object.Destroy(placeholder);
+                    }
                     if (key.hasMask)
                     {
                         atlas.maskTexture = batch[0].mask;

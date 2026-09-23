@@ -11,7 +11,6 @@ namespace FasterGameLoading.Tests.Settings
         private bool origEarlyModContentLoading;
         private bool origStaticAtlasesBaking;
         private bool origEnableMultiThreading;
-        private bool origXPathCaching;
 
         [SetUp]
         public void SetUp()
@@ -21,7 +20,6 @@ namespace FasterGameLoading.Tests.Settings
             origEarlyModContentLoading = FasterGameLoadingSettings.earlyModContentLoading;
             origStaticAtlasesBaking = FasterGameLoadingSettings.StaticAtlasesBaking;
             origEnableMultiThreading = FasterGameLoadingSettings.EnableMultiThreading;
-            origXPathCaching = FasterGameLoadingSettings.XPathCaching;
         }
 
         [TearDown]
@@ -32,7 +30,6 @@ namespace FasterGameLoading.Tests.Settings
             FasterGameLoadingSettings.earlyModContentLoading = origEarlyModContentLoading;
             FasterGameLoadingSettings.StaticAtlasesBaking = origStaticAtlasesBaking;
             FasterGameLoadingSettings.EnableMultiThreading = origEnableMultiThreading;
-            FasterGameLoadingSettings.XPathCaching = origXPathCaching;
         }
 
         [Test]
@@ -83,16 +80,6 @@ namespace FasterGameLoading.Tests.Settings
 
             FasterGameLoadingSettings.EnableMultiThreading = false;
             Assert.That(FasterGameLoadingSettings.EnableMultiThreading, Is.False);
-        }
-
-        [Test]
-        public void XPathCaching_PropertyGetSet()
-        {
-            FasterGameLoadingSettings.XPathCaching = true;
-            Assert.That(FasterGameLoadingSettings.XPathCaching, Is.True);
-
-            FasterGameLoadingSettings.XPathCaching = false;
-            Assert.That(FasterGameLoadingSettings.XPathCaching, Is.False);
         }
 
         [Test]

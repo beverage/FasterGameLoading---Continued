@@ -147,35 +147,13 @@ namespace FasterGameLoading
 
         /// <summary>
         /// 輔助方法：判定 Texture2D 實體是否來自排除名單中的 Mod。
+        /// 只比對實體（實體來自以完整路徑判定的載入流程）；不以檔名比對，
+        /// 否則其他 Mod 的同名貼圖（例如 Body_north）也會被誤排除在圖集之外。
         /// </summary>
         private static bool IsTargetModTexture(Texture2D texture)
         {
             if (texture == null) return false;
-
-            // 1. 優先比對實體
-            if (ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.ContainsKey(texture))
-            {
-                return true;
-            }
-
-            // 2. 實體不同時比對檔名。texture.name 走 UnityEngine.Object.get_name() (ECall)，
-            //    非 Unity 運行環境（如單元測試）下會拋例外；此時視為無檔名可比對，安全降級為 false。
-            string textureName;
-            try
-            {
-                textureName = texture.name;
-            }
-            catch
-            {
-                return false;
-            }
-            if (!string.IsNullOrEmpty(textureName)
-                && ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextureNames.ContainsKey(textureName))
-            {
-                return true;
-            }
-
-            return false;
+            return ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.ContainsKey(texture);
         }
     }
 }

@@ -2,6 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using Verse;
 
 namespace FasterGameLoading
@@ -26,25 +29,15 @@ namespace FasterGameLoading
         internal static ConcurrentDictionary<string, string> loadedTypesByFullNameSinceLastSession { get; set; } = new(StringComparer.Ordinal);
 
         /// <summary>
+        /// 產生 <see cref="loadedTypesByFullNameSinceLastSession"/> 那個 session 的組件指紋。
+        /// 與本次指紋不符（mod 更新、遊戲更新）時，型別對照可能已指向不存在的類別，必須整份捨棄。
+        /// </summary>
+        internal static string typeCacheAssemblyFingerprint { get; set; }
+
+        /// <summary>
         /// 上一次 session 中啟用的 mod 列表（packageIdLowerCase）。
         /// </summary>
         internal static List<string> modsInLastSession { get; set; } = new();
-
-        /// <summary>
-        /// 上一次 session 中所有 XPath 查詢結果（僅存缺失的 XPath 查詢）。
-        /// </summary>
-        internal static ConcurrentDictionary<string, byte> xmlPathsSinceLastSession { get; set; } = new(StringComparer.Ordinal);
-
-        /// <summary>
-        /// 上一次 session 中所有第三方 Mod 的 XML 檔案的累積雜湊值。
-        /// </summary>
-        internal static long xmlCombinedHashSinceLastSession { get; set; }
-
-        /// <summary>
-        /// 上一次 session 中每個 Mod 所有 XML 檔案的 metadata 累積雜湊值。
-        /// </summary>
-        internal static Dictionary<string, long> xmlMetadataHashByMod { get; set; } = new(StringComparer.Ordinal);
-
 
         /// <summary>
         /// 歷次靜態圖集烘焙速度記錄（用於自適應批次調整）。
@@ -62,8 +55,6 @@ namespace FasterGameLoading
         /// 需與 WEIGHTS 長度一致，確保加權平均能正確計算。
         /// </summary>
         internal const int HISTORY_SIZE = 4;
-
-        // ── 執行期查詢快取（不持久化） ──
 
         static SessionCache()
         {
@@ -88,59 +79,42 @@ namespace FasterGameLoading
                 tempTypes = new Dictionary<string, string>(loadedTypesByFullNameSinceLastSession, StringComparer.Ordinal);
             }
             Scribe_Collections.Look(ref tempTypes, FGLConsts.LoadedTypesKey, LookMode.Value, LookMode.Value);
-
-            Dictionary<string, bool> tempXmlPaths = null;
-            if (Scribe.mode is LoadSaveMode.Saving)
+            // 讀檔分成 LoadingVars 與 PostLoadInit 兩輪，各自重新呼叫本方法：
+            // 值型別字典只在 LoadingVars 那輪被填入 tempTypes，PostLoadInit 那輪的區域變數必為 null。
+            // 因此必須在同一輪就寫回靜態欄位，否則上次存下的對照永遠不會被讀回來。
+            if (Scribe.mode is LoadSaveMode.LoadingVars && tempTypes != null)
             {
-                tempXmlPaths = new Dictionary<string, bool>(StringComparer.Ordinal);
-                foreach (var kvp in xmlPathsSinceLastSession)
-                {
-                    tempXmlPaths[kvp.Key] = false;
-                }
+                loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(tempTypes, StringComparer.Ordinal);
             }
-            Scribe_Collections.Look(ref tempXmlPaths, FGLConsts.XmlPathsKey, LookMode.Value, LookMode.Value);
 
-            var xmlCombinedHash = xmlCombinedHashSinceLastSession;
-            Scribe_Values.Look(ref xmlCombinedHash, "FGL_XmlCombinedHash", 0L);
-            var xmlMetadataHash = xmlMetadataHashByMod;
-            Scribe_Collections.Look(ref xmlMetadataHash, "FGL_XmlMetadataHashByMod", LookMode.Value, LookMode.Value);
+            var fingerprint = Scribe.mode is LoadSaveMode.Saving
+                ? ComputeCurrentAssemblyFingerprint()
+                : typeCacheAssemblyFingerprint;
+            Scribe_Values.Look(ref fingerprint, FGLConsts.TypeCacheAssemblyFingerprintKey);
             var mods = modsInLastSession;
             Scribe_Collections.Look(ref mods, FGLConsts.ModsInLastSessionKey, LookMode.Value);
             var bakeSpeeds = historicalBakeSpeeds;
             Scribe_Collections.Look(ref bakeSpeeds, FGLConsts.HistoricalBakeSpeedsKey, LookMode.Value);
 
             loadedTexturesSinceLastSession = loadedTextures;
-            xmlCombinedHashSinceLastSession = xmlCombinedHash;
-            xmlMetadataHashByMod = xmlMetadataHash;
+            typeCacheAssemblyFingerprint = fingerprint;
             modsInLastSession = mods;
             historicalBakeSpeeds = bakeSpeeds;
 
-
             if (Scribe.mode is LoadSaveMode.PostLoadInit)
             {
-                RestoreAfterLoad(tempTypes, tempXmlPaths);
+                RestoreAfterLoad();
             }
         }
 
         /// <summary>
-        /// PostLoadInit 階段的還原：補齊空集合、重建 XPath 未命中快取，
-        /// 並在偵測到 mod 組合變更時清空所有跨 session 快取。
+        /// PostLoadInit 階段的還原：補齊空集合，並在偵測到 mod 組合或組件變更時清空對應快取。
         /// </summary>
-        private static void RestoreAfterLoad(Dictionary<string, string> tempTypes, Dictionary<string, bool> tempXmlPaths)
+        private static void RestoreAfterLoad()
         {
             loadedTexturesSinceLastSession ??= new Dictionary<string, string>(StringComparer.Ordinal);
-
-            if (tempTypes != null)
-            {
-                loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(tempTypes, StringComparer.Ordinal);
-            }
             loadedTypesByFullNameSinceLastSession ??= new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
-
-            xmlPathsSinceLastSession ??= new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
-            RebuildXPathMissCache(tempXmlPaths);
-
             modsInLastSession ??= new List<string>();
-            xmlMetadataHashByMod ??= new Dictionary<string, long>(StringComparer.Ordinal);
             historicalBakeSpeeds ??= new List<float>();
 
             if (DetectModSetChange())
@@ -150,40 +124,65 @@ namespace FasterGameLoading
                     loadedTexturesSinceLastSession.Clear();
                 }
                 loadedTypesByFullNameSinceLastSession.Clear();
-                xmlPathsSinceLastSession.Clear();
-                xmlMetadataHashByMod.Clear();
                 FasterGameLoadingMod.Instance?.CacheManager?.ClearCache();
+            }
+            else if (ComputeCurrentAssemblyFingerprint() is not { } currentFingerprint
+                || !string.Equals(typeCacheAssemblyFingerprint, currentFingerprint, StringComparison.Ordinal))
+            {
+                // mod 清單相同但組件內容變了（mod 或遊戲更新）：型別可能已改名或搬移，舊對照不可再用。
+                // 本次指紋算不出來時也一律捨棄，否則兩端都是 null 會被誤判為一致。
+                loadedTypesByFullNameSinceLastSession.Clear();
             }
         }
 
         /// <summary>
-        /// 以存檔中的 XPath 記錄重建未命中快取，只收下仍屬可快取且不在排除清單中的路徑。
+        /// 以遊戲本體與所有執行中 mod 的組件（名稱 + MVID）計算指紋。
+        /// 只取這些在 mod 類別建構前就已固定的組件，確保讀檔與存檔兩端算出的集合一致；
+        /// 無法計算時回傳 null，讓比對失敗而捨棄快取（fail-closed）。
         /// </summary>
-        private static void RebuildXPathMissCache(Dictionary<string, bool> tempXmlPaths)
+        internal static string ComputeCurrentAssemblyFingerprint()
         {
-            if (tempXmlPaths == null)
+            try
             {
-                return;
+                var assemblies = new List<Assembly> { typeof(GenTypes).Assembly };
+                foreach (var mod in LoadedModManager.RunningMods)
+                {
+                    var loaded = mod?.assemblies?.loadedAssemblies;
+                    if (loaded != null)
+                    {
+                        assemblies.AddRange(loaded);
+                    }
+                }
+                return ComputeAssemblyFingerprint(assemblies);
             }
-
-            xmlPathsSinceLastSession.Clear();
-            foreach (var kvp in tempXmlPaths)
+            catch (Exception ex)
             {
-                if (kvp.Value || !XmlNode_SelectSingleNode_Patch.IsCacheableXpath(kvp.Key))
-                {
-                    continue;
-                }
+                FGLLog.Warning("Failed to compute assembly fingerprint for the type cache:", ex);
+                return null;
+            }
+        }
 
-                // 排除之前因 Bug 錯誤快取的 Ayameduki/WRelicK 相關補丁 XPath，或是包含定位符的 XPath
-                if (kvp.Key.IndexOf("AT_Tag_", StringComparison.Ordinal) >= 0 ||
-                    kvp.Key.IndexOf("KeyedSettings", StringComparison.Ordinal) >= 0 ||
-                    kvp.Key.IndexOf("FactionDef", StringComparison.Ordinal) >= 0 ||
-                    kvp.Key.IndexOf("[@", StringComparison.Ordinal) >= 0)
-                {
-                    continue;
-                }
+        /// <summary>
+        /// 純函式：以與載入順序無關的方式（依字串排序）把組件的 FullName 與 MVID 折成 MD5 十六進位字串。
+        /// MVID 在每次重新編譯時都會改變，因此能偵測到版本號未變的 mod 更新。
+        /// </summary>
+        internal static string ComputeAssemblyFingerprint(IEnumerable<Assembly> assemblies)
+        {
+            var entries = assemblies
+                .Where(static a => a != null && !a.IsDynamic)
+                .Select(static a => a.FullName + "|" + a.ManifestModule.ModuleVersionId.ToString("N"))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(static s => s, StringComparer.Ordinal);
 
-                xmlPathsSinceLastSession.TryAdd(kvp.Key, 0);
+            using (var md5 = MD5.Create())
+            {
+                var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(string.Join("\n", entries)));
+                var sb = new StringBuilder(hash.Length * 2);
+                foreach (var b in hash)
+                {
+                    sb.Append(b.ToString("x2"));
+                }
+                return sb.ToString();
             }
         }
 

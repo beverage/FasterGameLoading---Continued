@@ -19,7 +19,8 @@ namespace FasterGameLoading
         {
             LongEventHandler.ExecuteWhenFinished(delegate
             {
-                while (FasterGameLoadingMod.delayedActions.TryDequeueSubSound(out var def, out var action))
+                var delayedActions = FasterGameLoadingMod.delayedActions;
+                while (delayedActions != null && delayedActions.TryDequeueSubSound(out var def, out var action))
                 {
                     try
                     {

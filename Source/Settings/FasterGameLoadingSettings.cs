@@ -39,9 +39,6 @@ namespace FasterGameLoading
         /// <summary>啟用多執行緒預載入（預設開啟）</summary>
         public static bool EnableMultiThreading { get; set; } = true;
 
-        /// <summary>XPath 快取（預設開啟）</summary>
-        public static bool XPathCaching { get; set; } = true;
-
 
         private static Vector2 scrollPosition = Vector2.zero;
         private static float viewHeight = 0f;
@@ -71,9 +68,6 @@ namespace FasterGameLoading
             var enableMultiThreading = EnableMultiThreading;
             ls.CheckboxLabeled("FGL_MultiThreading".Translate(), ref enableMultiThreading);
             EnableMultiThreading = enableMultiThreading;
-            var xPathCaching = XPathCaching;
-            ls.CheckboxLabeled("FGL_XPathCaching".Translate(), ref xPathCaching);
-            XPathCaching = xPathCaching;
             var delayGraphicLoading = DelayGraphicLoading;
             ls.CheckboxLabeled("FGL_DelayGraphicLoading".Translate(), ref delayGraphicLoading);
             DelayGraphicLoading = delayGraphicLoading;
@@ -134,7 +128,7 @@ namespace FasterGameLoading
             base.ExposeData();
 
             // 使用者設定
-var staticAtlasesBaking = StaticAtlasesBaking;
+            var staticAtlasesBaking = StaticAtlasesBaking;
             Scribe_Values.Look(ref staticAtlasesBaking, "StaticAtlasesBaking", defaultValue: false);
             StaticAtlasesBaking = staticAtlasesBaking;
             var delayGraphicLoading = DelayGraphicLoading;
@@ -144,9 +138,6 @@ var staticAtlasesBaking = StaticAtlasesBaking;
             var enableMultiThreading = EnableMultiThreading;
             Scribe_Values.Look(ref enableMultiThreading, "enableMultiThreading", defaultValue: true);
             EnableMultiThreading = enableMultiThreading;
-            var xPathCaching = XPathCaching;
-            Scribe_Values.Look(ref xPathCaching, "XPathCaching", defaultValue: true);
-            XPathCaching = xPathCaching;
             var verboseLogging = VerboseLogging;
             Scribe_Values.Look(ref verboseLogging, "verboseLogging", defaultValue: false);
             VerboseLogging = verboseLogging;
