@@ -17,71 +17,53 @@ namespace FasterGameLoading
     {
         private const string Prefix = "[FasterGameLoading] ";
 
-        private enum LogLevel { Message, Warning, Error }
-
         /// <summary>背景執行緒待寫入的日誌佇列，由主執行緒消耗。</summary>
-        private static readonly ConcurrentQueue<(LogLevel level, string text)> pending =
-            new ConcurrentQueue<(LogLevel, string)>();
+        private static readonly ConcurrentQueue<(Action<string> write, string text)> pending =
+            new ConcurrentQueue<(Action<string>, string)>();
 
         public static void Message(string message)
         {
             if (!FasterGameLoadingSettings.VerboseLogging)
                 return;
-            Emit(LogLevel.Message, Prefix + message);
+            Emit(Log.Message, Prefix + message);
         }
 
         public static void Warning(string message)
         {
-            Emit(LogLevel.Warning, Prefix + message);
+            Emit(Log.Warning, Prefix + message);
         }
 
         public static void Warning(string message, Exception ex)
         {
-            Emit(LogLevel.Warning, Prefix + message + "\n" + ex);
+            Emit(Log.Warning, Prefix + message + "\n" + ex);
         }
 
         public static void Error(string message)
         {
-            Emit(LogLevel.Error, Prefix + message);
+            Emit(Log.Error, Prefix + message);
         }
 
         public static void Error(string message, Exception ex)
         {
             // ex.ToString() 已包含完整的例外訊息與呼叫堆疊，不需再附加 new StackTrace()。
             // 以換行分隔，使「訊息以冒號結尾」時輸出自然（message:\n<例外>），避免「: - Exception:」的彆扭排版。
-            Emit(LogLevel.Error, Prefix + message + "\n" + ex);
+            Emit(Log.Error, Prefix + message + "\n" + ex);
         }
 
         /// <summary>
         /// 主執行緒：先排空背景緒累積的訊息（維持大致時序）再直接寫入。
         /// 背景執行緒：僅入列，待主執行緒 flush。
         /// </summary>
-        private static void Emit(LogLevel level, string text)
+        private static void Emit(Action<string> write, string text)
         {
             if (UnityData.IsInMainThread)
             {
                 FlushPending();
-                Write(level, text);
+                write(text);
             }
             else
             {
-                pending.Enqueue((level, text));
-            }
-        }
-
-        private static void Write(LogLevel level, string text)
-        {
-            switch (level)
-            {
-                case LogLevel.Message:
-                    Log.Message(text);
-                    break;
-                case LogLevel.Warning:
-                    Log.Warning(text);
-                    break;
-                case LogLevel.Error:
-                    Log.Error(text);
-                    break;
+                pending.Enqueue((write, text));
             }
         }
 
@@ -93,7 +75,7 @@ namespace FasterGameLoading
         {
             while (pending.TryDequeue(out var entry))
             {
-                Write(entry.level, entry.text);
+                entry.write(entry.text);
             }
         }
     }

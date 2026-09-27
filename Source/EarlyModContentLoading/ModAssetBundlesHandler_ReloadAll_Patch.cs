@@ -23,13 +23,7 @@ namespace FasterGameLoading
         /// <summary>
         /// 前置攔截：若是該 handler 已經載入過，則直接跳過 ReloadAll 執行。
         /// </summary>
-        public static bool Prefix(ModAssetBundlesHandler __instance)
-        {
-            // 第一次呼叫放行（提取資產），之後的重複呼叫才跳過
-            if (reloadedHandlers.Contains(__instance))
-                return false;
-            return true;
-        }
+        public static bool Prefix(ModAssetBundlesHandler __instance) => !reloadedHandlers.Contains(__instance);
 
         /// <summary>
         /// 後置處理：將已完成 ReloadAll 的 handler 紀錄到已載入的清單中。

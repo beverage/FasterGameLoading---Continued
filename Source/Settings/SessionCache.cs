@@ -50,14 +50,6 @@ namespace FasterGameLoading
         /// </summary>
         internal const int HISTORY_SIZE = 4;
 
-        static SessionCache()
-        {
-            if (WEIGHTS.Length != HISTORY_SIZE)
-            {
-                FGLLog.Error("WEIGHTS length must match HISTORY_SIZE!");
-            }
-        }
-
         /// <summary>
         /// 由 FasterGameLoadingSettings.ExposeData() 委派呼叫，
         /// 處理所有跨 session 快取資料的序列化。
@@ -124,16 +116,8 @@ namespace FasterGameLoading
         }
 
         /// <summary>所有執行中 mod 的根目錄；讀檔時（mod 建構子內）清單已建立完成。</summary>
-        private static IEnumerable<string> RunningModRootDirectories()
-        {
-            foreach (var mod in LoadedModManager.RunningMods)
-            {
-                if (mod != null)
-                {
-                    yield return mod.RootDir;
-                }
-            }
-        }
+        private static IEnumerable<string> RunningModRootDirectories() =>
+            LoadedModManager.RunningMods.Where(static m => m != null).Select(static m => m.RootDir);
 
         /// <summary>
         /// 以遊戲本體與所有執行中 mod 的組件（名稱 + MVID）計算指紋。
@@ -177,38 +161,18 @@ namespace FasterGameLoading
             using (var md5 = MD5.Create())
             {
                 var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(string.Join('\n', entries)));
-                var sb = new StringBuilder(hash.Length * 2);
-                foreach (var b in hash)
-                {
-                    sb.Append(b.ToString("x2"));
-                }
-                return sb.ToString();
+                return string.Concat(hash.Select(static b => b.ToString("x2")));
             }
         }
 
         /// <summary>
         /// 比對目前啟用的 mod 清單與上次 session 的記錄是否一致。
-        /// 逐項比對而非算雜湊，以避免 GetHashCode 隨機種子碰撞與 MD5 重複記憶體配發。
         /// </summary>
         private static bool DetectModSetChange()
         {
-            if (modsInLastSession == null) return true;
-
             var activeMods = ModsConfig.ActiveModsInLoadOrder;
-            if (activeMods == null) return true;
-
-            int index = 0;
-            foreach (var mod in activeMods)
-            {
-                if (index >= modsInLastSession.Count) return true;
-                if (mod == null || !string.Equals(mod.packageIdLowerCase, modsInLastSession[index], StringComparison.Ordinal))
-                {
-                    return true;
-                }
-                index++;
-            }
-
-            return index != modsInLastSession.Count;
+            if (modsInLastSession == null || activeMods == null) return true;
+            return !modsInLastSession.SequenceEqual(activeMods.Select(static m => m?.packageIdLowerCase), StringComparer.Ordinal);
         }
     }
 }

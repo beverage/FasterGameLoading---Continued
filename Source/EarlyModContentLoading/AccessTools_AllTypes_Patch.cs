@@ -58,12 +58,7 @@ namespace FasterGameLoading
         /// </summary>
         private static void EnumerateTypesOnMainThread(Assembly[] assembliesSnapshot, int snapshotCount)
         {
-            var types = BuildTypeList(assembliesSnapshot);
-            lock (typesLock)
-            {
-                allTypesCached = types;
-                cachedAssembliesCount = snapshotCount;
-            }
+            StoreTypes(BuildTypeList(assembliesSnapshot), snapshotCount);
         }
 
         /// <summary>背景緒僅做型別「列舉」，不讀取 FullName（原因見 Preload 的說明）。</summary>
@@ -78,12 +73,7 @@ namespace FasterGameLoading
                     // 稍微延遲 50 毫秒，避開啟動時的併發載入高峰
                     System.Threading.Thread.Sleep(FGLConsts.AccessToolsPreloadDelayMs);
 
-                    var types = BuildTypeList(assembliesSnapshot);
-                    lock (typesLock)
-                    {
-                        allTypesCached = types;
-                        cachedAssembliesCount = snapshotCount;
-                    }
+                    StoreTypes(BuildTypeList(assembliesSnapshot), snapshotCount);
                 }
                 catch (Exception ex)
                 {
@@ -111,6 +101,18 @@ namespace FasterGameLoading
                 }
             }
             return list;
+        }
+
+        /// <summary>
+        /// 列舉＋lock＋賦值的共用後端：三處快取寫入（主執行緒列舉、背景列舉、快取失效重建）皆經由此處。
+        /// </summary>
+        private static void StoreTypes(List<Type> types, int assembliesCount)
+        {
+            lock (typesLock)
+            {
+                allTypesCached = types;
+                cachedAssembliesCount = assembliesCount;
+            }
         }
 
         /// <summary>
@@ -142,8 +144,7 @@ namespace FasterGameLoading
                     __result = cached;
                     return false;
                 }
-                allTypesCached = BuildTypeList(assemblies);
-                cachedAssembliesCount = currentCount;
+                StoreTypes(BuildTypeList(assemblies), currentCount);
                 __result = allTypesCached;
                 return false;
             }

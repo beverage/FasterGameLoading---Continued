@@ -80,7 +80,7 @@ namespace FasterGameLoading.Tests.Compatibility
         }
 
         [Test]
-        public void EnterEarlyLoadSyncScope_WhenNotInstalled_ReturnsNoOpScope()
+        public void EnterEarlyLoadSyncScope_WhenNotInstalled_ReturnsDisposableScope()
         {
             var started = false;
             ImageOptEarlyLoadCoordinator.ConfigureForTests(
@@ -90,6 +90,8 @@ namespace FasterGameLoading.Tests.Compatibility
 
             using (var scope = ImageOptEarlyLoadCoordinator.EnterEarlyLoadSyncScope())
             {
+                // 未安裝時回傳可用的空 scope：不觸碰 started 旗標
+                Assert.That(scope, Is.Not.Null);
                 Assert.That(started, Is.False);
                 // 重複 Dispose 亦不應拋出例外
                 scope.Dispose();

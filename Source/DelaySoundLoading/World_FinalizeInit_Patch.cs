@@ -1,5 +1,4 @@
-﻿using System;
-using HarmonyLib;
+﻿using HarmonyLib;
 using RimWorld.Planet;
 using Verse;
 
@@ -20,16 +19,9 @@ namespace FasterGameLoading
             LongEventHandler.ExecuteWhenFinished(delegate
             {
                 var delayedActions = FasterGameLoadingMod.delayedActions;
-                while (delayedActions != null && delayedActions.TryDequeueSubSound(out var def, out var action))
+                while (delayedActions != null && delayedActions.TryDequeueSubSound(out var def, out var run))
                 {
-                    try
-                    {
-                        action();
-                    }
-                    catch (Exception ex)
-                    {
-                        FGLLog.Error($"Error resolving AudioGrain for {def}", ex);
-                    }
+                    DeferredLoader.TryRunSubSoundAction(def, run);
                 }
                 // 所有 SubSoundDef 解析完畢後才取消攔截，避免中途播放聲音
                 SoundStarter_Patch.Unpatch();

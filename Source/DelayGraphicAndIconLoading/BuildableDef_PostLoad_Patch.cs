@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection.Emit;
 using HarmonyLib;
 using Verse;
 
@@ -16,22 +15,7 @@ namespace FasterGameLoading
         public static bool Prepare() => FasterGameLoadingSettings.DelayGraphicLoading;
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> codeInstructions)
-        {
-            var execute = AccessTools.Method(typeof(LongEventHandler), nameof(LongEventHandler.ExecuteWhenFinished));
-            var executeDelayed = AccessTools.Method(typeof(BuildableDef_PostLoad_Patch), nameof(ExecuteDelayed));
-            foreach (var code in codeInstructions)
-            {
-                if (code.Calls(execute))
-                {
-                    yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Call, executeDelayed);
-                }
-                else
-                {
-                    yield return code;
-                }
-            }
-        }
+            => ThingDef_PostLoad_Patch.SwapExecuteWhenFinished(codeInstructions, AccessTools.Method(typeof(BuildableDef_PostLoad_Patch), nameof(ExecuteDelayed)));
 
         /// <summary>
         /// 與 ThingDef_PostLoad_Patch 相同：等 ExecuteWhenFinished 回呼執行、Def 參照解析完畢後才決定延遲與否，
@@ -39,18 +23,7 @@ namespace FasterGameLoading
         /// </summary>
         public static void ExecuteDelayed(Action action, BuildableDef def)
         {
-            LongEventHandler.ExecuteWhenFinished(() => LoadNowOrDefer(action, def));
-        }
-
-        private static void LoadNowOrDefer(Action action, BuildableDef def)
-        {
-            var delayedActions = FasterGameLoadingMod.delayedActions;
-            if (delayedActions == null || (def is ThingDef thingDef && thingDef.ShouldBeLoadedImmediately()))
-            {
-                action();
-                return;
-            }
-            delayedActions.EnqueueIcon(def, action);
+            LongEventHandler.ExecuteWhenFinished(() => ThingDef_PostLoad_Patch.DeferOrRun(def, action, static (delayedActions, d, a) => delayedActions.EnqueueIcon(d, a)));
         }
     }
 }

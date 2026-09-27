@@ -31,6 +31,24 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         private bool? originalImageOptActive;
         private bool? originalGraphicsSettingsActive;
         private int originalRedirectTimeoutMs;
+        private Harmony compatHarmony;
+
+        // ImageOptCompat／GraphicsSettingsCompat.IsActive 已改為 Utils.IsModActive 的無快取直通，
+        // 舊的 isActive 反射接縫已不存在；改以 Harmony 前綴 stub 控制各 packageId 的回傳值。
+        // 此處字串須與兩 Compat 類別的呼叫端保持一致。
+        private const string ImageOptPackageId = "dev.soeur.imageopt";
+        private const string GraphicsSettingsPackageId = "Telefonmast.GraphicsSettings";
+        private static readonly Dictionary<string, bool> modActiveOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+        private static bool Prefix_ModActiveStub(string packageId, ref bool __result)
+        {
+            if (modActiveOverrides.TryGetValue(packageId, out var active))
+            {
+                __result = active;
+                return false;
+            }
+            return true;
+        }
 
         /// <summary>測試用的轉交逾時；正式值為 10 秒，會讓「泵送從未執行」的測試空等太久。</summary>
         private const int TestRedirectTimeoutMs = 1000;
@@ -74,6 +92,12 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             originalRedirectTimeoutMs = ModContentLoaderTexture2D_LoadTexture_Patch.mainThreadRedirectTimeoutMs;
             ModContentLoaderTexture2D_LoadTexture_Patch.mainThreadRedirectTimeoutMs = TestRedirectTimeoutMs;
 
+            // 以 stub 接管 Utils.IsModActive，使各測試能開關相容性旗標
+            compatHarmony = new Harmony("FasterGameLoading.Tests.CompatFlagStub");
+            compatHarmony.Patch(
+                AccessTools.Method(typeof(Utils), nameof(Utils.IsModActive)),
+                prefix: new HarmonyMethod(AccessTools.Method(typeof(ModContentLoaderTexture2D_LoadTexture_PatchTests), nameof(Prefix_ModActiveStub))));
+
             // 兩個相容性旗標一律固定為「未啟用」，否則 Prefix 會在第一個分支就短路。
             SetCompatFlag(typeof(ImageOptCompat), value: false);
             SetCompatFlag(typeof(GraphicsSettingsCompat), value: false);
@@ -100,6 +124,10 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             FasterGameLoadingSettings.VerboseLogging = originalVerboseLogging;
             SetCompatFlag(typeof(ImageOptCompat), originalImageOptActive);
             SetCompatFlag(typeof(GraphicsSettingsCompat), originalGraphicsSettingsActive);
+
+            compatHarmony?.UnpatchAll("FasterGameLoading.Tests.CompatFlagStub");
+            compatHarmony = null;
+            modActiveOverrides.Clear();
 
             try
             {
@@ -678,16 +706,23 @@ namespace FasterGameLoading.Tests.TextureDownscaler
                 .SetValue(obj: null, value: false);
         }
 
+        private static string PackageIdFor(Type compatType)
+        {
+            return compatType == typeof(ImageOptCompat) ? ImageOptPackageId : GraphicsSettingsPackageId;
+        }
+
         private static bool? GetCompatFlag(Type compatType)
         {
-            return (bool?)compatType.GetField("isActive", BindingFlags.NonPublic | BindingFlags.Static)
-                .GetValue(null);
+            var packageId = PackageIdFor(compatType);
+            if (modActiveOverrides.TryGetValue(packageId, out var overridden)) return overridden;
+            return Utils.IsModActive(packageId);
         }
 
         private static void SetCompatFlag(Type compatType, bool? value)
         {
-            compatType.GetField("isActive", BindingFlags.NonPublic | BindingFlags.Static)
-                .SetValue(obj: null, value: value);
+            var packageId = PackageIdFor(compatType);
+            if (value is null) modActiveOverrides.Remove(packageId);
+            else modActiveOverrides[packageId] = value.Value;
         }
 
         private static FasterGameLoadingMod CreateModWithCacheManager(TextureCacheManager cacheManager)

@@ -9,8 +9,6 @@ namespace FasterGameLoading
     /// </summary>
     public static class EarlyLoadSkipList
     {
-        private const string AlienRacesPackageId = "erdelf.HumanoidAlienRaces";
-
         private static readonly Dictionary<ModContentPack, bool> shouldSkipCache = new();
         private static readonly object shouldSkipCacheLock = new();
 
@@ -54,8 +52,8 @@ namespace FasterGameLoading
             if (string.IsNullOrEmpty(packageId)) return false;
             if (packageId.StartsWith("Ayameduki.", StringComparison.OrdinalIgnoreCase)) return true;
             if (packageId.StartsWith("WRK.", StringComparison.OrdinalIgnoreCase)) return true;
-            if (packageId.Equals(AlienRacesPackageId, StringComparison.OrdinalIgnoreCase)) return true;
-            return ModDependencyReflection.DependsOnMod(metaData, AlienRacesPackageId);
+            if (packageId.Equals(ModDependencyReflection.AlienRacesPackageId, StringComparison.OrdinalIgnoreCase)) return true;
+            return ModDependencyReflection.DependsOnAlienRaces(metaData);
         }
     }
 }

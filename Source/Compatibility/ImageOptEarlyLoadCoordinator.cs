@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Reflection;
-using System.Reflection.Emit;
 using HarmonyLib;
 
 namespace FasterGameLoading
@@ -13,7 +11,6 @@ namespace FasterGameLoading
         private const string TextureLoadPatchTypeName = "ImageOpt.TextureLoadPatch";
         private const string StartedFieldName = "Started";
 
-        private static readonly IDisposable noOpScope = new NoOpScope();
         private static Func<bool> getStarted;
         private static Action<bool> setStarted;
         private static Action<string, Exception> logWarning = (message, ex) => FGLLog.Warning(message, ex);
@@ -39,7 +36,7 @@ namespace FasterGameLoading
             if (installAttempted) return;
             installAttempted = true;
 
-            if (!IsWindows() || !ImageOptCompat.IsActive) return;
+            if (Environment.OSVersion.Platform is not PlatformID.Win32NT || !ImageOptCompat.IsActive) return;
 
             try
             {
@@ -50,8 +47,8 @@ namespace FasterGameLoading
                     throw new MissingMemberException("ImageOpt TextureLoadPatch.Started was not found.");
                 }
 
-                getStarted = CreateStartedGetter(startedField);
-                setStarted = CreateStartedSetter(startedField);
+                getStarted = () => (bool)startedField.GetValue(null);
+                setStarted = v => startedField.SetValue(null, v);
                 installed = true;
             }
             catch (Exception ex)
@@ -66,7 +63,7 @@ namespace FasterGameLoading
         /// </summary>
         internal static IDisposable EnterEarlyLoadSyncScope()
         {
-            if (!installed || getStarted == null || setStarted == null) return noOpScope;
+            if (!installed) return new SyncScope();
 
             if (syncScopeDepth++ is 0)
             {
@@ -97,40 +94,6 @@ namespace FasterGameLoading
                 setStarted(false);
             }
             syncScopeChangedStarted = false;
-        }
-
-        private static Func<bool> CreateStartedGetter(FieldInfo field)
-        {
-            var method = new DynamicMethod(
-                "FGL_ImageOpt_GetStarted",
-                typeof(bool),
-                Type.EmptyTypes,
-                typeof(ImageOptEarlyLoadCoordinator).Module,
-                skipVisibility: true);
-            var il = method.GetILGenerator();
-            il.Emit(OpCodes.Ldsfld, field);
-            il.Emit(OpCodes.Ret);
-            return (Func<bool>)method.CreateDelegate(typeof(Func<bool>));
-        }
-
-        private static Action<bool> CreateStartedSetter(FieldInfo field)
-        {
-            var method = new DynamicMethod(
-                "FGL_ImageOpt_SetStarted",
-                returnType: null,
-                new[] { typeof(bool) },
-                typeof(ImageOptEarlyLoadCoordinator).Module,
-                skipVisibility: true);
-            var il = method.GetILGenerator();
-            il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Stsfld, field);
-            il.Emit(OpCodes.Ret);
-            return (Action<bool>)method.CreateDelegate(typeof(Action<bool>));
-        }
-
-        private static bool IsWindows()
-        {
-            return Environment.OSVersion.Platform is PlatformID.Win32NT;
         }
 
         private static void WarnFailOpen(Exception ex)
@@ -170,13 +133,6 @@ namespace FasterGameLoading
                 if (disposed) return;
                 disposed = true;
                 ExitEarlyLoadSyncScope();
-            }
-        }
-
-        private sealed class NoOpScope : IDisposable
-        {
-            public void Dispose()
-            {
             }
         }
 

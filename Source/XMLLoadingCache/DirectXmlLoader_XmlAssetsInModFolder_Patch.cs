@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using HarmonyLib;
 using Verse;
@@ -52,16 +53,7 @@ namespace FasterGameLoading
                     }
                 });
 
-                var result = new List<LoadableXmlAsset>(assets.Length);
-                for (int i = 0; i < assets.Length; i++)
-                {
-                    if (assets[i] != null)
-                    {
-                        result.Add(assets[i]);
-                    }
-                }
-
-                __result = result.ToArray();
+                __result = assets.Where(static a => a != null).ToArray();
                 return false;
             }
             catch (Exception ex)
@@ -76,9 +68,8 @@ namespace FasterGameLoading
             var folders = foldersToLoadDebug ?? mod.foldersToLoadDescendingOrder;
             var filesByRelativePath = new Dictionary<string, FileInfo>(StringComparer.Ordinal);
 
-            for (int i = 0; i < folders.Count; i++)
+            foreach (var root in folders)
             {
-                var root = folders[i];
                 var directory = new DirectoryInfo(Path.Combine(root, folderPath));
                 if (!directory.Exists)
                 {

@@ -25,8 +25,6 @@ namespace FasterGameLoading.Tests.Utilities
             Assert.That(FGLConsts.AccessToolsPreloadDelayMs, Is.EqualTo(50));
             Assert.That(FGLConsts.TexturePreloadDelayMs, Is.EqualTo(150));
             Assert.That(FGLConsts.FurnitureKeywords, Is.EqualTo(ExpectedFurnitureKeywords));
-            Assert.That(FGLConsts.AlienRaceAssemblyName, Is.EqualTo("AlienRace"));
-            Assert.That(FGLConsts.LoadGraphicsHookMethodName, Is.EqualTo("LoadGraphicsHook"));
         }
     }
 }

@@ -27,6 +27,13 @@ namespace FasterGameLoading
             "PackageID",
         };
 
+        internal const string AlienRacesPackageId = "erdelf.HumanoidAlienRaces";
+
+        /// <summary>
+        /// 判定 <paramref name="metaData"/> 是否相依於外星人種族（Humanoid Alien Races）本體或衍生。
+        /// </summary>
+        internal static bool DependsOnAlienRaces(object metaData) => DependsOnMod(metaData, AlienRacesPackageId);
+
         /// <summary>
         /// 判定 <paramref name="metaData"/> 是否相依於 <paramref name="targetPackageId"/>。
         /// 中途任一環節無法解析即回 false（與逐欄位 try/catch 等價的保守語義）。
@@ -34,7 +41,6 @@ namespace FasterGameLoading
         internal static bool DependsOnMod(object metaData, string targetPackageId)
         {
             var depsList = GetDependencyList(metaData);
-            if (depsList == null) return false;
 
             foreach (var dep in depsList)
             {

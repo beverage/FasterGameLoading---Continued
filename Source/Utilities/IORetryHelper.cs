@@ -21,15 +21,6 @@ namespace FasterGameLoading
             WriteWithRetry(path, tmp => File.WriteAllBytes(tmp, bytes), maxRetries, delayMs);
         }
 
-        /// <summary>
-        /// 帶重試機制的原子化 File.WriteAllText 寫入。
-        /// 先寫入 path + ".tmp"，成功後再移入目標路徑。
-        /// </summary>
-        public static void WriteAllTextWithRetry(string path, string text, int maxRetries = 3, int delayMs = 100)
-        {
-            WriteWithRetry(path, tmp => File.WriteAllText(tmp, text), maxRetries, delayMs);
-        }
-
         private static void WriteWithRetry(string path, Action<string> writeAction, int maxRetries, int delayMs)
         {
             string tmp = path + ".tmp";
@@ -38,48 +29,23 @@ namespace FasterGameLoading
                 try
                 {
                     writeAction(tmp);
-                    MoveFileIntoPlace(tmp, path);
+                    if (File.Exists(path))
+                    {
+                        // .NET 4.7.2 的 File.Move 不支援覆寫，目標存在時以 File.Replace 原子性替換。
+                        File.Replace(tmp, path, destinationBackupFileName: null);
+                    }
+                    else
+                    {
+                        File.Move(tmp, path);
+                    }
                     return;
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    CleanupTempFile(tmp);
+                    try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
                     if (i == maxRetries - 1) throw;
                     Thread.Sleep(delayMs);
                 }
-            }
-        }
-
-        /// <summary>
-        /// 將暫存檔移入目標路徑。
-        /// .NET 4.7.2 的 File.Move 不支援覆蓋，因此目標存在時先以 File.Replace 替換。
-        /// </summary>
-        private static void MoveFileIntoPlace(string tmp, string dest)
-        {
-            if (File.Exists(dest))
-            {
-                // File.Replace(source, dest, backup=null) 為原子性替換，不需備份檔
-                File.Replace(tmp, dest, destinationBackupFileName: null);
-            }
-            else
-            {
-                File.Move(tmp, dest);
-            }
-        }
-
-        /// <summary>
-        /// 忽略錯誤地清理暫存檔，避免失敗時殘留 .tmp 檔案。
-        /// </summary>
-        private static void CleanupTempFile(string tmp)
-        {
-            try
-            {
-                if (File.Exists(tmp))
-                    File.Delete(tmp);
-            }
-            catch
-            {
-                // 清理失敗不影響主流程，靜默忽略
             }
         }
     }

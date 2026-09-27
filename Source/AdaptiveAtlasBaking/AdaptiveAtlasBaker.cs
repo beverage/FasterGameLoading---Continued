@@ -142,10 +142,7 @@ namespace FasterGameLoading
                 }
 
                 // 將此 group 的所有烘焙結果放入全域清單
-                foreach (var atlas in bakedAtlasesForGroup)
-                {
-                    atlasesToCommit.Add(atlas);
-                }
+                atlasesToCommit.AddRange(bakedAtlasesForGroup);
             }
 
             CommitBakedAtlases(atlasesToCommit, state.MeasuredBakeSpeed);
@@ -164,15 +161,8 @@ namespace FasterGameLoading
                 return 2_000_000f;
             }
 
-            float weightedSum = 0f;
-            float weightSum = 0f;
             int count = Math.Min(SessionCache.historicalBakeSpeeds.Count, SessionCache.WEIGHTS.Length);
-            for (int i = 0; i < count; i++)
-            {
-                weightedSum += SessionCache.historicalBakeSpeeds[i] * SessionCache.WEIGHTS[i];
-                weightSum += SessionCache.WEIGHTS[i];
-            }
-            return weightedSum / weightSum;
+            return SessionCache.historicalBakeSpeeds.Take(count).Zip(SessionCache.WEIGHTS, static (speed, weight) => speed * weight).Sum() / SessionCache.WEIGHTS.Take(count).Sum();
         }
 
         /// <summary>

@@ -62,11 +62,7 @@ namespace FasterGameLoading
                     LoadKeyedTranslationsFromFile(xmlFile, activeLanguage);
                 }
             }
-            catch (IOException ex)
-            {
-                FGLLog.Error("Error injecting translations:", ex);
-            }
-            catch (UnauthorizedAccessException ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 FGLLog.Error("Error injecting translations:", ex);
             }

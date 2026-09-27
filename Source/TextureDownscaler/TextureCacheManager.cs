@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -20,10 +19,9 @@ namespace FasterGameLoading
         /// <summary>原始路徑 → 降質快取路徑的對照表（唯讀檢視；寫入請走 SetCacheEntry）。</summary>
         public IReadOnlyDictionary<string, string> ResizedTextureCache => resizedTextureCache;
         private readonly object cacheLock = new object();
-        private readonly ConcurrentDictionary<string, string> md5HashCache = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
         /// <summary>
         /// 每執行緒重用的 MD5 實例。MD5 非執行緒安全，故以 ThreadLocal 隔離；
-        /// 重用避免每次 GetCachePath（首次某路徑時計算雜湊）都 allocate 新 MD5 與其原生資源。
+        /// 重用避免每次 GetCachePath 計算雜湊時都 allocate 新 MD5 與其原生資源。
         /// </summary>
         private static readonly ThreadLocal<MD5> md5PerThread =
             new ThreadLocal<MD5>(() => MD5.Create());
@@ -60,15 +58,6 @@ namespace FasterGameLoading
         /// </summary>
         public string GetCachePath(string originalPath)
         {
-            return md5HashCache.GetOrAdd(GetCacheKey(originalPath), ComputeCachePathFromKey);
-        }
-
-        /// <summary>
-        /// 直接根據目前檔案狀態計算快取路徑，不寫入 md5HashCache，
-        /// 供 IsCacheFresh 比較用，避免經 GetCachePath 重算時的 TOCTOU 風險。
-        /// </summary>
-        private string ComputeCachePathDirect(string originalPath)
-        {
             return ComputeCachePathFromKey(GetCacheKey(originalPath));
         }
 
@@ -98,20 +87,12 @@ namespace FasterGameLoading
                         + "|" + file.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture);
                 }
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
-                // 無法讀取檔案資訊（路徑過長、權限不足等），改用純路徑作為快取鍵
+                // 無法讀取檔案資訊或權限不足時，改用純路徑作為快取鍵
                 if (FasterGameLoadingSettings.VerboseLogging)
                 {
-                    FGLLog.Warning($"IOException when getting cache key for: {originalPath}", ex);
-                }
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                // 權限不足，改用純路徑作為快取鍵
-                if (FasterGameLoadingSettings.VerboseLogging)
-                {
-                    FGLLog.Warning($"UnauthorizedAccessException when getting cache key for: {originalPath}", ex);
+                    FGLLog.Warning($"{ex.GetType().Name} when getting cache key for: {originalPath}", ex);
                 }
             }
             return originalPath;
@@ -197,7 +178,7 @@ namespace FasterGameLoading
 
                 // 原始檔案的修改時間比快取新。只有目前路徑、大小和修改時間算出的鍵仍與快取路徑一致時，
                 // 才能更新快取時間；原始檔的大小或修改時間變更會產生不同鍵，使舊快取失效。
-                var currentExpectedPath = ComputeCachePathDirect(originalPath);
+                var currentExpectedPath = ComputeCachePathFromKey(GetCacheKey(originalPath));
                 if (string.Equals(currentExpectedPath, cachePath, StringComparison.OrdinalIgnoreCase))
                 {
                     File.SetLastWriteTimeUtc(cachePath, originalTime);
@@ -206,19 +187,11 @@ namespace FasterGameLoading
 
                 return false;
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 if (FasterGameLoadingSettings.VerboseLogging)
                 {
-                    FGLLog.Warning($"IOException checking cache freshness for: {originalPath} and {cachePath}", ex);
-                }
-                return false;
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                if (FasterGameLoadingSettings.VerboseLogging)
-                {
-                    FGLLog.Warning($"UnauthorizedAccessException checking cache freshness for: {originalPath} and {cachePath}", ex);
+                    FGLLog.Warning($"{ex.GetType().Name} checking cache freshness for: {originalPath} and {cachePath}", ex);
                 }
                 return false;
             }
@@ -288,11 +261,7 @@ namespace FasterGameLoading
                 }
                 FGLLog.Message("Texture cache cleared.");
             }
-            catch (IOException ex)
-            {
-                FGLLog.Error("Failed to clear texture cache:", ex);
-            }
-            catch (UnauthorizedAccessException ex)
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
             {
                 FGLLog.Error("Failed to clear texture cache:", ex);
             }
@@ -301,7 +270,6 @@ namespace FasterGameLoading
         /// <summary>初始化縮放工作暫存目錄與快取對照表。</summary>
         public void SetupResizeStagingDirectory(string stagingDirectory)
         {
-            md5HashCache.Clear();
             activeCacheDirectory = stagingDirectory;
             try
             {
@@ -334,7 +302,6 @@ namespace FasterGameLoading
         {
             lock (cacheLock) { resizedTextureCache = previousCacheMap; }
             activeCacheDirectory = previousCacheDirectory;
-            md5HashCache.Clear();
             try
             {
                 if (Directory.Exists(stagingDirectory))
@@ -390,8 +357,7 @@ namespace FasterGameLoading
         }
 
         /// <summary>
-        /// 快取目錄升級成功後，把對照表中的每個快取檔路徑重新指向新的正式目錄，
-        /// 並清掉以舊目錄為前綴的 MD5 路徑快取。
+        /// 快取目錄升級成功後，把對照表中的每個快取檔路徑重新指向新的正式目錄。
         /// </summary>
         private void RebuildCacheMapForActiveDirectory()
         {
@@ -405,7 +371,6 @@ namespace FasterGameLoading
                 resizedTextureCache = updatedCacheMap;
             }
             activeCacheDirectory = CacheDirectory;
-            md5HashCache.Clear();
         }
 
         /// <summary>

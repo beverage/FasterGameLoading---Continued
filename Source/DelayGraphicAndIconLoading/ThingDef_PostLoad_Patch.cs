@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using Verse;
@@ -23,9 +24,15 @@ namespace FasterGameLoading
         /// 將其導向我們自訂的延遲執行邏輯。
         /// </summary>
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> codeInstructions)
+            => SwapExecuteWhenFinished(codeInstructions, AccessTools.Method(typeof(ThingDef_PostLoad_Patch), nameof(ExecuteDelayed)));
+
+        /// <summary>
+        /// 三份 ExecuteWhenFinished→ExecuteDelayed 轉譯器的共用後端：
+        /// 將 ExecuteWhenFinished(action) 替換為 ExecuteDelayed(action, this)。
+        /// </summary>
+        internal static IEnumerable<CodeInstruction> SwapExecuteWhenFinished(IEnumerable<CodeInstruction> codeInstructions, MethodInfo executeDelayed)
         {
             var execute = AccessTools.Method(typeof(LongEventHandler), nameof(LongEventHandler.ExecuteWhenFinished));
-            var executeDelayed = AccessTools.Method(typeof(ThingDef_PostLoad_Patch), nameof(ExecuteDelayed));
             foreach (var code in codeInstructions)
             {
                 if (code.Calls(execute))
@@ -48,18 +55,22 @@ namespace FasterGameLoading
         /// </summary>
         public static void ExecuteDelayed(Action action, ThingDef def)
         {
-            LongEventHandler.ExecuteWhenFinished(() => LoadNowOrDefer(action, def));
+            LongEventHandler.ExecuteWhenFinished(() => DeferOrRun(def, action, static (delayedActions, d, a) => delayedActions.EnqueueGraphic(d, a)));
         }
 
-        private static void LoadNowOrDefer(Action action, ThingDef def)
+        /// <summary>
+        /// 圖形／圖示延遲的共用後端：Def 參照解析完畢後才決定去向。
+        /// 只有 ThingDef 且 ShouldBeLoadedImmediately 才立即執行，其餘（一律含 BuildableDef）排入延遲佇列。
+        /// </summary>
+        internal static void DeferOrRun<TDef>(TDef def, Action action, Action<DelayedActions, TDef, Action> enqueue)
         {
             var delayedActions = FasterGameLoadingMod.delayedActions;
-            if (delayedActions == null || def.ShouldBeLoadedImmediately())
+            if (delayedActions == null || (def is ThingDef thingDef && thingDef.ShouldBeLoadedImmediately()))
             {
                 action();
                 return;
             }
-            delayedActions.EnqueueGraphic(def, action);
+            enqueue(delayedActions, def, action);
         }
     }
 }

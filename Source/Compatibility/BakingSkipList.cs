@@ -13,13 +13,6 @@ namespace FasterGameLoading
     [HarmonyPatch(typeof(GlobalTextureAtlasManager), "TryInsertStatic")]
     public static class AdaptiveBakingSkipList
     {
-        /// <summary>
-        /// 調適用總開關。設為 false 即可完整停用整套烘焙排除邏輯：
-        /// ・Prepare() 回 false → Harmony 不掛上 Prefix，TryInsertStatic 完全不被攔截（零執行期成本）；
-        /// ・ShouldSkipBaking() 一律回 false → 不登記任何排除貼圖。
-        /// </summary>
-        private static readonly bool Enabled = true;
-
         // ── 針對的 Mod 名單 ──
         private static readonly HashSet<string> targetMods = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -55,7 +48,7 @@ namespace FasterGameLoading
             string packageId = mod.PackageId;
             if (packageId != null && targetMods.Contains(packageId)) return true;
 
-            return ModDependencyReflection.DependsOnMod(mod.ModMetaData, "erdelf.HumanoidAlienRaces")
+            return ModDependencyReflection.DependsOnAlienRaces(mod.ModMetaData)
                 || ModDependencyReflection.DependsOnMod(mod.ModMetaData, "Ancot.AncotLibrary");
         }
 
@@ -99,7 +92,6 @@ namespace FasterGameLoading
         /// </summary>
         public static bool ShouldSkipBaking(string path)
         {
-            if (!Enabled) return false;
             if (!FasterGameLoadingSettings.StaticAtlasesBaking) return false;
             return IsProtectedModTexturePath(path);
         }
@@ -112,12 +104,13 @@ namespace FasterGameLoading
 
             string normalizedPath = path.Replace('\\', '/');
             // 直接在鎖內走訪，不另外複製一份清單：本方法是每張貼圖都會走的熱路徑，
-            // 而 IsPathUnderRoot 只做純字串比對，持鎖期間不會回呼外部程式碼。
+            // 而下方只做純字串比對，持鎖期間不會回呼外部程式碼。
             lock (rootsLock)
             {
                 foreach (var root in targetModRoots)
                 {
-                    if (IsPathUnderRoot(normalizedPath, root))
+                    if (normalizedPath.Equals(root, StringComparison.OrdinalIgnoreCase)
+                        || normalizedPath.StartsWith(root + "/", StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
                     }
@@ -126,34 +119,20 @@ namespace FasterGameLoading
             return false;
         }
 
-        private static bool IsPathUnderRoot(string normalizedPath, string root)
-        {
-            if (string.IsNullOrEmpty(normalizedPath) || string.IsNullOrEmpty(root)) return false;
-            return normalizedPath.Equals(root, StringComparison.OrdinalIgnoreCase)
-                || normalizedPath.StartsWith(root + "/", StringComparison.OrdinalIgnoreCase);
-        }
-
-        public static bool Prepare() => Enabled && FasterGameLoadingSettings.StaticAtlasesBaking;
+        public static bool Prepare() => FasterGameLoadingSettings.StaticAtlasesBaking;
 
         /// <summary>
         /// 在將主紋理與遮罩紋理寫入靜態圖集前進行攔截。
         /// 如果該紋理屬於目標排除 Mod，則回傳 false 跳過原方法。
-        /// </summary>
-        public static bool Prefix(TextureAtlasGroup group, Texture2D texture, Texture2D mask)
-        {
-            // 主紋理或遮罩任一屬於排除 Mod，就回傳 false 跳過原方法（不寫入靜態圖集）
-            return !IsTargetModTexture(texture) && !IsTargetModTexture(mask);
-        }
-
-        /// <summary>
-        /// 輔助方法：判定 Texture2D 實體是否來自排除名單中的 Mod。
         /// 只比對實體（實體來自以完整路徑判定的載入流程）；不以檔名比對，
         /// 否則其他 Mod 的同名貼圖（例如 Body_north）也會被誤排除在圖集之外。
         /// </summary>
-        private static bool IsTargetModTexture(Texture2D texture)
+        public static bool Prefix(TextureAtlasGroup group, Texture2D texture, Texture2D mask)
         {
-            if (texture == null) return false;
-            return ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.ContainsKey(texture);
+            // 主紋理或遮罩任一屬於排除 Mod，就回傳 false 跳過原方法（不寫入靜態圖集）。
+            // 註：Dictionary.ContainsKey(null) 會拋例外，故 null 需先短路。
+            return (texture == null || !ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.ContainsKey(texture))
+                && (mask == null || !ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.ContainsKey(mask));
         }
     }
 }

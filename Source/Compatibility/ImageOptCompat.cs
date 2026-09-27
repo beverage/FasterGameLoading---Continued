@@ -13,24 +13,8 @@ namespace FasterGameLoading
     {
         private static readonly byte[] ddsMagic = { (byte)'D', (byte)'D', (byte)'S', (byte)' ' };
         private static readonly byte[] zstdMagic = { 0x28, 0xB5, 0x2F, 0xFD };
-        private static bool? isActive;
 
-        static ImageOptCompat()
-        {
-            CacheResetter.Register(() => isActive = null);
-        }
-
-        public static bool IsActive
-        {
-            get
-            {
-                if (isActive is null)
-                {
-                    isActive = Utils.IsModActive("dev.soeur.imageopt");
-                }
-                return isActive.Value;
-            }
-        }
+        public static bool IsActive => Utils.IsModActive("dev.soeur.imageopt");
 
         public static int CleanupInvalidDdsZstdCaches(IEnumerable<string> roots)
         {
@@ -59,8 +43,10 @@ namespace FasterGameLoading
             string[] paths;
             try
             {
-                paths = Directory.EnumerateFiles(textureDir, "*.dds.zstd", SearchOption.AllDirectories)
-                    .Concat(Directory.EnumerateFiles(textureDir, "*.dds", SearchOption.AllDirectories))
+                // 單次列舉再按副檔名過濾：舊寫法對同一目錄樹做了兩次完整走訪
+                paths = Directory.EnumerateFiles(textureDir, "*.dds*", SearchOption.AllDirectories)
+                    .Where(p => p.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)
+                        || p.EndsWith(".dds.zstd", StringComparison.OrdinalIgnoreCase))
                     .ToArray();
             }
             catch
@@ -88,7 +74,6 @@ namespace FasterGameLoading
 
         private static IEnumerable<string> TextureDirs(string root)
         {
-            var seen = new HashSet<string>(StringComparer.Ordinal);
             IEnumerable<string> childDirs;
             try
             {
@@ -101,8 +86,9 @@ namespace FasterGameLoading
 
             foreach (var candidate in new[] { root }.Concat(childDirs))
             {
+                // 父目錄恆不等於子目錄下的 Textures 全路徑，不需額外去重
                 var textureDir = Path.Combine(candidate, FGLConsts.TexturesDirName);
-                if (Directory.Exists(textureDir) && seen.Add(textureDir))
+                if (Directory.Exists(textureDir))
                 {
                     yield return textureDir;
                 }
@@ -114,34 +100,33 @@ namespace FasterGameLoading
             var sourcePath = StripCacheExtension(cachePath);
             if (sourcePath == null) return false;
 
-            return File.Exists(sourcePath + ".png")
-                || File.Exists(sourcePath + ".jpg")
-                || File.Exists(sourcePath + ".jpeg");
+            return new[] { ".png", ".jpg", ".jpeg" }.Any(ext => File.Exists(sourcePath + ext));
+        }
+
+        /// <summary>
+        /// 快取種類單次分派：2＝.dds.zstd、1＝.dds、0＝非快取。
+        /// 註：.dds.zstd 結尾亦符合 .dds 結尾，故長後綴必須優先判斷。
+        /// </summary>
+        private static int CacheKind(string path)
+        {
+            if (path.EndsWith(".dds.zstd", StringComparison.OrdinalIgnoreCase)) return 2;
+            if (path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)) return 1;
+            return 0;
         }
 
         private static string StripCacheExtension(string cachePath)
         {
-            if (cachePath.EndsWith(".dds.zstd", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return cachePath.Substring(0, cachePath.Length - ".dds.zstd".Length);
-            }
-            if (cachePath.EndsWith(".dds", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return cachePath.Substring(0, cachePath.Length - ".dds".Length);
-            }
+            int kind = CacheKind(cachePath);
+            if (kind is 2) return cachePath.Substring(0, cachePath.Length - ".dds.zstd".Length);
+            if (kind is 1) return cachePath.Substring(0, cachePath.Length - ".dds".Length);
             return null;
         }
 
         private static bool HasValidCacheMagic(string path)
         {
-            if (path.EndsWith(".dds.zstd", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return HasMagic(path, zstdMagic);
-            }
-            if (path.EndsWith(".dds", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return HasMagic(path, ddsMagic);
-            }
+            int kind = CacheKind(path);
+            if (kind is 2) return HasMagic(path, zstdMagic);
+            if (kind is 1) return HasMagic(path, ddsMagic);
             return true;
         }
 
@@ -151,13 +136,15 @@ namespace FasterGameLoading
             {
                 using (var stream = File.OpenRead(path))
                 {
-                    if (stream.Length < magic.Length) return false;
-
-                    for (int i = 0; i < magic.Length; i++)
+                    var buffer = new byte[magic.Length];
+                    int read = 0;
+                    while (read < magic.Length)
                     {
-                        if (stream.ReadByte() != magic[i]) return false;
+                        int n = stream.Read(buffer, read, magic.Length - read);
+                        if (n is 0) return false;
+                        read += n;
                     }
-                    return true;
+                    return buffer.SequenceEqual(magic);
                 }
             }
             catch

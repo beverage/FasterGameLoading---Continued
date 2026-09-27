@@ -103,7 +103,7 @@ namespace FasterGameLoading
                     // hasMask 為 true 但找不到對應 mask：BuildMaskAtlas 內以 null 進 CopyTexture 是高風險。
                     counters.Issues++;
                     FGLLog.Warning(
-                        $"[AtlasDiag/{context}] Group '{DescribeKey(key)}' main texture '{DescribeTexture(main)}' " +
+                        $"[AtlasDiag/{context}] Group '{key}, hasMask={key.hasMask}' main texture '{DescribeTexture(main)}' " +
                         "declares hasMask but has no matching mask (null). BuildMaskAtlas may call CopyTexture on a null source.");
                     continue;
                 }
@@ -135,11 +135,6 @@ namespace FasterGameLoading
 
             string name = string.IsNullOrEmpty(tex.name) ? "<no name>" : tex.name;
             return $"{name} [{tex.width.ToString(CultureInfo.InvariantCulture)}x{tex.height.ToString(CultureInfo.InvariantCulture)}, {tex.format}, mips={tex.mipmapCount.ToString(CultureInfo.InvariantCulture)}]";
-        }
-
-        private static string DescribeKey(TextureAtlasGroupKey key)
-        {
-            return $"{key}, hasMask={key.hasMask}";
         }
     }
 }

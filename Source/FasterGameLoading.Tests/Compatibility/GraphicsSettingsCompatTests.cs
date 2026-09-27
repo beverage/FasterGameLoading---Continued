@@ -14,9 +14,10 @@ namespace FasterGameLoading.Tests.Compatibility
         }
 
         [Test]
-        public void IsActive_CachesResultAndResetsViaCacheResetter()
+        public void IsActive_DelegatesToModStateWithoutCaching()
         {
-            CacheResetter.ResetAll();
+            // IsActive 已改為 Utils.IsModActive 的無快取直通；多次讀取結果一致，
+            // 且 CacheResetter 不再持有其狀態，重置不得影響結果。
             var isActive = GraphicsSettingsCompat.IsActive;
 
             Assert.That(GraphicsSettingsCompat.IsActive, Is.EqualTo(isActive));

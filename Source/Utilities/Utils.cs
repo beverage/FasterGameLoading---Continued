@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using RimWorld;
 using Verse;
 
@@ -23,16 +24,7 @@ namespace FasterGameLoading
         /// </summary>
         public static IReadOnlyList<Thing> ThingsOfDefs(this ListerThings listerThings, IEnumerable<ThingDef> defs)
         {
-            List<Thing> outThings = new List<Thing>();
-            foreach (var def in defs)
-            {
-                var things = listerThings.ThingsOfDef(def);
-                if (things != null && things.Count > 0)
-                {
-                    outThings.AddRange(things);
-                }
-            }
-            return outThings;
+            return defs.SelectMany(def => listerThings.ThingsOfDef(def) ?? Enumerable.Empty<Thing>()).ToList();
         }
 
         /// <summary>
@@ -62,7 +54,7 @@ namespace FasterGameLoading
             return IsBuildingOrBlueprint(thingDef)
                 || IsMedicine(thingDef)
                 || IsColonistGear(thingDef)
-                || IsPawnLike(thingDef)
+                || thingDef.race != null
                 || IsCommonFurniture(thingDef);
         }
 
@@ -74,7 +66,7 @@ namespace FasterGameLoading
                 || thingDef.IsBlueprint
                 || thingDef.IsFrame
                 || (thingDef.graphicData != null && thingDef.graphicData.Linked)
-                || (thingDef.thingClass != null && string.Equals(thingDef.thingClass.Name, FGLConsts.BuildingPipe, StringComparison.Ordinal));
+                || (thingDef.thingClass != null && string.Equals(thingDef.thingClass.Name, "Building_Pipe", StringComparison.Ordinal));
         }
 
         /// <summary>醫療用品。</summary>
@@ -92,12 +84,6 @@ namespace FasterGameLoading
                 || thingDef.IsApparel
                 || thingDef.ingestible != null
                 || thingDef.IsStuff;
-        }
-
-        /// <summary>殖民者與動物。</summary>
-        private static bool IsPawnLike(ThingDef thingDef)
-        {
-            return thingDef.race != null;
         }
 
         /// <summary>分類名稱命中家具／工作台關鍵字的定義。</summary>

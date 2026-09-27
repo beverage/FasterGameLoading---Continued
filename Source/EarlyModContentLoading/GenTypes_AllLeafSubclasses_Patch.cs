@@ -42,7 +42,7 @@ namespace FasterGameLoading
                     .ToHashSet();
 
                 // 葉子 = 沒有任何其他子類別以它為基底的型別
-                final = subClasses.Where(t => !typesWithSubclasses.Contains(t)).ToHashSet();
+                final = subClasses.Except(typesWithSubclasses).ToHashSet();
                 keyValuePairs[baseType] = final;
             }
             // 回傳副本，避免呼叫端修改到共用快取的 HashSet

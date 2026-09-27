@@ -18,7 +18,7 @@ namespace FasterGameLoading
         /// <summary>紋理分類，用於決定降質目標尺寸。</summary>
         public enum TextureType
         {
-            None, Building, Pawn, Weapon, Apparel, Item, Plant, Tree, Terrain, Mote, Filth, Projectile, UI, Other,
+            None, Building, Pawn, Weapon, Apparel, Item, Plant, Tree, Terrain, Mote, Filth, Projectile,
         }
 
         private readonly TextureCacheManager cacheManager;

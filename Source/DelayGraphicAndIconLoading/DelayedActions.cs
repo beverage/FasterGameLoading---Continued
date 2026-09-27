@@ -23,9 +23,49 @@ namespace FasterGameLoading
         public static float MaxImpactThisFrame => Current.Game != null ? 0.008f : 0.05f;
 
         // ── 延遲佇列 ──
-        private readonly Queue<(ThingDef def, Action action)> graphicsToLoad = new();
-        private readonly Queue<(BuildableDef def, Action action)> iconsToLoad = new();
-        private readonly Queue<(SubSoundDef def, Action action)> subSoundDefToResolve = new();
+        // 三組型別佇列共用同一個私有泛型後端，避免欄位＋Count＋Enqueue＋TryDequeue 三份拷貝。
+        private sealed class DeferredQueue<TDef>
+        {
+            private readonly Queue<(TDef def, Action run)> queue = new();
+
+            public int Count
+            {
+                get { lock (queue) return queue.Count; }
+            }
+
+            public void Enqueue(TDef def, Action run)
+            {
+                lock (queue)
+                {
+                    queue.Enqueue((def, run));
+                }
+            }
+
+            public bool TryDequeue(out TDef def, out Action run)
+            {
+                lock (queue)
+                {
+                    if (queue.Count > 0)
+                    {
+                        // 與 Peek＋Dequeue 兩步在同一個 lock 內等價，直接 Dequeue 取值。
+                        (def, run) = queue.Dequeue();
+                        return true;
+                    }
+                }
+                def = default;
+                run = default;
+                return false;
+            }
+
+            public void Clear()
+            {
+                lock (queue) queue.Clear();
+            }
+        }
+
+        private readonly DeferredQueue<ThingDef> graphicsToLoad = new();
+        private readonly DeferredQueue<BuildableDef> iconsToLoad = new();
+        private readonly DeferredQueue<SubSoundDef> subSoundDefToResolve = new();
         private readonly ConcurrentQueue<Action> mainThreadActions = new();
 
         public void EnqueueMainThreadAction(Action action)
@@ -33,98 +73,29 @@ namespace FasterGameLoading
             if (action != null) mainThreadActions.Enqueue(action);
         }
 
-        public int GraphicsToLoadCount
-        {
-            get { lock (graphicsToLoad) return graphicsToLoad.Count; }
-        }
+        public int GraphicsToLoadCount => graphicsToLoad.Count;
 
-        public int IconsToLoadCount
-        {
-            get { lock (iconsToLoad) return iconsToLoad.Count; }
-        }
+        public int IconsToLoadCount => iconsToLoad.Count;
 
-        public int SubSoundDefToResolveCount
-        {
-            get { lock (subSoundDefToResolve) return subSoundDefToResolve.Count; }
-        }
+        public int SubSoundDefToResolveCount => subSoundDefToResolve.Count;
 
-        public void EnqueueGraphic(ThingDef def, Action action)
-        {
-            lock (graphicsToLoad)
-            {
-                graphicsToLoad.Enqueue((def, action));
-            }
-        }
+        public void EnqueueGraphic(ThingDef def, Action action) => graphicsToLoad.Enqueue(def, action);
 
-        public void EnqueueIcon(BuildableDef def, Action action)
-        {
-            lock (iconsToLoad)
-            {
-                iconsToLoad.Enqueue((def, action));
-            }
-        }
+        public void EnqueueIcon(BuildableDef def, Action action) => iconsToLoad.Enqueue(def, action);
 
-        public void EnqueueSubSound(SubSoundDef def, Action action)
-        {
-            lock (subSoundDefToResolve)
-            {
-                subSoundDefToResolve.Enqueue((def, action));
-            }
-        }
+        public void EnqueueSubSound(SubSoundDef def, Action action) => subSoundDefToResolve.Enqueue(def, action);
 
-        public bool TryDequeueGraphic(out ThingDef def, out Action action)
-        {
-            lock (graphicsToLoad)
-            {
-                if (graphicsToLoad.Count > 0)
-                {
-                    (def, action) = graphicsToLoad.Peek();
-                    graphicsToLoad.Dequeue();
-                    return true;
-                }
-            }
-            def = default;
-            action = default;
-            return false;
-        }
+        public bool TryDequeueGraphic(out ThingDef def, out Action action) => graphicsToLoad.TryDequeue(out def, out action);
 
-        public bool TryDequeueIcon(out BuildableDef def, out Action action)
-        {
-            lock (iconsToLoad)
-            {
-                if (iconsToLoad.Count > 0)
-                {
-                    (def, action) = iconsToLoad.Peek();
-                    iconsToLoad.Dequeue();
-                    return true;
-                }
-            }
-            def = default;
-            action = default;
-            return false;
-        }
+        public bool TryDequeueIcon(out BuildableDef def, out Action action) => iconsToLoad.TryDequeue(out def, out action);
 
-        public bool TryDequeueSubSound(out SubSoundDef def, out Action action)
-        {
-            lock (subSoundDefToResolve)
-            {
-                if (subSoundDefToResolve.Count > 0)
-                {
-                    (def, action) = subSoundDefToResolve.Peek();
-                    subSoundDefToResolve.Dequeue();
-                    return true;
-                }
-            }
-            def = default;
-            action = default;
-            return false;
-        }
+        public bool TryDequeueSubSound(out SubSoundDef def, out Action action) => subSoundDefToResolve.TryDequeue(out def, out action);
 
         public void ClearQueues()
         {
-            lock (graphicsToLoad) graphicsToLoad.Clear();
-            lock (iconsToLoad) iconsToLoad.Clear();
-            lock (subSoundDefToResolve) subSoundDefToResolve.Clear();
+            graphicsToLoad.Clear();
+            iconsToLoad.Clear();
+            subSoundDefToResolve.Clear();
             while (mainThreadActions.TryDequeue(out _))
             {
                 // 逐一排空佇列並丟棄內容：工作由 TryDequeue 完成，
@@ -207,15 +178,11 @@ namespace FasterGameLoading
                     // 圖示只需要剛載入的圖形、與圖集無關；排在烘焙之前，玩家不必等整批圖集烘焙完才看到正確圖示。
                     yield return DeferredLoader.LoadDeferredIconsCoroutine(this);
                     yield return BakeDeferredAtlasesCoroutine();
+                    DeferredLoader.UpdateMapMeshForLoadedDefs(loadedDefs);
                 }
                 else
                 {
                     AllDeferredVisualsLoaded = true;
-                }
-
-                if (runDeferredVisualPipeline)
-                {
-                    DeferredLoader.UpdateMapMeshForLoadedDefs(loadedDefs);
                 }
                 yield return DeferredLoader.ResolveSubSoundDefsCoroutine(this);
             }

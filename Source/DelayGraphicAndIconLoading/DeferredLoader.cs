@@ -14,38 +14,72 @@ namespace FasterGameLoading
     public static class DeferredLoader
     {
         /// <summary>
+        /// 三個預算協程的共用 driver：外層 while＋預算內批次＋yield＋RestartStopwatch。
+        /// 圖形／圖示在非主執行緒時讓出執行權（防禦性保護）；音效解析不碰 Unity 物件，可直接執行。
+        /// </summary>
+        private delegate bool TryDequeueItem<TDef>(out TDef def, out Action run);
+
+        private static IEnumerator DrainQueue<TDef>(
+            DelayedActions delayedActions,
+            Func<DelayedActions, int> getCount,
+            TryDequeueItem<TDef> tryDequeue,
+            Action<TDef, Action> runItem,
+            bool checkMainThread)
+        {
+            delayedActions.RestartStopwatch();
+            while (getCount(delayedActions) > 0)
+            {
+                // 協程只在主執行緒被恢復執行，此檢查僅為防禦性保護。
+                // 若非主執行緒，讓出執行權後由外層 while 重新檢查，不落穿到 Unity 工作。
+                if (checkMainThread && !UnityData.IsInMainThread)
+                {
+                    yield return 0;
+                    continue;
+                }
+                while (getCount(delayedActions) > 0 && !delayedActions.IsOverBudget)
+                {
+                    if (!tryDequeue(out var def, out var run))
+                        break;
+
+                    runItem(def, run);
+                }
+
+                if (getCount(delayedActions) > 0)
+                {
+                    yield return 0;
+                    delayedActions.RestartStopwatch();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 執行單一 SubSound 延遲動作；個別例外只記錄（Warning）不外傳，避免中斷批次流程。
+        /// 由延遲解析協程與世界初始化收尾共用。
+        /// </summary>
+        internal static void TryRunSubSoundAction(SubSoundDef def, Action run)
+        {
+            try
+            {
+                run();
+            }
+            catch (Exception ex)
+            {
+                FGLLog.Warning($"Error resolving AudioGrain for {def}:", ex);
+            }
+        }
+
+        /// <summary>
         /// 在時間預算內批次載入延遲的圖形紋理。
         /// </summary>
         /// <param name="delayedActions">延遲動作管理器實例，提供時間預算與佇列存取。</param>
         /// <param name="loadedDefs">存放已載入的 ThingDef 清單，供後續更新地圖網格使用。</param>
         public static IEnumerator LoadDeferredGraphicsCoroutine(DelayedActions delayedActions, ICollection<ThingDef> loadedDefs)
         {
-            delayedActions.RestartStopwatch();
             FGLLog.Message($"Starting deferred graphics: {delayedActions.GraphicsToLoadCount.ToString(CultureInfo.InvariantCulture)}");
-            while (delayedActions.GraphicsToLoadCount > 0)
+            var drain = DrainQueue<ThingDef>(delayedActions, static d => d.GraphicsToLoadCount, delayedActions.TryDequeueGraphic, (def, run) => LoadOneGraphic(def, run, loadedDefs), checkMainThread: true);
+            while (drain.MoveNext())
             {
-                // 協程只在主執行緒被恢復執行，此檢查僅為防禦性保護。
-                // 若非主執行緒，讓出執行權後由外層 while 重新檢查，不落穿到 Unity 工作。
-                if (!UnityData.IsInMainThread)
-                {
-                    yield return 0;
-                    continue;
-                }
-                while (delayedActions.GraphicsToLoadCount > 0 && !delayedActions.IsOverBudget)
-                {
-                    ThingDef def;
-                    Action action;
-                    if (!delayedActions.TryDequeueGraphic(out def, out action))
-                        break;
-
-                    LoadOneGraphic(def, action, loadedDefs);
-                }
-
-                if (delayedActions.GraphicsToLoadCount > 0)
-                {
-                    yield return 0;
-                    delayedActions.RestartStopwatch();
-                }
+                yield return drain.Current;
             }
             FGLLog.Message("Deferred graphics loaded");
         }
@@ -111,30 +145,11 @@ namespace FasterGameLoading
         /// <param name="delayedActions">延遲動作管理器實例。</param>
         public static IEnumerator LoadDeferredIconsCoroutine(DelayedActions delayedActions)
         {
-            delayedActions.RestartStopwatch();
             FGLLog.Message($"Starting deferred icons: {delayedActions.IconsToLoadCount.ToString(CultureInfo.InvariantCulture)}");
-            while (delayedActions.IconsToLoadCount > 0)
+            var drain = DrainQueue<BuildableDef>(delayedActions, static d => d.IconsToLoadCount, delayedActions.TryDequeueIcon, static (def, run) => LoadOneIcon(def, run), checkMainThread: true);
+            while (drain.MoveNext())
             {
-                if (!UnityData.IsInMainThread)
-                {
-                    yield return 0;
-                    continue;
-                }
-                while (delayedActions.IconsToLoadCount > 0 && !delayedActions.IsOverBudget)
-                {
-                    BuildableDef def;
-                    Action action;
-                    if (!delayedActions.TryDequeueIcon(out def, out action))
-                        break;
-
-                    LoadOneIcon(def, action);
-                }
-
-                if (delayedActions.IconsToLoadCount > 0)
-                {
-                    yield return 0;
-                    delayedActions.RestartStopwatch();
-                }
+                yield return drain.Current;
             }
             FGLLog.Message("Deferred icons loaded");
         }
@@ -168,32 +183,11 @@ namespace FasterGameLoading
         /// <param name="delayedActions">延遲動作管理器實例。</param>
         public static IEnumerator ResolveSubSoundDefsCoroutine(DelayedActions delayedActions)
         {
-            delayedActions.RestartStopwatch();
             FGLLog.Message($"Starting SubSoundDef resolution: {delayedActions.SubSoundDefToResolveCount.ToString(CultureInfo.InvariantCulture)}");
-            while (delayedActions.SubSoundDefToResolveCount > 0)
+            var drain = DrainQueue<SubSoundDef>(delayedActions, static d => d.SubSoundDefToResolveCount, delayedActions.TryDequeueSubSound, static (def, run) => TryRunSubSoundAction(def, run), checkMainThread: false);
+            while (drain.MoveNext())
             {
-                while (delayedActions.SubSoundDefToResolveCount > 0 && !delayedActions.IsOverBudget)
-                {
-                    SubSoundDef def;
-                    Action action;
-                    if (!delayedActions.TryDequeueSubSound(out def, out action))
-                        break;
-
-                    try
-                    {
-                        action();
-                    }
-                    catch (Exception ex)
-                    {
-                        FGLLog.Warning($"Error resolving AudioGrain for {def}:", ex);
-                    }
-                }
-
-                if (delayedActions.SubSoundDefToResolveCount > 0)
-                {
-                    yield return 0;
-                    delayedActions.RestartStopwatch();
-                }
+                yield return drain.Current;
             }
             // 協程已執行完畢，所有延遲的 SubSoundDef 已解析完成，在此時安全取消攔截，
             // 確保若玩家留在主選單也能正常播放按鈕與背景聲音。

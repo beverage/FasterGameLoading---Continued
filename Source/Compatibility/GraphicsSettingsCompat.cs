@@ -9,23 +9,6 @@ namespace FasterGameLoading
     {
         public const string HarmonyId = "com.telefonmast.graphicssettings.rimworld.mod";
 
-        private static bool? isActive;
-
-        static GraphicsSettingsCompat()
-        {
-            CacheResetter.Register(() => isActive = null);
-        }
-
-        public static bool IsActive
-        {
-            get
-            {
-                if (isActive is null)
-                {
-                    isActive = Utils.IsModActive("Telefonmast.GraphicsSettings");
-                }
-                return isActive.Value;
-            }
-        }
+        public static bool IsActive => Utils.IsModActive("Telefonmast.GraphicsSettings");
     }
 }

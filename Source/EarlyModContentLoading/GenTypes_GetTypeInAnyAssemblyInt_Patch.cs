@@ -33,7 +33,7 @@ namespace FasterGameLoading
 
             Startup.RegisterOnStartupCompleted(static () =>
             {
-                SessionCache.loadedTypesByFullNameSinceLastSession = new System.Collections.Concurrent.ConcurrentDictionary<string, string>(loadedTypesThisSession, StringComparer.Ordinal);
+                SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(loadedTypesThisSession, StringComparer.Ordinal);
             });
         }
 

@@ -43,25 +43,17 @@ namespace FasterGameLoading
         {
             // 解析 loading-progress 的 pause flag 以備 Postfix 使用
             var type = AccessTools.TypeByName(PausePatchTypeName);
-            if (type != null)
+            if (type == null) return;
+            var pauseField = AccessTools.Field(type, PauseFieldName);
+            if (pauseField == null) return;
+            try
             {
-                var pauseField = AccessTools.Field(type, PauseFieldName);
-                if (pauseField != null)
-                {
-                    try
-                    {
-                        // 使用 DynamicMethod 動態生成 IL 讀取方法，消除反射 GetValue 開銷
-                        var dm = new System.Reflection.Emit.DynamicMethod("GetIsPaused", typeof(bool), parameterTypes: null, owner: type, skipVisibility: true);
-                        var il = dm.GetILGenerator();
-                        il.Emit(System.Reflection.Emit.OpCodes.Ldsfld, pauseField);
-                        il.Emit(System.Reflection.Emit.OpCodes.Ret);
-                        GetIsPaused = (Func<bool>)dm.CreateDelegate(typeof(Func<bool>));
-                    }
-                    catch (Exception ex)
-                    {
-                        FGLLog.Warning("Failed to compile fast delegate for FGLProgressReporter pause field:", ex);
-                    }
-                }
+                // Postfix 呼叫頻率不高，直接以反射讀取靜態欄位即可，省去手搓 DynamicMethod IL 的維護成本
+                GetIsPaused = () => (bool)pauseField.GetValue(null);
+            }
+            catch (Exception ex)
+            {
+                FGLLog.Warning("Failed to create delegate for FGLProgressReporter pause field:", ex);
             }
         }
 

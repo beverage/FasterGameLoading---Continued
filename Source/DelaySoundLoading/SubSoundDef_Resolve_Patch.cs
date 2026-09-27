@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection.Emit;
 using HarmonyLib;
 using Verse;
 using Verse.Sound;
@@ -21,20 +20,7 @@ namespace FasterGameLoading
         [HarmonyPatch(typeof(SubSoundDef), "ResolveReferences")]
         [HarmonyTranspiler]
         static IEnumerable<CodeInstruction> LateExecute(IEnumerable<CodeInstruction> codeInstructions)
-        {
-            var execute = AccessTools.Method(typeof(LongEventHandler), nameof(LongEventHandler.ExecuteWhenFinished));
-            foreach (var ci in codeInstructions)
-            {
-                if (ci.Calls(execute))
-                {
-                    // 將 ExecuteWhenFinished(action) 替換為 ExecuteDelayed(action, this)
-                    yield return CodeInstruction.LoadArgument(0);
-                    yield return CodeInstruction.Call(typeof(SubSoundDef_ResolvePatch), nameof(ExecuteDelayed));
-                    continue;
-                }
-                yield return ci;
-            }
-        }
+            => ThingDef_PostLoad_Patch.SwapExecuteWhenFinished(codeInstructions, AccessTools.Method(typeof(SubSoundDef_ResolvePatch), nameof(ExecuteDelayed)));
 
         /// <summary>
         /// 將音效解析動作排入延遲佇列，之後由 DelayedActions 的協程批次處理。
