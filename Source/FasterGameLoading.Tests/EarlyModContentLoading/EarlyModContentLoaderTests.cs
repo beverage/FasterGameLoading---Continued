@@ -96,7 +96,6 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             reloadedMods.Clear();
             mockReloadShouldThrow = false;
             mockIsOverBudget = false;
-            loader?.Reset();
         }
 
         private static ModContentPack CreateMockModContentPack(string packageId = "test.mod")
@@ -132,6 +131,29 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             // Subsequent update should return immediately without executing anything
             loader.Update(delayedActions);
             Assert.That(reloadedMods.Count, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Update_AfterPlayDataLoaded_CompletesWithoutReloadingMods()
+        {
+            // 切換語言時 CacheResetter 會清空 loadedMods；此時 RunningMods 仍是即將被 ClearAllPlayData
+            // 銷毀的舊 ModContentPack。若再提早載入，會把所有內容重載一次（大量 duplicate 警告並洩漏貼圖），
+            // 還會與事件緒的 ClearDestroy 同時存取同一份內容字典。
+            var mod = CreateMockModContentPack("test.mod.already.loaded");
+            SetRunningMods(new List<ModContentPack> { mod });
+            var loadedField = AccessTools.Field(typeof(PlayDataLoader), "loadedInt");
+            loadedField.SetValue(null, true);
+            try
+            {
+                loader.Update(delayedActions);
+
+                Assert.That(reloadedMods, Is.Empty);
+                Assert.That(loader.EarlyLoadingComplete, Is.True);
+            }
+            finally
+            {
+                loadedField.SetValue(null, false);
+            }
         }
 
         [Test]
@@ -226,9 +248,9 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             Assert.DoesNotThrow(() => loader.Update(delayedActions));
             Assert.That(ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(mod), Is.False);
 
-            // Now reset and succeed
+            // 失敗的 mod 沒被標記為已載入，之後的載入流程（這裡以新的載入器代表）仍會重試並成功
             mockReloadShouldThrow = false;
-            loader.Reset();
+            loader = new EarlyModContentLoader();
             loader.Update(delayedActions);
 
             Assert.That(ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(mod), Is.True);
@@ -256,27 +278,6 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             {
                 ImageOptEarlyLoadCoordinator.ResetTestConfiguration();
             }
-        }
-
-        [Test]
-        public void Reset_ClearsAllQueuesAndCounterState()
-        {
-            var mod = CreateMockModContentPack("test.mod");
-            SetRunningMods(new List<ModContentPack> { mod });
-
-            var skipFramesField = AccessTools.Field(typeof(EarlyModContentLoader), "skipFrames");
-            var consecutiveTimeoutsField = AccessTools.Field(typeof(EarlyModContentLoader), "consecutiveTimeouts");
-            var pendingEarlyLoadsField = AccessTools.Field(typeof(EarlyModContentLoader), "pendingEarlyLoads");
-
-            skipFramesField?.SetValue(loader, 3);
-            consecutiveTimeoutsField?.SetValue(loader, 2);
-
-            loader.Reset();
-
-            Assert.That(loader.EarlyLoadingComplete, Is.False);
-            Assert.That((int)skipFramesField.GetValue(loader), Is.EqualTo(0));
-            Assert.That((int)consecutiveTimeoutsField.GetValue(loader), Is.EqualTo(0));
-            Assert.That(pendingEarlyLoadsField.GetValue(loader), Is.Null);
         }
 
         [Test]

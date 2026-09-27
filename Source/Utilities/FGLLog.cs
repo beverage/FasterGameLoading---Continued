@@ -8,12 +8,10 @@ namespace FasterGameLoading
     /// FasterGameLoading 專用的統一日誌與錯誤處理工具。
     /// 自動加上 [FasterGameLoading] 字首，並格式化 Exception 的呼叫堆疊。
     ///
-    /// 執行緒安全：Verse.Log.Message/Warning/Error 並非執行緒安全（內部對訊息清單做
-    /// 非同步 Add，且錯誤會操作 log 視窗）。本模組有多個背景執行緒（XML 掃描、型別預載、
-    /// 紋理預讀、啟動收尾 Task 等）會記錄日誌，若直接從背景執行緒呼叫 Verse.Log，可能與
-    /// 主執行緒的渲染／記錄並行而損毀清單結構，導致硬卡死或極度卡頓。
+    /// 執行緒安全：Verse.Log 與遊戲日誌 UI 會共用狀態；背景執行緒直接寫入
+    /// 可能與主執行緒的渲染及日誌處理衝突。
     /// 因此：字串組裝（含 Exception 讀取）可在任意執行緒進行，但實際呼叫 Verse.Log 一律
-    /// 收斂到主執行緒——背景執行緒只把組好的訊息放進佇列，由主執行緒 flush。
+    /// 收斂到主執行緒；背景執行緒只把組好的訊息放進佇列，由主執行緒排空。
     /// </summary>
     public static class FGLLog
     {

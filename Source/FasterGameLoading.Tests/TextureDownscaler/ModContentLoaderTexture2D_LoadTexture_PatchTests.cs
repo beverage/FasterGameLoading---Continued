@@ -283,7 +283,6 @@ namespace FasterGameLoading.Tests.TextureDownscaler
 
             Assert.That(runOriginal, Is.True);
             Assert.That(state, Is.False, "__state 必須為 false，否則 Postfix 會把 ImageOpt 載入的紋理誤登記為 FGL 的快取。");
-            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession, Is.Empty);
         }
 
         [Test]
@@ -297,32 +296,6 @@ namespace FasterGameLoading.Tests.TextureDownscaler
 
             Assert.That(runOriginal, Is.True);
             Assert.That(state, Is.False);
-            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession, Is.Empty);
-        }
-
-        // ── session 載入清單 ──
-
-        [Test]
-        public void RecordTextureForSession_KeysEntryByTexturesRelativePath()
-        {
-            string fullPath = Path.Combine(tempDir, "Textures", "Things", "wall.png");
-
-            InvokeRecordTextureForSession(fullPath);
-
-            string expectedKey = fullPath.Substring(
-                fullPath.Replace('\\', '/').IndexOf(FGLConsts.TexturesDirSlash, StringComparison.Ordinal));
-            Assert.That(
-                ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession.TryGetValue(expectedKey, out var stored),
-                Is.True);
-            Assert.That(stored, Is.EqualTo(fullPath));
-        }
-
-        [Test]
-        public void RecordTextureForSession_IgnoresPathsOutsideTexturesFolder()
-        {
-            InvokeRecordTextureForSession(Path.Combine(tempDir, "Sounds", "beep.png"));
-
-            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession, Is.Empty);
         }
 
         // ── Prefix：WeakReference 快取命中 ──
@@ -525,6 +498,78 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             Assert.DoesNotThrow(ModContentLoaderTexture2D_LoadTexture_Patch.StartPreloadCachedTextures);
         }
 
+        [Test]
+        public void StartPreloadCachedTextures_WhenGraphicsSettingsActive_SkipsPreload()
+        {
+            string cachePath = WriteCacheEntry("gs_cache.png");
+            SetCompatFlag(typeof(GraphicsSettingsCompat), value: true);
+
+            ModContentLoaderTexture2D_LoadTexture_Patch.StartPreloadCachedTextures();
+            WaitForPreloadTask();
+
+            // GS+ 啟用時 Prefix 一律交給原始流程，預讀的位元組永遠不會被取用，只會佔住記憶體到遊戲結束。
+            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes.ContainsKey(cachePath), Is.False);
+        }
+
+        [Test]
+        public void TakeCachedTextureBytes_PrefersPreloadedBytes()
+        {
+            string cachePath = Path.Combine(tempDir, "missing_on_disk.png");
+            var preloaded = new byte[] { 4, 2 };
+            ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes[cachePath] = preloaded;
+
+            var data = ModContentLoaderTexture2D_LoadTexture_Patch.TakeCachedTextureBytes(cachePath);
+
+            Assert.That(data, Is.SameAs(preloaded));
+            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes.ContainsKey(cachePath), Is.False);
+        }
+
+        [Test]
+        public void TakeCachedTextureBytes_BeforePreloaderReachesFile_PreloaderSkipsIt()
+        {
+            string cachePath = WriteCacheEntry("raced_cache.png");
+
+            ModContentLoaderTexture2D_LoadTexture_Patch.StartPreloadCachedTextures();
+            // 預讀會先延遲 TexturePreloadDelayMs；在這之前主執行緒已自行讀取這個檔案。
+            var data = ModContentLoaderTexture2D_LoadTexture_Patch.TakeCachedTextureBytes(cachePath);
+            WaitForPreloadTask();
+
+            Assert.That(data, Is.EqualTo(new byte[] { 9, 8, 7 }));
+            Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes.ContainsKey(cachePath), Is.False,
+                "主執行緒已讀過的檔案不得再被預讀留在記憶體裡。");
+        }
+
+        [Test]
+        public void ReleasePreloadedCacheBytes_StopsPreloadAndDropsLeftovers()
+        {
+            WriteCacheEntry("left_cache.png");
+            ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes["stale"] = new byte[] { 1 };
+
+            ModContentLoaderTexture2D_LoadTexture_Patch.StartPreloadCachedTextures();
+            ModContentLoaderTexture2D_LoadTexture_Patch.ReleasePreloadedCacheBytes();
+            WaitForPreloadTask();
+
+            Assert.That(
+                SpinWait.SpinUntil(() => ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes.IsEmpty, TimeSpan.FromSeconds(2)),
+                Is.True,
+                "啟動完成後，未被取用的預讀位元組（含仍在執行的預讀迴圈稍後寫入的）都必須釋放。");
+        }
+
+        /// <summary>建立一筆降質快取項目與其快取檔，回傳快取檔路徑。</summary>
+        private string WriteCacheEntry(string cacheFileName)
+        {
+            string cachePath = Path.Combine(tempDir, cacheFileName);
+            File.WriteAllBytes(cachePath, new byte[] { 9, 8, 7 });
+            FasterGameLoadingMod.Instance.CacheManager.SetCacheEntry(Path.Combine(tempDir, "Textures", cacheFileName), cachePath);
+            return cachePath;
+        }
+
+        private static void WaitForPreloadTask()
+        {
+            var task = (Task)PatchType.GetField("_preloadTask", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            Assert.That(task.Wait(TimeSpan.FromSeconds(5)), Is.True);
+        }
+
         // ── 測試輔助 ──
 
         /// <summary>
@@ -598,12 +643,6 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             }
         }
 
-        private static void InvokeRecordTextureForSession(string fullPath)
-        {
-            PatchType.GetMethod("RecordTextureForSession", BindingFlags.NonPublic | BindingFlags.Static)
-                .Invoke(obj: null, new object[] { fullPath });
-        }
-
         private static void InvokeSaveTexturePath(string fullPath, Texture2D texture)
         {
             PatchType.GetMethod("SaveTexturePath", BindingFlags.NonPublic | BindingFlags.Static)
@@ -613,7 +652,6 @@ namespace FasterGameLoading.Tests.TextureDownscaler
         private static void ClearPatchState()
         {
             ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures.Clear();
-            ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession.Clear();
             ModContentLoaderTexture2D_LoadTexture_Patch.preloadedCacheBytes.Clear();
             ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.Clear();
         }
@@ -709,14 +747,12 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             bool prevVerbose = FasterGameLoadingSettings.VerboseLogging;
             FasterGameLoadingSettings.VerboseLogging = true;
             ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits = 5;
-            ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession["foo"] = "bar";
 
             string logged = null;
             TestSetup.OnLogMessage = text => logged = text;
 
             Startup.RegisterOnStartupCompleted(() =>
             {
-                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string>(ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession, StringComparer.Ordinal);
                 if (ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits > 0)
                 {
                     FGLLog.Message($"Texture downscale cache hits: {ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits}");
@@ -727,7 +763,6 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             {
                 var runCallbacks = typeof(Startup).GetMethod("RunStartupCallbacks", BindingFlags.NonPublic | BindingFlags.Static);
                 runCallbacks?.Invoke(null, null);
-                Assert.That(SessionCache.loadedTexturesSinceLastSession, Does.ContainKey("foo"));
                 Assert.That(logged, Does.Contain("5"));
             }
             finally
@@ -735,7 +770,6 @@ namespace FasterGameLoading.Tests.TextureDownscaler
                 TestSetup.OnLogMessage = null;
                 ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits = 0;
                 FasterGameLoadingSettings.VerboseLogging = prevVerbose;
-                ModContentLoaderTexture2D_LoadTexture_Patch.loadedTexturesThisSession.Clear();
             }
         }
 

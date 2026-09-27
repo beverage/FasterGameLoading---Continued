@@ -54,6 +54,8 @@ namespace FasterGameLoading
         /// 判斷此 ThingDef 的圖示是否需要立即載入。
         /// 武器、裝備、食物、建築、殖民者等常用類型立即載入，
         /// 其餘（如背景裝飾物）則延遲載入。
+        /// 必須在交叉參照解析後呼叫（例如 ExecuteWhenFinished 回呼內）：
+        /// PostLoad 當下 designationCategory、thingCategories、orderedTakeGroup 都還沒有值。
         /// </summary>
         public static bool ShouldBeLoadedImmediately(this ThingDef thingDef)
         {

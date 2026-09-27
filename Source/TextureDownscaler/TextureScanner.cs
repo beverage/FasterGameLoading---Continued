@@ -208,7 +208,7 @@ namespace FasterGameLoading
                 Texture2D mask = null;
                 if (mat.HasProperty(ShaderPropertyIDs.MaskTex))
                 {
-                    mask = (Texture2D)mat.GetTexture(ShaderPropertyIDs.MaskTex);
+                    mask = mat.GetTexture(ShaderPropertyIDs.MaskTex) as Texture2D;
                 }
                 if (mask != null && TryGetTexturePath(mask, out var maskPath))
                 {

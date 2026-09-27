@@ -340,5 +340,55 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             Assert.That(File.Exists(cachePath), Is.True);
             Assert.That(manager.CacheCount, Is.EqualTo(1));
         }
+
+        // ── 對照表的值來自設定檔，不可信任 ──
+
+        [Test]
+        public void CleanupObsoleteCacheFiles_NeverDeletesFilesOutsideFglFolder()
+        {
+            Directory.CreateDirectory(cacheDir);
+            string victim = Path.Combine(Path.GetTempPath(), "FGLVictim_" + Guid.NewGuid().ToString("N") + ".txt");
+            File.WriteAllText(victim, "must survive");
+            try
+            {
+                // 原始檔都不存在，舊流程會直接刪除對照表指向的「快取檔」。
+                manager.SetCacheEntry(Path.Combine(rootDir, "gone1.png"), victim);
+                manager.SetCacheEntry(Path.Combine(rootDir, "gone2.png"),
+                    Path.Combine(cacheDir, "..", "..", Path.GetFileName(victim)));
+
+                manager.CleanupObsoleteCacheFiles();
+
+                Assert.That(File.Exists(victim), Is.True, "清理只能刪除 FGL 自己資料夾內的檔案（含 .. 穿越後的路徑）。");
+                Assert.That(manager.CacheCount, Is.Zero, "指向資料夾外的項目仍要從對照表移除。");
+            }
+            finally
+            {
+                File.Delete(victim);
+            }
+        }
+
+        [Test]
+        public void TryGetCachedTexturePath_RejectsCacheFileOutsideFglFolder()
+        {
+            string originalPath = Path.Combine(rootDir, "orig.png");
+            string outsideCache = Path.Combine(Path.GetTempPath(), "FGLOutside_" + Guid.NewGuid().ToString("N") + ".png");
+            File.WriteAllBytes(originalPath, new byte[] { 1 });
+            File.WriteAllBytes(outsideCache, new byte[] { 2 });
+            var baseTime = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(originalPath, baseTime);
+            File.SetLastWriteTimeUtc(outsideCache, baseTime.AddMinutes(1));
+            try
+            {
+                manager.SetCacheEntry(originalPath, outsideCache);
+
+                Assert.That(manager.TryGetCachedTexturePath(originalPath, out var cachePath), Is.False);
+                Assert.That(cachePath, Is.Null);
+                Assert.That(manager.CacheCount, Is.Zero);
+            }
+            finally
+            {
+                File.Delete(outsideCache);
+            }
+        }
     }
 }

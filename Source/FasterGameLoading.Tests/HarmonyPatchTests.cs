@@ -21,7 +21,6 @@ namespace FasterGameLoading.Tests
         private static Harmony harmony;
 
         // 期望值陣列：避免每個斷言反覆建立常數陣列 (CA1861)
-        private static readonly string[] ExpectedSessionTextures = { "texture" };
         private static readonly string[] ExpectedSessionTypes = { "type" };
         private static readonly string[] ExpectedSessionMods = { "test.mod" };
         private static readonly float[] ExpectedSessionBakeSpeeds = { 45f };
@@ -505,7 +504,6 @@ namespace FasterGameLoading.Tests
             var originalEarlyModContentLoading = FasterGameLoadingSettings.earlyModContentLoading;
             var originalStaticAtlasesBaking = FasterGameLoadingSettings.StaticAtlasesBaking;
             var originalEnableMultiThreading = FasterGameLoadingSettings.EnableMultiThreading;
-            var originalTextures = SessionCache.loadedTexturesSinceLastSession;
             var originalTypes = SessionCache.loadedTypesByFullNameSinceLastSession;
             var originalMods = SessionCache.modsInLastSession;
             var originalBakeSpeeds = SessionCache.historicalBakeSpeeds;
@@ -518,7 +516,6 @@ namespace FasterGameLoading.Tests
                 FasterGameLoadingSettings.earlyModContentLoading = false;
                 FasterGameLoadingSettings.StaticAtlasesBaking = true;
                 FasterGameLoadingSettings.EnableMultiThreading = false;
-                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string>(StringComparer.Ordinal) { ["texture"] = "path" };
                 SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
                 SessionCache.loadedTypesByFullNameSinceLastSession.TryAdd("type", "System.String");
                 SessionCache.modsInLastSession = new List<string> { "test.mod" };
@@ -531,7 +528,6 @@ namespace FasterGameLoading.Tests
                 Assert.IsFalse(FasterGameLoadingSettings.earlyModContentLoading);
                 Assert.IsTrue(FasterGameLoadingSettings.StaticAtlasesBaking);
                 Assert.IsFalse(FasterGameLoadingSettings.EnableMultiThreading);
-                Assert.That(SessionCache.loadedTexturesSinceLastSession.Keys, Is.EquivalentTo(ExpectedSessionTextures));
                 Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession.Keys, Is.EquivalentTo(ExpectedSessionTypes));
                 Assert.That(SessionCache.modsInLastSession, Is.EqualTo(ExpectedSessionMods));
                 Assert.That(SessionCache.historicalBakeSpeeds, Is.EqualTo(ExpectedSessionBakeSpeeds));
@@ -544,7 +540,6 @@ namespace FasterGameLoading.Tests
                 FasterGameLoadingSettings.earlyModContentLoading = originalEarlyModContentLoading;
                 FasterGameLoadingSettings.StaticAtlasesBaking = originalStaticAtlasesBaking;
                 FasterGameLoadingSettings.EnableMultiThreading = originalEnableMultiThreading;
-                SessionCache.loadedTexturesSinceLastSession = originalTextures;
                 SessionCache.loadedTypesByFullNameSinceLastSession = originalTypes;
                 SessionCache.modsInLastSession = originalMods;
                 SessionCache.historicalBakeSpeeds = originalBakeSpeeds;
@@ -556,7 +551,6 @@ namespace FasterGameLoading.Tests
 #pragma warning disable MA0051 // 涵蓋設定序列化往返之完整驗證，拆分成多個方法會降低可讀性
         public void TestSettingsExposeData_SavesSessionCache()
         {
-            var originalTextures = SessionCache.loadedTexturesSinceLastSession;
             var originalTypes = SessionCache.loadedTypesByFullNameSinceLastSession;
             var originalMods = SessionCache.modsInLastSession;
             var originalBakeSpeeds = SessionCache.historicalBakeSpeeds;
@@ -564,7 +558,6 @@ namespace FasterGameLoading.Tests
 
             try
             {
-                SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string>(StringComparer.Ordinal) { ["texture"] = "path" };
                 SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
                 SessionCache.loadedTypesByFullNameSinceLastSession.TryAdd("type", "System.String");
                 SessionCache.modsInLastSession = new List<string> { "test.mod" };
@@ -581,7 +574,8 @@ namespace FasterGameLoading.Tests
                 }
 
                 var savedXml = System.IO.File.ReadAllText(savePath);
-                Assert.That(savedXml, Does.Contain(FGLConsts.LoadedTexturesKey));
+                // 貼圖載入清單從未被讀取，不得再寫進設定檔（每次啟動都要解析、收尾時又整份重寫）。
+                Assert.That(savedXml, Does.Not.Contain("loadedTexturesSinceLastSession"));
                 Assert.That(savedXml, Does.Contain(FGLConsts.LoadedTypesKey));
                 Assert.That(savedXml, Does.Contain(FGLConsts.TypeCacheAssemblyFingerprintKey));
                 Assert.That(savedXml, Does.Contain(FGLConsts.HistoricalBakeSpeedsKey));
@@ -593,7 +587,6 @@ namespace FasterGameLoading.Tests
                     Scribe.ForceStop();
                 }
 
-                SessionCache.loadedTexturesSinceLastSession = originalTextures;
                 SessionCache.loadedTypesByFullNameSinceLastSession = originalTypes;
                 SessionCache.modsInLastSession = originalMods;
                 SessionCache.historicalBakeSpeeds = originalBakeSpeeds;

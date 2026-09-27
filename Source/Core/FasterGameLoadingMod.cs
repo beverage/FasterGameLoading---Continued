@@ -41,6 +41,12 @@ namespace FasterGameLoading
 
             // 背景預載入所有類型，以加速後續的 AccessTools.AllTypes() 呼叫
             AccessTools_AllTypes_Patch.Preload();
+            if (FasterGameLoadingSettings.TypeLookupCache)
+            {
+                // Mod 建構子在載入事件緒上執行：所有 mod 組件都已載入、Def／Patch XML 尚未解析，
+                // 此時預熱才能讓 XML 解析階段大量的完整型別名稱查詢直接命中。
+                GenTypes_GetTypeInAnyAssemblyInt_Patch.WarmupFullNames(GenTypes_GetTypeInAnyAssemblyInt_Patch.GenTypesSearchAssemblies());
+            }
             harmony.PatchAll();
             ImageOptEarlyLoadCoordinator.TryInstall();
 
@@ -49,9 +55,9 @@ namespace FasterGameLoading
             {
                 if (delayedActions) // 利用 Unity Object 的隱式 bool 轉型檢查，防範 GameObject 銷毀時的異常
                 {
+                    // 不重啟提早載入：切換語言的重載交給原版流程（見 EarlyModContentLoader.Update 的說明）。
                     delayedActions.StopAllCoroutines();
                     delayedActions.ClearQueues();
-                    delayedActions.ResetEarlyLoading();
                 }
                 try
                 {

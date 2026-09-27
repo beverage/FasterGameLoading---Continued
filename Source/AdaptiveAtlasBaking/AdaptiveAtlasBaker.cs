@@ -236,11 +236,7 @@ namespace FasterGameLoading
                     // 並呼叫 BuildMeshesForUvs([全幅 UV])。
                     // BuildMeshesForUvs 會完整填入 atlas.tiles（textures[0] → uvRect(0,0,1,1)），
                     // 與多紋理路徑呼叫 Bake() 後的 tiles 結構等價，故此路徑正確。
-                    // 審查曾疑慮「UV 退化」與「material 重建」，經反編譯確認：
-                    //   - BuildMeshesForUvs 完整建立 tiles，無 UV 退化問題；
-                    //   - StaticTextureAtlasTile 無 material 欄位，material 疑慮不成立。
-                    // 建構子已建立 1×1 的佔位 colorTexture；改指向原始貼圖前先釋放，
-                    // 否則每個單張批次都會洩漏一張貼圖。
+                    // 建構子已建立 1×1 的佔位 colorTexture；改指向原始貼圖前先釋放。
                     var placeholder = atlas.colorTexture;
                     atlas.colorTexture = batch[0].main;
                     if (placeholder != null)
@@ -263,18 +259,7 @@ namespace FasterGameLoading
 
                 bakedAtlases.Add(atlas);
 
-                // 根據實際烘焙時間調整下個 slice 的大小
-                double secondsElapsed = bakeStopwatch.Elapsed.TotalSeconds;
-                if (secondsElapsed > 0)
-                {
-                    float latestBakeSpeed = (float)(pixelsInThisSlice / secondsElapsed);
-                    state.MeasuredBakeSpeed = Mathf.Lerp(state.MeasuredBakeSpeed, latestBakeSpeed, tuning.AdaptationFactor);
-                    float newSliceSize = state.MeasuredBakeSpeed * tuning.TargetBakeTime;
-                    int adjusted = (int)(newSliceSize * tuning.PackDensity);
-                    state.AdaptivePixelsPerSlice = Mathf.Clamp(
-                        adjusted.FloorToPowerOfTwo(),
-                        tuning.MinPixelsPerSlice, tuning.MaxPixelsPerSlice);
-                }
+                UpdateAdaptiveBakeState(bakeStopwatch.Elapsed.TotalSeconds, pixelsInThisSlice, ref state, in tuning);
 
                 return true;
             }
@@ -282,6 +267,25 @@ namespace FasterGameLoading
             {
                 FGLLog.Warning("Error baking atlas batch:", ex);
                 return false;
+            }
+        }
+
+        /// <summary>依本次批次速度調整下一張圖集的目標像素數。</summary>
+        private static void UpdateAdaptiveBakeState(
+            double secondsElapsed,
+            long pixelsInThisSlice,
+            ref AdaptiveBakeState state,
+            in AdaptiveBakeTuning tuning)
+        {
+            if (secondsElapsed > 0)
+            {
+                float latestBakeSpeed = (float)(pixelsInThisSlice / secondsElapsed);
+                state.MeasuredBakeSpeed = Mathf.Lerp(state.MeasuredBakeSpeed, latestBakeSpeed, tuning.AdaptationFactor);
+                float newSliceSize = state.MeasuredBakeSpeed * tuning.TargetBakeTime;
+                int adjusted = (int)(newSliceSize * tuning.PackDensity);
+                state.AdaptivePixelsPerSlice = Mathf.Clamp(
+                    adjusted.FloorToPowerOfTwo(),
+                    tuning.MinPixelsPerSlice, tuning.MaxPixelsPerSlice);
             }
         }
 

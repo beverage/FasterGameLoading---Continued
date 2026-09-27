@@ -16,7 +16,6 @@ namespace FasterGameLoading.Tests.Utilities
             Assert.That(FGLConsts.TextureCacheStagingDir, Is.EqualTo("TextureCache_New"));
             Assert.That(FGLConsts.UIDirSlash, Is.EqualTo("/UI/"));
             Assert.That(FGLConsts.TexturesDirName, Is.EqualTo("Textures"));
-            Assert.That(FGLConsts.TexturesDirSlash, Is.EqualTo("Textures/"));
         }
 
         [Test]

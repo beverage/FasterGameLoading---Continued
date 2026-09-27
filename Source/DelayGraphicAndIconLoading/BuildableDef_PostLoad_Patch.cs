@@ -33,23 +33,24 @@ namespace FasterGameLoading
             }
         }
 
+        /// <summary>
+        /// 與 ThingDef_PostLoad_Patch 相同：等 ExecuteWhenFinished 回呼執行、Def 參照解析完畢後才決定延遲與否，
+        /// 同一個 ThingDef 的圖形與圖示因此會得到一致的判斷。
+        /// </summary>
         public static void ExecuteDelayed(Action action, BuildableDef def)
         {
-            if (def is ThingDef thingDef && thingDef.ShouldBeLoadedImmediately())
+            LongEventHandler.ExecuteWhenFinished(() => LoadNowOrDefer(action, def));
+        }
+
+        private static void LoadNowOrDefer(Action action, BuildableDef def)
+        {
+            var delayedActions = FasterGameLoadingMod.delayedActions;
+            if (delayedActions == null || (def is ThingDef thingDef && thingDef.ShouldBeLoadedImmediately()))
             {
-                LongEventHandler.ExecuteWhenFinished(action);
+                action();
                 return;
             }
-
-            var delayedActions = FasterGameLoadingMod.delayedActions;
-            if (delayedActions != null)
-            {
-                delayedActions.EnqueueIcon(def, action);
-            }
-            else
-            {
-                LongEventHandler.ExecuteWhenFinished(action);
-            }
+            delayedActions.EnqueueIcon(def, action);
         }
     }
 }

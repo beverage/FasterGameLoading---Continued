@@ -10,12 +10,11 @@ namespace FasterGameLoading
         /// <summary>
         /// 手動注入來自 LanguageData/ 資料夾的翻譯 Key。
         /// 
-        /// 因為此模組載入時間早於 Core（loadBefore: Ludeon.RimWorld），
-        /// RimWorld 的語言系統會在載入 Core 的 WordInfo/grammar/capitalization 規則之前處理我們的 Languages/ 資料夾，
-        /// 這會損壞標題大小寫系統（title-casing system），導致所有生成的短語失去正確的大寫（例如變成 "Alex danvers" 而不是 "Alex Danvers"）。
+        /// 此模組可能在 Core 完成語言資料初始化之前載入；若將翻譯放在原版自動掃描的
+        /// Languages/ 資料夾，便可能過早注入翻譯並影響後續的大小寫規則。
         /// 
         /// 為了避免這個問題，我們將 Languages/ 重新命名為 LanguageData/（RimWorld 不會自動載入此資料夾），
-        /// 並在此處（在 Core 完全載入後）注入翻譯。
+        /// 由 Startup.Postfix 呼叫此方法注入翻譯，缺少對應語系時退回英文。
         /// </summary>
         internal static void InjectTranslations()
         {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using Verse;
 
@@ -14,7 +15,9 @@ namespace FasterGameLoading
     [HarmonyPatch(typeof(GenTypes), "GetTypeInAnyAssemblyInt")]
     public static class GenTypes_GetTypeInAnyAssemblyInt_Patch
     {
-internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new ConcurrentDictionary<string, Type>(StringComparer.Ordinal);
+        public static bool Prepare() => FasterGameLoadingSettings.TypeLookupCache;
+
+        internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new ConcurrentDictionary<string, Type>(StringComparer.Ordinal);
         internal static ConcurrentDictionary<string, string> loadedTypesThisSession { get; } = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
 
         /// <summary>
@@ -41,12 +44,70 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
         }
 
         /// <summary>
+        /// 原版 GenTypes 以名稱查型別時搜尋的組件，依搜尋順序排列：
+        /// 遊戲本體（Assembly-CSharp）在前，接著是各執行中 mod 依載入順序的組件。
+        /// </summary>
+        internal static List<Assembly> GenTypesSearchAssemblies()
+        {
+            var assemblies = new List<Assembly> { typeof(GenTypes).Assembly };
+            foreach (var mod in LoadedModManager.RunningMods)
+            {
+                var loaded = mod?.assemblies?.loadedAssemblies;
+                if (loaded != null)
+                {
+                    assemblies.AddRange(loaded);
+                }
+            }
+            return assemblies;
+        }
+
+        /// <summary>
+        /// 以 FullName 預熱型別快取。由 Mod 建構子在載入事件緒呼叫：此時所有 mod 組件都已載入，
+        /// 而型別查詢最密集的 Def／Patch XML 解析尚未開始。依原版搜尋順序先到先得，
+        /// 同名型別只保留原版以完整名稱會先查到的那一個。
+        /// 只能預熱 FullName：不同 mod 常有同名但不同命名空間的類別，寫入短名稱會讓查詢拿到錯誤型別
+        /// （過去曾因此在翻譯注入時於 MakeGenericType 崩潰）；短名稱交由原方法解析後再由 Postfix 記錄。
+        /// </summary>
+        internal static void WarmupFullNames(IEnumerable<Assembly> assembliesInSearchOrder)
+        {
+            foreach (var assembly in assembliesInSearchOrder)
+            {
+                Type[] types;
+                try
+                {
+                    types = AccessTools.GetTypesFromAssembly(assembly);
+                }
+                catch
+                {
+                    // 忽略個別組件型別讀取失敗
+                    continue;
+                }
+
+                foreach (var type in types)
+                {
+                    try
+                    {
+                        var fullName = type?.FullName;
+                        if (!string.IsNullOrEmpty(fullName))
+                        {
+                            cachedResults.TryAdd(fullName, type);
+                        }
+                    }
+                    catch
+                    {
+                        // 忽略個別型別反射處理錯誤
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// 前置處理：優先使用執行期型別快取或跨 session 快取比對，命中時返回並跳過原方法。
         /// </summary>
         public static bool Prefix(ref Type __result, out (string originalTypeName, string namespaceIfAmbiguous, string cacheKey, bool isCached, bool usedSessionMapping) __state, ref string typeName, string namespaceIfAmbiguous)
         {
             var cacheKey = MakeCacheKey(typeName, namespaceIfAmbiguous);
-            if (cachedResults.TryGetValue(cacheKey, out var result))
+            if (cachedResults.TryGetValue(cacheKey, out var result) || TryGetExactFullName(typeName, namespaceIfAmbiguous, out result))
             {
                 __result = result;
                 __state = (typeName, namespaceIfAmbiguous, cacheKey, true, false);
@@ -55,8 +116,7 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
 
             var originalTypeName = typeName;
             bool usedSessionMapping = false;
-            if (SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(cacheKey, out var fullName)
-                || (string.IsNullOrEmpty(namespaceIfAmbiguous) && SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(typeName, out fullName)))
+            if (SessionCache.loadedTypesByFullNameSinceLastSession.TryGetValue(cacheKey, out var fullName))
             {
                 usedSessionMapping = !string.Equals(fullName, typeName, StringComparison.Ordinal);
                 typeName = fullName;
@@ -106,6 +166,23 @@ internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new 
                     loadedTypesThisSession[__state.cacheKey] = fullName;
                 }
             }
+        }
+
+        /// <summary>
+        /// 原版 GetTypeInAnyAssemblyInt 第一步就是不看命名空間、以原名查詢，查到即回傳；
+        /// XML 的 Class= 屬性都會帶命名空間提示，因此帶提示的完整名稱也能直接使用 FullName 預熱的結果。
+        /// 只接受 FullName 與查詢名稱完全相同的項目：其餘項目可能經命名空間探測才解析出來，換個提示結果就可能不同。
+        /// </summary>
+        private static bool TryGetExactFullName(string typeName, string namespaceIfAmbiguous, out Type result)
+        {
+            if (!string.IsNullOrEmpty(namespaceIfAmbiguous) && !string.IsNullOrEmpty(typeName)
+                && cachedResults.TryGetValue(typeName, out result)
+                && string.Equals(result.FullName, typeName, StringComparison.Ordinal))
+            {
+                return true;
+            }
+            result = null;
+            return false;
         }
 
         internal static string MakeCacheKey(string typeName, string namespaceIfAmbiguous = null)

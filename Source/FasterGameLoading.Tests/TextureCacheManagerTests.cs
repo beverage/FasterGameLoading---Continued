@@ -196,6 +196,32 @@ namespace FasterGameLoading.Tests
         }
 
         [Test]
+        public void RemoveEntriesOutside_KeepsEntriesUnderRootsAndHonoursDirectoryBoundary()
+        {
+            string keptOriginal = Path.Combine(tempDir, "Mods", "A", "Textures", "kept.png");
+            string siblingOriginal = Path.Combine(tempDir, "Mods", "AB", "Textures", "sibling.png");
+            manager.SetCacheEntry(keptOriginal, Path.Combine(tempDir, "kept_cache.png"));
+            manager.SetCacheEntry(siblingOriginal, Path.Combine(tempDir, "sibling_cache.png"));
+
+            // 結尾斜線與大小寫差異不影響判定；"Mods/A" 不得誤判為 "Mods/AB" 的上層。
+            int removed = manager.RemoveEntriesOutside(new[] { Path.Combine(tempDir, "mods", "a") + Path.DirectorySeparatorChar });
+
+            Assert.AreEqual(1, removed);
+            Assert.IsTrue(manager.ResizedTextureCache.ContainsKey(keptOriginal));
+            Assert.IsFalse(manager.ResizedTextureCache.ContainsKey(siblingOriginal));
+        }
+
+        [Test]
+        public void RemoveEntriesOutside_WithoutRootsKeepsEverything()
+        {
+            manager.SetCacheEntry(Path.Combine(tempDir, "Mods", "A", "a.png"), Path.Combine(tempDir, "a_cache.png"));
+
+            // 執行中的 mod 清單尚未就緒時寧可全部保留，不得等同於清空快取。
+            Assert.AreEqual(0, manager.RemoveEntriesOutside(Array.Empty<string>()));
+            Assert.AreEqual(1, manager.CacheCount);
+        }
+
+        [Test]
         public void SafeFileExists_WithInvalidCharacters_ReturnsFalse()
         {
             var method = typeof(TextureCacheManager).GetMethod("SafeFileExists", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);

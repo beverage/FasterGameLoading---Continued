@@ -118,45 +118,48 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         }
 
         [Test]
-        public void Preload_WhenMultiThreadingDisabled_LoadsSynchronouslyAndWarmsUpFullName()
+        public void Preload_WhenMultiThreadingDisabled_LoadsSynchronously()
         {
+            var previous = FasterGameLoadingSettings.EnableMultiThreading;
             FasterGameLoadingSettings.EnableMultiThreading = false;
+            try
+            {
+                AccessTools_AllTypes_Patch.Preload();
 
-            AccessTools_AllTypes_Patch.Preload();
+                var cached = (List<Type>)AllTypesCachedField.GetValue(null);
+                int cachedCount = (int)CachedAssembliesCountField.GetValue(null);
 
-            var cached = (List<Type>)AllTypesCachedField.GetValue(null);
-            int cachedCount = (int)CachedAssembliesCountField.GetValue(null);
-
-            Assert.That(cached, Is.Not.Null);
-            Assert.That(cached.Count, Is.GreaterThan(0));
-            // Assembly count may increase during test run (flaky); use >= to allow for concurrent loads
-            Assert.That(cachedCount, Is.GreaterThanOrEqualTo(AppDomain.CurrentDomain.GetAssemblies().Length - 1));
-
-            // Verify FullName warmup in GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults
-            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.ContainsKey(typeof(AccessTools_AllTypes_Patch).FullName), Is.True);
+                Assert.That(cached, Is.Not.Null);
+                Assert.That(cached.Count, Is.GreaterThan(0));
+                // Assembly count may increase during test run (flaky); use >= to allow for concurrent loads
+                Assert.That(cachedCount, Is.GreaterThanOrEqualTo(AppDomain.CurrentDomain.GetAssemblies().Length - 1));
+            }
+            finally
+            {
+                FasterGameLoadingSettings.EnableMultiThreading = previous;
+            }
         }
 
         [Test]
-        public void Preload_WhenMultiThreadingEnabled_SchedulesBackgroundTaskAndWarmupCallback()
+        public void Preload_WhenMultiThreadingEnabled_EnumeratesInBackgroundWithoutLateWarmup()
         {
+            var previous = FasterGameLoadingSettings.EnableMultiThreading;
             FasterGameLoadingSettings.EnableMultiThreading = true;
+            try
+            {
+                AccessTools_AllTypes_Patch.Preload();
 
-            AccessTools_AllTypes_Patch.Preload();
+                // FullName 預熱改由 Mod 建構子在 XML 解析前完成；排到 ExecuteWhenFinished 會晚於整個 XML 解析階段。
+                Assert.That(capturedExecuteWhenFinishedAction, Is.Null);
 
-            // Verify LongEventHandler callback was registered
-            Assert.That(capturedExecuteWhenFinishedAction, Is.Not.Null);
-
-            // Wait for the background task to populate allTypesCached
-            bool completed = SpinWait.SpinUntil(() => AllTypesCachedField.GetValue(null) is not null, 3000);
-            Assert.That(completed, Is.True, "Background task did not complete within timeout.");
-
-            var cached = (List<Type>)AllTypesCachedField.GetValue(null);
-            Assert.That(cached, Is.Not.Null);
-            Assert.That(cached.Count, Is.GreaterThan(0));
-
-            // Invoke ExecuteWhenFinished callback to run WarmupTypeCache on main thread
-            capturedExecuteWhenFinishedAction();
-            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.ContainsKey(typeof(AccessTools_AllTypes_Patch).FullName), Is.True);
+                bool completed = SpinWait.SpinUntil(() => AllTypesCachedField.GetValue(null) is not null, 3000);
+                Assert.That(completed, Is.True, "Background task did not complete within timeout.");
+                Assert.That(((List<Type>)AllTypesCachedField.GetValue(null)).Count, Is.GreaterThan(0));
+            }
+            finally
+            {
+                FasterGameLoadingSettings.EnableMultiThreading = previous;
+            }
         }
 
         [Test]

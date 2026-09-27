@@ -15,7 +15,6 @@
         public const string TextureCacheDir = "TextureCache";
         public const string TextureCacheStagingDir = "TextureCache_New";
         public const string HistoricalBakeSpeedsKey = "historicalBakeSpeeds";
-        public const string LoadedTexturesKey = "loadedTexturesSinceLastSession";
         public const string LoadedTypesKey = "loadedTypesByFullNameSinceLastSession";
         public const string TypeCacheAssemblyFingerprintKey = "typeCacheAssemblyFingerprint";
         public const string ModsInLastSessionKey = "modsInLastSession";
@@ -32,7 +31,6 @@
 
         public const string UIDirSlash = "/UI/";
         public const string TexturesDirName = "Textures";
-        public const string TexturesDirSlash = "Textures/";
 
         public const int AccessToolsPreloadDelayMs = 50;
         public const int TexturePreloadDelayMs = 150;

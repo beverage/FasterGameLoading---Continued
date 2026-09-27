@@ -30,11 +30,18 @@ namespace FasterGameLoading
             if (stream.Read(header, 0, header.Length) != header.Length) return false;
             if (header[0] is not 0x89 || header[1] is not 0x50 || header[2] is not 0x4E || header[3] is not 0x47) return false;
 
-            width = ReadBigEndianInt32(header, 16);
-            height = ReadBigEndianInt32(header, 20);
+            int parsedWidth = ReadBigEndianInt32(header, 16);
+            int parsedHeight = ReadBigEndianInt32(header, 20);
             // 拒絕超出合理範圍的尺寸，防止損毀標頭傳播異常巨大的數值
             const int MaxSafeDimension = 16384;
-            return width > 0 && height > 0 && width <= MaxSafeDimension && height <= MaxSafeDimension;
+            if (parsedWidth <= 0 || parsedHeight <= 0 || parsedWidth > MaxSafeDimension || parsedHeight > MaxSafeDimension)
+            {
+                return false;
+            }
+
+            width = parsedWidth;
+            height = parsedHeight;
+            return true;
         }
 
         private static int ReadBigEndianInt32(byte[] bytes, int offset)

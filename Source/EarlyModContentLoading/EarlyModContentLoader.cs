@@ -62,6 +62,15 @@ namespace FasterGameLoading
             if (EarlyLoadingComplete)
                 return;
 
+            // 提早載入只在初次載入的長事件期間有意義：PlayData 載入完成後，剩下的內容已由原版
+            // ExecuteWhenFinished 接手。之後（例如切換語言）RunningMods 仍是即將被 ClearAllPlayData
+            // 銷毀的舊 ModContentPack，再載入只會重複載入並與事件緒的 ClearDestroy 同時存取內容字典。
+            if (PlayDataLoader.Loaded)
+            {
+                EarlyLoadingComplete = true;
+                return;
+            }
+
             if (!FasterGameLoadingSettings.earlyModContentLoading)
             {
                 return;
@@ -141,18 +150,6 @@ namespace FasterGameLoading
             {
                 FGLLog.Warning($"Early loading failed for {modToLoad.PackageIdPlayerFacing}, will retry in normal flow:", ex);
             }
-        }
-
-        /// <summary>
-        /// 重置提早載入狀態（語言切換等情況）。
-        /// </summary>
-        public void Reset()
-        {
-            pendingEarlyLoads = null;
-            useImageOptSyncScope = false;
-            EarlyLoadingComplete = false;
-            consecutiveTimeouts = 0;
-            skipFrames = 0;
         }
     }
 }

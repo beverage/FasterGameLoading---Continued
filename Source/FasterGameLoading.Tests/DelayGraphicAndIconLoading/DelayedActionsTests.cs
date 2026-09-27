@@ -221,18 +221,6 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         }
 
         [Test]
-        public void ResetEarlyLoading_ResetsStaticFlagsAndLoader()
-        {
-            DelayedActions.AllDeferredVisualsLoaded = true;
-            DelayedActions.AdaptiveStaticAtlasBakeFailed = true;
-
-            delayedActions.ResetEarlyLoading();
-
-            Assert.That(DelayedActions.AllDeferredVisualsLoaded, Is.False);
-            Assert.That(DelayedActions.AdaptiveStaticAtlasBakeFailed, Is.False);
-        }
-
-        [Test]
         public void CacheResetter_ResetsDelayedActionsStaticFlags()
         {
             DelayedActions.AllDeferredVisualsLoaded = true;
@@ -282,15 +270,16 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             FasterGameLoadingSettings.DelayGraphicLoading = true;
             try
             {
-                // DelayGraphicLoading=true 時進入延遲視覺管線：第一次 MoveNext 覆蓋 210-216
-                // （含 LoadDeferredGraphicsCoroutine 呼叫），第二次覆蓋 217-218（產生
-                // BakeDeferredAtlasesCoroutine 列舉器，但尚未執行其烘焙本體）。烘焙呼叫需要
-                // 遊戲/圖集基礎設施，無頭環境會拋出，故不繼續迭代；finally 區塊會在 Dispose 時安全執行。
+                // DelayGraphicLoading=true 時進入延遲視覺管線：先產出延遲圖形協程，接著是延遲圖示協程。
+                // 圖示只需要剛載入的圖形、與圖集無關，排在烘焙之前，玩家不必等整批圖集烘焙完才看到正確圖示。
+                // 烘焙需要遊戲/圖集基礎設施，無頭環境會拋出，故不繼續迭代；finally 區塊會在 Dispose 時安全執行。
                 var enumerator = delayedActions.PerformActions();
                 try
                 {
                     Assert.That(enumerator.MoveNext(), Is.True);
+                    Assert.That(enumerator.Current.GetType().Name, Does.Contain(nameof(DeferredLoader.LoadDeferredGraphicsCoroutine)));
                     Assert.That(enumerator.MoveNext(), Is.True);
+                    Assert.That(enumerator.Current.GetType().Name, Does.Contain(nameof(DeferredLoader.LoadDeferredIconsCoroutine)));
                 }
                 finally
                 {

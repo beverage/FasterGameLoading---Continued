@@ -16,8 +16,6 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
     {
         private static Harmony harmony;
         private static Texture2D mockBadTex;
-        private static Texture2D mockContentFinderTex;
-        private static Material mockMaterial;
         private DelayedActions delayedActions;
 
         private static bool PrefixSkip() => false;
@@ -26,19 +24,6 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         {
             __result = mockIsInMainThread;
             return false;
-        }
-
-        private static bool MockContentFinderGet(string itemPath, bool reportFailure, ref Texture2D __result)
-        {
-            __result = mockContentFinderTex;
-            return false;
-        }
-
-        private sealed class TestGraphic : Graphic
-        {
-            private readonly Material mat;
-            public TestGraphic(Material mat) => this.mat = mat;
-            public override Material MatSingle => mat;
         }
 
         private static ThingDef postLoadSpecialCalledDef;
@@ -63,8 +48,6 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             harmony = new Harmony("FasterGameLoading.Tests.DeferredLoaderTests");
 
             mockBadTex = (Texture2D)FormatterServices.GetUninitializedObject(typeof(Texture2D));
-            mockContentFinderTex = (Texture2D)FormatterServices.GetUninitializedObject(typeof(Texture2D));
-            mockMaterial = (Material)FormatterServices.GetUninitializedObject(typeof(Material));
             // 使用 BaseContent.BadTex 的真實值（可能是 null 或實際紋理）。
             // 不可嘗試覆寫 BadTex：它是 static readonly（initonly）欄位，型別初始化後 SetValue 會拋
             // FieldAccessException（cctor 已被 TestSetup 攔截，BadTex 保持未初始化）。
@@ -91,20 +74,6 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             {
                 harmony.Patch(emitMethod, prefix: new HarmonyMethod(AccessTools.Method(typeof(DeferredLoaderTests), nameof(PrefixSkip))));
             }
-
-            // Patch ContentFinder<Texture2D>.Get
-            // priority 設高於 TestSetup 的 Prefix_TexStub（預設 400），確保此 mock 先執行並回傳 mockContentFinderTex
-            var contentFinderGet = AccessTools.Method(typeof(ContentFinder<Texture2D>), nameof(ContentFinder<Texture2D>.Get), new Type[] { typeof(string), typeof(bool) });
-            if (contentFinderGet != null)
-            {
-                var mockCf = new HarmonyMethod(AccessTools.Method(typeof(DeferredLoaderTests), nameof(MockContentFinderGet))) { priority = 600 };
-                harmony.Patch(contentFinderGet, prefix: mockCf);
-            }
-
-            // 注意：Material.mainTexture 是 ECall getter，測試環境（無 Unity native）下無法
-            // Harmony patch（拋 SecurityException），因此 LoadDeferredGraphicsCoroutine 中
-            // 「從 MatSingle.mainTexture 提取 UI 圖示」的成功路徑在此環境無法直接驗證，
-            // 改由 WhenBadTexAndHasGraphic_MainTextureUnavailable_KeepsUiIconAndContinues 驗證安全路徑。
 
             // Patch PlantProperties.PostLoadSpecial
             var plantPropType = AccessTools.TypeByName("Verse.PlantProperties") ?? AccessTools.TypeByName("RimWorld.PlantProperties");
@@ -165,50 +134,23 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         }
 
         [Test]
-        public void LoadDeferredGraphicsCoroutine_WhenBadTexAndHasUiIconPath_ReloadsFromContentFinder()
+        public void DeferredIconAction_StillRunsAfterDeferredGraphicLoads()
         {
             var def = CreateMockThingDef("DefWithIconPath");
             def.uiIcon = mockBadTex;
             def.uiIconPath = "Things/Item/TestIcon";
-
+            bool iconActionExecuted = false;
             delayedActions.EnqueueGraphic(def, () => { });
+            delayedActions.EnqueueIcon(def, () => iconActionExecuted = true);
 
-            var loadedDefs = new List<ThingDef>();
-            var coroutine = DeferredLoader.LoadDeferredGraphicsCoroutine(delayedActions, loadedDefs);
+            var graphics = DeferredLoader.LoadDeferredGraphicsCoroutine(delayedActions, new List<ThingDef>());
+            while (graphics.MoveNext()) { }
+            var icons = DeferredLoader.LoadDeferredIconsCoroutine(delayedActions);
+            while (icons.MoveNext()) { }
 
-            while (coroutine.MoveNext()) { }
-
-            Assert.That(def.uiIcon, Is.SameAs(mockContentFinderTex));
-        }
-
-        [Test]
-        public void LoadDeferredGraphicsCoroutine_WhenBadTexAndHasGraphic_MainTextureUnavailable_KeepsUiIconAndContinues()
-        {
-            // Material.mainTexture 是 ECall getter，測試環境（無 Unity native）無法取得，
-            // 因此驗證產品碼在 mainTexture 取得失敗時的安全行為：uiIcon 保持原值且協程不崩潰。
-            var def = CreateMockThingDef("DefWithGraphic");
-            def.uiIcon = mockBadTex;
-            def.uiIconPath = null;
-            def.graphicData = new GraphicData
-            {
-                graphicClass = typeof(Graphic_Single),
-            };
-            var graphicField = AccessTools.Field(typeof(GraphicData), "cachedGraphic");
-            graphicField?.SetValue(def.graphicData, new TestGraphic(mockMaterial));
-
-            delayedActions.EnqueueGraphic(def, () => { });
-
-            var loadedDefs = new List<ThingDef>();
-            var coroutine = DeferredLoader.LoadDeferredGraphicsCoroutine(delayedActions, loadedDefs);
-
-            Assert.DoesNotThrow(() =>
-            {
-                while (coroutine.MoveNext()) { }
-            });
-
-            Assert.That(def.uiIcon, Is.SameAs(mockBadTex));
-            Assert.That(loadedDefs, Contains.Item(def));
-            Assert.That(delayedActions.GraphicsToLoadCount, Is.EqualTo(0));
+            // 原版圖示回呼（ResolveIcon）還會設定 uiIconColor、uiIconMaterial、uiIconAngle；
+            // 圖形步驟若先自行填上 uiIcon，圖示步驟會以為已經補上而整個略過。
+            Assert.That(iconActionExecuted, Is.True);
         }
 
         [Test]

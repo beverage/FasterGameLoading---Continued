@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using RimWorld;
-using UnityEngine;
 using Verse;
 using Verse.Sound;
 
@@ -52,7 +51,8 @@ namespace FasterGameLoading
         }
 
         /// <summary>
-        /// 執行單一 ThingDef 的延遲圖形載入動作，並在成功後重新解析其 UI 圖示。
+        /// 執行單一 ThingDef 的延遲圖形載入動作。
+        /// UI 圖示交給延遲圖示佇列裡的原版回呼（ResolveIcon 另外會設定顏色、UI 材質與角度），這裡不自行填入。
         /// 個別 def 的例外只記錄不外傳，避免中斷整個延遲載入協程。
         /// </summary>
         private static void LoadOneGraphic(ThingDef def, Action action, ICollection<ThingDef> loadedDefs)
@@ -63,31 +63,6 @@ namespace FasterGameLoading
                 action();
                 loadedDefs.Add(def);
                 graphicActionSucceeded = true;
-
-                // 圖形剛載入完成，重新解析 UI 圖示。
-                // BuildableDef.PostLoad 的圖示回呼在 ExecuteWhenFinished 階段以正常時機執行，
-                // 但那時圖形尚未載入，導致 uiIcon 被設為 BadTex。
-                // 現在圖形已載入，重新解析圖示即可得到正確的紋理。
-                if (def.uiIcon == BaseContent.BadTex)
-                {
-                    if (!def.uiIconPath.NullOrEmpty())
-                    {
-                        // 有明確的圖示路徑，直接載入
-                        def.uiIcon = ContentFinder<Texture2D>.Get(def.uiIconPath, reportFailure: true);
-                    }
-                    else if (def.graphicData?.Graphic != null)
-                    {
-                        // 從已初始化的圖形取得 UI 圖示。
-                        // 必須使用 Graphic.MatSingle.mainTexture，這是 RimWorld 原始
-                        // BuildableDef.PostLoad 中用來設定 uiIcon 的邏輯。
-                        var mat = def.graphicData.Graphic.MatSingle;
-                        if (mat != null && mat.mainTexture is Texture2D tex
-                            && tex != null && tex != BaseContent.BadTex)
-                        {
-                            def.uiIcon = tex;
-                        }
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -188,8 +163,7 @@ namespace FasterGameLoading
 
         /// <summary>
         /// 在時間預算內批次解析延遲的 SubSoundDef。
-        /// 此協程僅負責消耗佇列；取消 SoundStarter 攔截的職責由
-        /// World_FinalizeInit_Patch.Postfix 在確認佇列清空後統一執行。
+        /// 佇列清空後取消 SoundStarter 攔截，讓主選單與遊戲內音效恢復原版流程。
         /// </summary>
         /// <param name="delayedActions">延遲動作管理器實例。</param>
         public static IEnumerator ResolveSubSoundDefsCoroutine(DelayedActions delayedActions)

@@ -42,26 +42,24 @@ namespace FasterGameLoading
         }
 
         /// <summary>
-        /// 根據 ShouldBeLoadedImmediately 判斷立即載入或排入延遲佇列。
+        /// 仍在原本的時機以 ExecuteWhenFinished 排程，等回呼執行時才以 ShouldBeLoadedImmediately
+        /// 決定立即載入或排入延遲佇列：PostLoad 當下 Def 參照（designationCategory、thingCategories、
+        /// orderedTakeGroup）尚未解析，這時判斷會讓家具等分類條件永遠不成立。
         /// </summary>
         public static void ExecuteDelayed(Action action, ThingDef def)
         {
-            if (def.ShouldBeLoadedImmediately())
+            LongEventHandler.ExecuteWhenFinished(() => LoadNowOrDefer(action, def));
+        }
+
+        private static void LoadNowOrDefer(Action action, ThingDef def)
+        {
+            var delayedActions = FasterGameLoadingMod.delayedActions;
+            if (delayedActions == null || def.ShouldBeLoadedImmediately())
             {
-                LongEventHandler.ExecuteWhenFinished(action);
+                action();
+                return;
             }
-            else
-            {
-                var delayedActions = FasterGameLoadingMod.delayedActions;
-                if (delayedActions != null)
-                {
-                    delayedActions.EnqueueGraphic(def, action);
-                }
-                else
-                {
-                    LongEventHandler.ExecuteWhenFinished(action);
-                }
-            }
+            delayedActions.EnqueueGraphic(def, action);
         }
     }
 }

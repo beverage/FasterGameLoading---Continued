@@ -95,10 +95,13 @@ namespace FasterGameLoading
         }
 
 
-        /// <summary>本次 session 中所有已載入的紋理路徑映射。</summary>
-public static ConcurrentDictionary<string, string> loadedTexturesThisSession { get; } = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
         /// <summary>已非同步預載入至記憶體的降質快取紋理位元組數據。</summary>
         public static ConcurrentDictionary<string, byte[]> preloadedCacheBytes { get; } = new ConcurrentDictionary<string, byte[]>(StringComparer.Ordinal);
+        /// <summary>主執行緒已取用過的快取檔；預讀端看到就跳過，避免同一檔案讀兩次且預讀結果無人取用。</summary>
+        private static readonly ConcurrentDictionary<string, byte> _servedCachePaths = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
+        /// <summary>啟動完成後設為 true，讓仍在執行的預讀迴圈提早結束。</summary>
+        private static volatile bool _preloadStopped;
+        private static Task _preloadTask = Task.CompletedTask;
         /// <summary>以 WeakReference 快取已載入的 Texture2D，鍵為完整檔案路徑。</summary>
         public static ConcurrentDictionary<string, System.WeakReference<Texture2D>> savedTextures { get; } = new ConcurrentDictionary<string, System.WeakReference<Texture2D>>(StringComparer.Ordinal);
         /// <summary>
@@ -138,14 +141,13 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                 // ConditionalWeakTable 沒有 Clear API，且其條目隨鍵被 GC 自動消失；
                 // 語言切換時舊 Texture2D 通常仍活著，殘留條目只會在後續被新條目覆寫或隨 GC 移除，
                 // 不影響正確性。故此處不另作清理。
-                loadedTexturesThisSession.Clear();
                 skippedBakingTextures.Clear();
                 preloadedCacheBytes.Clear();
             });
 
             Startup.RegisterOnStartupCompleted(static () =>
             {
-                SessionCache.loadedTexturesSinceLastSession = new System.Collections.Generic.Dictionary<string, string>(loadedTexturesThisSession, StringComparer.Ordinal);
+                ReleasePreloadedCacheBytes();
                 if (cacheLoadHits > 0
                     || cacheLoadFailures > 0
                     || FasterGameLoadingMod.Instance.CacheManager.CacheCount > 0)
@@ -161,6 +163,10 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
         public static void StartPreloadCachedTextures()
         {
             preloadedCacheBytes.Clear();
+            _servedCachePaths.Clear();
+            _preloadStopped = false;
+            // 這兩個 mod 啟用時 Prefix 一律交給原始流程，預讀的位元組永遠不會被取用。
+            if (ImageOptCompat.IsActive || GraphicsSettingsCompat.IsActive) return;
             var cacheManager = FasterGameLoadingMod.Instance?.CacheManager;
             if (cacheManager == null) return;
 
@@ -169,7 +175,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
 
             if (cacheCopy.Count is 0) return;
 
-            Task.Run(() =>
+            _preloadTask = Task.Run(() =>
             {
                 try
                 {
@@ -177,13 +183,18 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                     Thread.Sleep(FGLConsts.TexturePreloadDelayMs);
                     foreach (var cachePath in cacheCopy.Values)
                     {
-                        if (string.IsNullOrEmpty(cachePath)) continue;
+                        if (_preloadStopped) break;
+                        if (string.IsNullOrEmpty(cachePath) || _servedCachePaths.ContainsKey(cachePath)) continue;
                         try
                         {
                             if (File.Exists(cachePath))
                             {
                                 var bytes = File.ReadAllBytes(cachePath);
-                                preloadedCacheBytes[cachePath] = bytes;
+                                // 讀檔期間主執行緒可能已自行讀取同一檔案，那份就不必保留。
+                                if (!_servedCachePaths.ContainsKey(cachePath))
+                                {
+                                    preloadedCacheBytes[cachePath] = bytes;
+                                }
                             }
                         }
                         catch
@@ -197,6 +208,31 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                     FGLLog.Warning("Error preloading cached textures:", ex);
                 }
             });
+        }
+
+        /// <summary>
+        /// 取出快取檔內容：優先使用背景預讀的位元組，否則直接讀檔。
+        /// 先標記為已取用，讓尚未讀到這個檔案的預讀端跳過它。
+        /// </summary>
+        internal static byte[] TakeCachedTextureBytes(string cachePath)
+        {
+            _servedCachePaths.TryAdd(cachePath, 0);
+            return preloadedCacheBytes.TryRemove(cachePath, out var data) ? data : File.ReadAllBytes(cachePath);
+        }
+
+        /// <summary>
+        /// 啟動完成時呼叫：停止預讀並釋放所有未被取用的位元組（對應貼圖已經載入，或這個 session 不會載入）。
+        /// 預讀迴圈可能仍在執行，所以等它結束後再清一次，確保之後寫入的也不會殘留。
+        /// </summary>
+        internal static void ReleasePreloadedCacheBytes()
+        {
+            _preloadStopped = true;
+            preloadedCacheBytes.Clear();
+            _preloadTask.ContinueWith(static _ =>
+            {
+                preloadedCacheBytes.Clear();
+                _servedCachePaths.Clear();
+            }, TaskScheduler.Default);
         }
 
         public static void RegisterSkippedBakingTextureIfApplicable(string path, Texture2D tex)
@@ -283,7 +319,6 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
 
             // 沒有快取命中，讓原始方法載入紋理
             __state = true;
-            RecordTextureForSession(fullPath);
             return true;
         }
 
@@ -350,10 +385,8 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
 
             try
             {
-                if (!preloadedCacheBytes.TryRemove(cachePath, out byte[] data))
-                {
-                    data = File.ReadAllBytes(cachePath);
-                }
+                var data = TakeCachedTextureBytes(cachePath);
+                // 延續既有行為：/UI/ 圖示不產生 mipmap，避免縮小顯示時變模糊。
                 bool useMipmaps = fullPath.NormalizePath().IndexOf(FGLConsts.UIDirSlash, StringComparison.Ordinal) < 0;
                 var tex = new Texture2D(FGLConsts.PlaceholderTextureSize, FGLConsts.PlaceholderTextureSize, TextureFormat.Alpha8, useMipmaps);
                 var textureAccepted = false;
@@ -419,7 +452,7 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
 
                 texture.filterMode = FilterMode.Trilinear;
                 texture.anisoLevel = 2;
-                bool blockAligned = texture.width % 4 == 0 && texture.height % 4 == 0;
+                bool blockAligned = texture.width % 4 is 0 && texture.height % 4 is 0;
                 if (Prefs.TextureCompression && blockAligned)
                 {
                     if (!UnityData.ComputeShadersSupported)
@@ -444,20 +477,6 @@ public static ConcurrentDictionary<string, string> loadedTexturesThisSession { g
                     UnityEngine.Object.DestroyImmediate(texture);
                 }
                 throw;
-            }
-        }
-
-        /// <summary>把此紋理的 Textures/ 相對路徑記入本 session 的載入清單，供跨 session 快取使用。</summary>
-        private static void RecordTextureForSession(string fullPath)
-        {
-            var searchPath = fullPath.Replace('\\', '/');
-            // 必須用 Ordinal：IndexOf(string) 預設為文化相關比對，某些語系會忽略特定字元
-            // 而回傳錯誤的位移，導致後續路徑切片取到錯誤片段。
-            var index = searchPath.IndexOf(FGLConsts.TexturesDirSlash, StringComparison.Ordinal);
-            if (index >= 0)
-            {
-                var path = fullPath.Substring(index);
-                loadedTexturesThisSession[path] = fullPath;
             }
         }
 

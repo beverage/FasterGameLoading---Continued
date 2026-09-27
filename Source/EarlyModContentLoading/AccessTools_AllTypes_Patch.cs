@@ -34,7 +34,7 @@ namespace FasterGameLoading
 
             if (!FasterGameLoadingSettings.EnableMultiThreading)
             {
-                PreloadOnMainThread(assembliesSnapshot, snapshotCount);
+                EnumerateTypesOnMainThread(assembliesSnapshot, snapshotCount);
                 return;
             }
 
@@ -49,17 +49,14 @@ namespace FasterGameLoading
             // InternalGetType 的 Access Violation）。本檔案下方 WarmupTypeCache 的註解亦記載過
             // 型別名稱處理曾引發 MakeGenericType 崩潰，名稱解析確為此處最脆弱的環節。
             //
-            // 因此：FullName 預熱改排程到主執行緒（載入長事件結束時）執行，與其他主緒型別
-            // 解析自然序列化、互不並行。
+            // FullName 預熱由 GenTypes_GetTypeInAnyAssemblyInt_Patch.WarmupFullNames 在 Mod 建構子（載入事件緒）完成。
             EnumerateTypesInBackground(assembliesSnapshot, snapshotCount);
-            ScheduleMainThreadWarmup();
         }
 
         /// <summary>
-        /// 關閉多執行緒時的同步路徑：在當前（主）執行緒列舉型別並直接預熱 FullName 快取，
-        /// 避免後續在其他執行緒上觸發型別初始化。
+        /// 關閉多執行緒時，在當前執行緒列舉型別；FullName 由 Mod 建構子另行預熱。
         /// </summary>
-        private static void PreloadOnMainThread(Assembly[] assembliesSnapshot, int snapshotCount)
+        private static void EnumerateTypesOnMainThread(Assembly[] assembliesSnapshot, int snapshotCount)
         {
             var types = BuildTypeList(assembliesSnapshot);
             lock (typesLock)
@@ -67,8 +64,6 @@ namespace FasterGameLoading
                 allTypesCached = types;
                 cachedAssembliesCount = snapshotCount;
             }
-            // 本就在主緒，無競爭風險，可直接預熱
-            WarmupTypeCache(types);
         }
 
         /// <summary>背景緒僅做型別「列舉」，不讀取 FullName（原因見 Preload 的說明）。</summary>
@@ -98,26 +93,8 @@ namespace FasterGameLoading
         }
 
         /// <summary>
-        /// 在主執行緒排程 FullName 預熱（Preload 由 Mod 建構子在主緒呼叫，
-        /// ExecuteWhenFinished 的 Add 與其回呼皆在主緒，安全）。
-        /// 回呼觸發時背景列舉通常已完成；若尚未完成（allTypesCached 仍為 null）則略過預熱，
-        /// 之後由主緒在首次需要時自然補上，不影響正確性。
-        /// </summary>
-        private static void ScheduleMainThreadWarmup()
-        {
-            LongEventHandler.ExecuteWhenFinished(() =>
-            {
-                var cached = allTypesCached;
-                if (cached != null)
-                {
-                    WarmupTypeCache(cached);
-                }
-            });
-        }
-
-        /// <summary>
         /// 對快照中的每個組件呼叫 <see cref="AccessTools.GetTypesFromAssembly"/> 並彙整為單一清單。
-        /// 僅做型別「列舉」，不讀取 type.FullName（名稱解析請交由 <see cref="WarmupTypeCache"/> 在主緒進行）。
+        /// 僅做型別「列舉」，不讀取 type.FullName（名稱解析交由 GenTypes 的預熱流程）。
         /// </summary>
         private static List<Type> BuildTypeList(System.Reflection.Assembly[] assemblies)
         {
@@ -167,46 +144,8 @@ namespace FasterGameLoading
                 }
                 allTypesCached = BuildTypeList(assemblies);
                 cachedAssembliesCount = currentCount;
-                // FullName 預熱僅在主緒進行（與 Preload 路徑一致）：背景緒解析型別名稱可能與
-                // 主緒型別解析並行而觸發 Mono 原生崩潰（詳見上方 Preload 的長註解）。
-                // 若此處在背景緒命中 cache-miss，略過預熱即可，之後由主緒首次需要時自然補上，不影響正確性。
-                if (UnityData.IsInMainThread)
-                {
-                    WarmupTypeCache(allTypesCached);
-                }
                 __result = allTypesCached;
                 return false;
-            }
-        }
-
-        /// <summary>
-        /// 預先填充 GenTypes.GetTypeInAnyAssemblyInt 的快取，消除主執行緒首次反射查詢的開銷。
-        /// </summary>
-        /// <remarks>
-        /// 注意：此處僅能預熱 FullName（全名）。
-        /// 過去在此處亦將 type.Name（短名稱）寫入快取，但由於不同 Mod 間極易存在同名但不同命名空間的類別，
-        /// 預熱時不分順序直接寫入 type.Name 會導致「型態短名稱污染」，使 YetAnotherOptimizer 或核心在載入/反射欄位時拿到錯誤的 Type。
-        /// 這會進一步在翻譯注入（InjectIntoDefs）時，因欄位反射型別錯誤，於 MakeGenericType 拋出 Invalid generic arguments 崩潰。
-        /// 對於短名稱的快取，應交由執行期解析成功後再於 Postfix 中動態寫入。
-        /// </remarks>
-        private static void WarmupTypeCache(List<Type> types)
-        {
-            if (types == null) return;
-            foreach (var type in types)
-            {
-                if (type == null) continue;
-                try
-                {
-                    var fullName = type.FullName;
-                    if (!string.IsNullOrEmpty(fullName))
-                    {
-                        GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.TryAdd(fullName, type);
-                    }
-                }
-                catch
-                {
-                    // 忽略個別型別反射處理錯誤
-                }
             }
         }
     }

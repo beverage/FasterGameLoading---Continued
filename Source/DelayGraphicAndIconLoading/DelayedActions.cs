@@ -187,16 +187,6 @@ namespace FasterGameLoading
             earlyModContentLoader.Update(this);
         }
 
-        /// <summary>
-        /// 重置提早載入狀態（語言切換時由 CacheResetter 觸發）。
-        /// </summary>
-        public void ResetEarlyLoading()
-        {
-            earlyModContentLoader.Reset();
-            AllDeferredVisualsLoaded = false;
-            AdaptiveStaticAtlasBakeFailed = false;
-        }
-
         // ════════════════════════════════════════════════════════════════
         //  遊戲進入後的延遲動作主協程
         // ════════════════════════════════════════════════════════════════
@@ -214,6 +204,8 @@ namespace FasterGameLoading
                 if (runDeferredVisualPipeline)
                 {
                     yield return DeferredLoader.LoadDeferredGraphicsCoroutine(this, loadedDefs);
+                    // 圖示只需要剛載入的圖形、與圖集無關；排在烘焙之前，玩家不必等整批圖集烘焙完才看到正確圖示。
+                    yield return DeferredLoader.LoadDeferredIconsCoroutine(this);
                     yield return BakeDeferredAtlasesCoroutine();
                 }
                 else
@@ -224,7 +216,6 @@ namespace FasterGameLoading
                 if (runDeferredVisualPipeline)
                 {
                     DeferredLoader.UpdateMapMeshForLoadedDefs(loadedDefs);
-                    yield return DeferredLoader.LoadDeferredIconsCoroutine(this);
                 }
                 yield return DeferredLoader.ResolveSubSoundDefsCoroutine(this);
             }

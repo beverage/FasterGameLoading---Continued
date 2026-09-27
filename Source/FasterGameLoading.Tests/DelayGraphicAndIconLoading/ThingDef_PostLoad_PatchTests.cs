@@ -117,7 +117,7 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         }
 
         [Test]
-        public void ExecuteDelayed_WhenShouldBeLoadedImmediately_DispatchesToLongEventHandler()
+        public void ExecuteDelayed_WhenShouldBeLoadedImmediately_RunsActionInExecuteWhenFinished()
         {
             var def = CreateMockThingDef("ImmediateDef");
             def.uiIconPath = "Things/Item/TestIcon"; // causes ShouldBeLoadedImmediately to return true
@@ -127,11 +127,12 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
 
             ThingDef_PostLoad_Patch.ExecuteDelayed(act, def);
 
-            Assert.That(capturedExecuteWhenFinishedAction, Is.SameAs(act));
-            Assert.That(delayedActions.GraphicsToLoadCount, Is.EqualTo(0));
+            Assert.That(capturedExecuteWhenFinishedAction, Is.Not.Null);
+            Assert.That(actionExecuted, Is.False, "PostLoad 當下只排程，不直接執行圖形初始化。");
 
             capturedExecuteWhenFinishedAction();
             Assert.That(actionExecuted, Is.True);
+            Assert.That(delayedActions.GraphicsToLoadCount, Is.EqualTo(0));
         }
 
         [Test]
@@ -144,8 +145,9 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             Action act = () => actionExecuted = true;
 
             ThingDef_PostLoad_Patch.ExecuteDelayed(act, def);
+            capturedExecuteWhenFinishedAction();
 
-            Assert.That(capturedExecuteWhenFinishedAction, Is.Null);
+            Assert.That(actionExecuted, Is.False);
             Assert.That(delayedActions.GraphicsToLoadCount, Is.EqualTo(1));
 
             Assert.That(delayedActions.TryDequeueGraphic(out var outDef, out var outAct), Is.True);
@@ -155,7 +157,25 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
         }
 
         [Test]
-        public void ExecuteDelayed_WhenDelayedActionsIsNull_FallsBackToLongEventHandler()
+        public void ExecuteDelayed_DecidesOnlyAfterCrossReferencesAreResolved()
+        {
+            // PostLoad 當下交叉參照尚未解析，designationCategory 仍是 null。
+            var def = CreateMockThingDef("Bed");
+            bool actionExecuted = false;
+
+            ThingDef_PostLoad_Patch.ExecuteDelayed(() => actionExecuted = true, def);
+            Assert.That(delayedActions.GraphicsToLoadCount, Is.EqualTo(0), "不得在 PostLoad 當下就決定延遲。");
+
+            // ResolveAllWantedCrossReferences 之後才輪到 ExecuteWhenFinished 回呼。
+            def.designationCategory = (DesignationCategoryDef)FormatterServices.GetUninitializedObject(typeof(DesignationCategoryDef));
+            capturedExecuteWhenFinishedAction();
+
+            Assert.That(actionExecuted, Is.True, "有 designationCategory 的建築（例如床）必須立即載入圖形。");
+            Assert.That(delayedActions.GraphicsToLoadCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void ExecuteDelayed_WhenDelayedActionsIsNull_RunsActionInExecuteWhenFinished()
         {
             var prop = typeof(FasterGameLoadingMod).GetProperty(nameof(FasterGameLoadingMod.delayedActions), BindingFlags.Public | BindingFlags.Static);
             prop?.SetValue(null, value: null, index: null);
@@ -163,10 +183,11 @@ namespace FasterGameLoading.Tests.DelayGraphicAndIconLoading
             var def = CreateMockThingDef("DelayedDef");
             def.uiIconPath = null;
 
-            Action act = () => { };
-            ThingDef_PostLoad_Patch.ExecuteDelayed(act, def);
+            bool actionExecuted = false;
+            ThingDef_PostLoad_Patch.ExecuteDelayed(() => actionExecuted = true, def);
+            capturedExecuteWhenFinishedAction();
 
-            Assert.That(capturedExecuteWhenFinishedAction, Is.SameAs(act));
+            Assert.That(actionExecuted, Is.True);
         }
     }
 }

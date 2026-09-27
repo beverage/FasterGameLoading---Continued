@@ -50,4 +50,14 @@ namespace FasterGameLoading
             return false;
         }
     }
+
+    /// <summary>原版型別快取清除後，同步使葉子子類別快取失效。</summary>
+    [HarmonyPatch(typeof(GenTypes), nameof(GenTypes.ClearCache))]
+    public static class GenTypes_ClearCache_Patch
+    {
+        public static void Postfix()
+        {
+            GenTypes_AllLeafSubclasses_Patch.ClearCache();
+        }
+    }
 }

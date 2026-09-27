@@ -64,6 +64,8 @@ namespace FasterGameLoading.Tests.TextureDownscaler
             var result = PngUtils.TryGetImageDimensions(path, ref width, ref height);
 
             Assert.That(result, Is.False);
+            Assert.That(width, Is.EqualTo(7));
+            Assert.That(height, Is.EqualTo(9));
         }
 
         [Test]

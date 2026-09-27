@@ -37,22 +37,19 @@ graph TD
 
 Enabled by default:
 
-- **Load mod content early**: Processes pending mod content and type reflection during idle loading gaps before RimWorld's normal `ReloadContentInt` pass reaches those mods.
+- **Load mod content early**: Processes pending mod content during idle loading gaps before RimWorld's normal `ReloadContentInt` pass reaches those mods. It stops once `PlayDataLoader.Loaded` is true and does not restart on language changes. Texture byte preloading is skipped when Graphics Settings+ or Image Opt is active; bytes already read on the main thread are not prefetched again.
 - **Multi-threaded preloading**: Loads XML assets in parallel while preserving RimWorld's original load-folder override order.
-
-Always on:
-
-- **Type lookup cache**: Remembers how RimWorld resolved short type names in the previous session. The cache is discarded when the mod list or any game/mod assembly changes, and a stale entry falls back to RimWorld's original lookup. Harmony `AccessTools.TypeByName` keeps its own per-session cache so the two lookup rules never mix.
+- **Type lookup cache**: Warms full type names before XML parsing and remembers resolved names across sessions. It follows RimWorld's assembly search order, refreshes when the mod list or any game/mod assembly changes, and falls back to RimWorld's lookup for stale entries. Harmony `AccessTools.TypeByName` keeps a separate per-session cache. Changes take effect after restarting the game.
 
 Disabled by default:
 
-- **Delay graphic and icon loading**: Moves some non-essential visual and icon work to batched processing after entering the game.
+- **Delay graphic and icon loading**: Moves some non-essential visual and icon work to batched processing after entering the game. Essential categories such as furniture are chosen after Def references resolve. RimWorld's `ResolveIcon` handles icons before deferred atlas baking.
 - **Adaptive atlas baking**: Only takes effect together with **Delay graphic and icon loading**. The deferred static atlases are baked one atlas per frame, sized from the measured GPU speed but never smaller than 1024×1024 pixels, so rendering still benefits from batching. Without delayed loading, RimWorld's original baking is used. Known risky race/multi-mask textures are kept out of static atlases.
 - **Verbose logging**: Prints debugging messages.
 
 Manual tool:
 
-- **Downscale textures**: Downscales high-resolution textures into a separate cache (in successive halving steps to avoid aliasing). Original mod files are never modified, and cached textures are loaded with the same filtering and compression pipeline RimWorld uses. If you already use Graphics Settings+ or RimSort Optimize Texture, you usually do not need this.
+- **Downscale textures**: Shows a loading screen while it downscales high-resolution textures into a separate cache (in successive halving steps to avoid aliasing). Original mod files are never modified, and cached textures use RimWorld's filtering and compression pipeline. Textures under `/UI/` keep mipmaps disabled. When the mod list changes, cache entries for still-active mods are retained. If you already use Graphics Settings+ or RimSort Optimize Texture, you usually do not need this.
 - **Clear texture cache**: Removes cached downscaled textures so original textures are used on the next startup.
 
 > [!NOTE]
@@ -85,7 +82,7 @@ Most players should start with the defaults.
 
 If loading is still slow:
 
-1. Keep **Load mod content early** and **Multi-threaded preloading** enabled.
+1. Keep **Load mod content early**, **Multi-threaded preloading**, and **Type lookup cache** enabled.
 2. For large texture-heavy mod lists, prefer Graphics Settings+ or RimSort Optimize Texture. Image Opt compatibility is no longer maintained.
 3. If you do not use an external texture tool, consider FGL's **Downscale textures** tool.
 4. Enable **Delay graphic and icon loading** or **Adaptive atlas baking** only if you are willing to troubleshoot compatibility issues.

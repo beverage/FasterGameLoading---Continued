@@ -72,7 +72,6 @@ namespace FasterGameLoading.Tests.Settings
 
         private static void ResetSessionCache()
         {
-            SessionCache.loadedTexturesSinceLastSession = new Dictionary<string, string>(StringComparer.Ordinal);
             SessionCache.loadedTypesByFullNameSinceLastSession = new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
             SessionCache.modsInLastSession = new List<string>();
             SessionCache.historicalBakeSpeeds = new List<float>();
@@ -95,14 +94,11 @@ namespace FasterGameLoading.Tests.Settings
             mockActiveMods.Add(CreateMockModMetaData("fgl.mod"));
 
             SessionCache.modsInLastSession = new List<string> { "ludeon.rimworld", "fgl.mod" };
-            SessionCache.loadedTexturesSinceLastSession["texA"] = "pathA";
             SessionCache.loadedTypesByFullNameSinceLastSession["typeA"] = "assemblyA";
 
             Scribe.mode = LoadSaveMode.PostLoadInit;
             SessionCache.ExposeData();
 
-            Assert.That(SessionCache.loadedTexturesSinceLastSession, Has.Count.EqualTo(1));
-            Assert.That(SessionCache.loadedTexturesSinceLastSession["texA"], Is.EqualTo("pathA"));
             Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession, Has.Count.EqualTo(1));
             Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession["typeA"], Is.EqualTo("assemblyA"));
         }
@@ -114,13 +110,11 @@ namespace FasterGameLoading.Tests.Settings
             mockActiveMods.Add(CreateMockModMetaData("fgl.mod.v2"));
 
             SessionCache.modsInLastSession = new List<string> { "ludeon.rimworld", "fgl.mod.v1" };
-            SessionCache.loadedTexturesSinceLastSession["texA"] = "pathA";
             SessionCache.loadedTypesByFullNameSinceLastSession["typeA"] = "assemblyA";
 
             Scribe.mode = LoadSaveMode.PostLoadInit;
             SessionCache.ExposeData();
 
-            Assert.That(SessionCache.loadedTexturesSinceLastSession, Is.Empty);
             Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession, Is.Empty);
         }
 
@@ -131,12 +125,12 @@ namespace FasterGameLoading.Tests.Settings
             mockActiveMods.Add(CreateMockModMetaData("fgl.mod"));
 
             SessionCache.modsInLastSession = new List<string> { "ludeon.rimworld" };
-            SessionCache.loadedTexturesSinceLastSession["texA"] = "pathA";
+            SessionCache.loadedTypesByFullNameSinceLastSession["typeA"] = "assemblyA";
 
             Scribe.mode = LoadSaveMode.PostLoadInit;
             SessionCache.ExposeData();
 
-            Assert.That(SessionCache.loadedTexturesSinceLastSession, Is.Empty);
+            Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession, Is.Empty);
         }
 
         // ── 真實存讀檔循環 ──
@@ -204,7 +198,6 @@ namespace FasterGameLoading.Tests.Settings
         {
             mockActiveMods.Add(CreateMockModMetaData("ludeon.rimworld"));
             SessionCache.modsInLastSession = new List<string> { "ludeon.rimworld" };
-            SessionCache.loadedTexturesSinceLastSession["texA"] = "pathA";
             SessionCache.loadedTypesByFullNameSinceLastSession["typeA"] = "Old.Namespace.TypeA";
             SessionCache.typeCacheAssemblyFingerprint = "fingerprint-of-an-older-build";
 
@@ -212,8 +205,8 @@ namespace FasterGameLoading.Tests.Settings
             SessionCache.ExposeData();
 
             Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession, Is.Empty);
-            Assert.That(SessionCache.loadedTexturesSinceLastSession, Has.Count.EqualTo(1),
-                "組件更新不影響貼圖路徑，不應連帶清掉貼圖快取。");
+            Assert.That(SessionCache.modsInLastSession, Is.EqualTo(new[] { "ludeon.rimworld" }),
+                "組件更新只影響型別對照，不應連帶改動 mod 清單記錄。");
         }
 
         [Test]
@@ -249,47 +242,62 @@ namespace FasterGameLoading.Tests.Settings
         {
             mockActiveMods.Add(CreateMockModMetaData("ludeon.rimworld"));
             SessionCache.modsInLastSession = null;
-            SessionCache.loadedTexturesSinceLastSession = null;
             SessionCache.loadedTypesByFullNameSinceLastSession = null;
             SessionCache.historicalBakeSpeeds = null;
 
             InvokeRestoreAfterLoad();
 
-            Assert.That(SessionCache.loadedTexturesSinceLastSession, Is.Not.Null.And.Empty);
             Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession, Is.Not.Null.And.Empty);
             Assert.That(SessionCache.modsInLastSession, Is.Not.Null.And.Empty);
             Assert.That(SessionCache.historicalBakeSpeeds, Is.Not.Null.And.Empty);
         }
 
         [Test]
-        public void RestoreAfterLoad_ClearsTextureCacheDirectoryWhenModSetChanged()
+        public void RestoreAfterLoad_WhenModSetChanged_KeepsDownscaleCacheOfRunningMods()
         {
             string tempDir = Path.Combine(Path.GetTempPath(), "FGLSessionCache_" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(tempDir);
-            var cacheManager = new TextureCacheManager(tempDir);
-            cacheManager.SetCacheEntry(Path.Combine(tempDir, "a.png"), Path.Combine(tempDir, "a_cache.png"));
+            string cacheDir = Path.Combine(tempDir, "TextureCache");
+            Directory.CreateDirectory(cacheDir);
+            var cacheManager = new TextureCacheManager(cacheDir);
+            string runningModTexture = Path.Combine(tempDir, "RunningMod", "Textures", "a.png");
+            string removedModTexture = Path.Combine(tempDir, "RemovedMod", "Textures", "b.png");
+            cacheManager.SetCacheEntry(runningModTexture, Path.Combine(cacheDir, "a_cache.png"));
+            cacheManager.SetCacheEntry(removedModTexture, Path.Combine(cacheDir, "b_cache.png"));
 
+            var runningModsField = AccessTools.Field(typeof(LoadedModManager), "runningMods");
+            var originalRunningMods = runningModsField.GetValue(null);
             var originalInstance = FasterGameLoadingMod.Instance;
             SetModInstance(CreateModWithCacheManager(cacheManager));
             try
             {
+                runningModsField.SetValue(null, new List<ModContentPack> { CreateModContentPack(Path.Combine(tempDir, "RunningMod")) });
                 mockActiveMods.Add(CreateMockModMetaData("newly.added.mod"));
                 SessionCache.modsInLastSession = new List<string>();
 
                 InvokeRestoreAfterLoad();
 
-                Assert.That(cacheManager.CacheCount, Is.Zero,
-                    "Mod 組合變更時降質快取必然過期，磁碟快取與對照表都要清掉。");
-                Assert.That(Directory.Exists(tempDir), Is.False);
+                // 快取以「原始路徑＋大小＋修改時間」自我驗證，清單變動不代表快取過期；
+                // 只有原始檔已不屬於任何執行中 mod 的項目才移除。
+                Assert.That(Directory.Exists(cacheDir), Is.True, "mod 清單變動不得刪除整個降質快取目錄。");
+                Assert.That(cacheManager.ResizedTextureCache.ContainsKey(runningModTexture), Is.True);
+                Assert.That(cacheManager.ResizedTextureCache.ContainsKey(removedModTexture), Is.False);
             }
             finally
             {
+                runningModsField.SetValue(null, originalRunningMods);
                 SetModInstance(originalInstance);
                 if (Directory.Exists(tempDir))
                 {
                     Directory.Delete(tempDir, recursive: true);
                 }
             }
+        }
+
+        private static ModContentPack CreateModContentPack(string rootDir)
+        {
+            var mod = (ModContentPack)FormatterServices.GetUninitializedObject(typeof(ModContentPack));
+            AccessTools.Field(typeof(ModContentPack), "rootDirInt").SetValue(mod, new DirectoryInfo(rootDir));
+            return mod;
         }
 
         private static void InvokeRestoreAfterLoad()

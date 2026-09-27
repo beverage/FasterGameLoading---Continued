@@ -19,11 +19,6 @@ namespace FasterGameLoading
         // ── 跨 session 持久化資料（由 Scribe 存檔） ──
 
         /// <summary>
-        /// 上一次 session 中所有已載入的紋理路徑映射。
-        /// </summary>
-        internal static Dictionary<string, string> loadedTexturesSinceLastSession { get; set; } = new(StringComparer.Ordinal);
-
-        /// <summary>
         /// 上一次 session 中所有已查詢的完整型別名稱映射。
         /// </summary>
         internal static ConcurrentDictionary<string, string> loadedTypesByFullNameSinceLastSession { get; set; } = new(StringComparer.Ordinal);
@@ -43,7 +38,6 @@ namespace FasterGameLoading
         /// 歷次靜態圖集烘焙速度記錄（用於自適應批次調整）。
         /// </summary>
         internal static List<float> historicalBakeSpeeds { get; set; } = new();
-        private static readonly object loadedTexturesLock = new();
 
         /// <summary>
         /// 加權移動平均的權重。
@@ -70,9 +64,6 @@ namespace FasterGameLoading
         /// </summary>
         internal static void ExposeData()
         {
-            var loadedTextures = loadedTexturesSinceLastSession;
-            Scribe_Collections.Look(ref loadedTextures, FGLConsts.LoadedTexturesKey, LookMode.Value, LookMode.Value);
-
             Dictionary<string, string> tempTypes = null;
             if (Scribe.mode is LoadSaveMode.Saving)
             {
@@ -96,7 +87,6 @@ namespace FasterGameLoading
             var bakeSpeeds = historicalBakeSpeeds;
             Scribe_Collections.Look(ref bakeSpeeds, FGLConsts.HistoricalBakeSpeedsKey, LookMode.Value);
 
-            loadedTexturesSinceLastSession = loadedTextures;
             typeCacheAssemblyFingerprint = fingerprint;
             modsInLastSession = mods;
             historicalBakeSpeeds = bakeSpeeds;
@@ -108,23 +98,21 @@ namespace FasterGameLoading
         }
 
         /// <summary>
-        /// PostLoadInit 階段的還原：補齊空集合，並在偵測到 mod 組合或組件變更時清空對應快取。
+        /// PostLoadInit 階段的還原：補齊空集合；mod 組合或組件變更時捨棄型別對照，
+        /// mod 組合變更時另外移除已不屬於執行中 mod 的降質快取項目。
         /// </summary>
         private static void RestoreAfterLoad()
         {
-            loadedTexturesSinceLastSession ??= new Dictionary<string, string>(StringComparer.Ordinal);
             loadedTypesByFullNameSinceLastSession ??= new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
             modsInLastSession ??= new List<string>();
             historicalBakeSpeeds ??= new List<float>();
 
             if (DetectModSetChange())
             {
-                lock (loadedTexturesLock)
-                {
-                    loadedTexturesSinceLastSession.Clear();
-                }
                 loadedTypesByFullNameSinceLastSession.Clear();
-                FasterGameLoadingMod.Instance?.CacheManager?.ClearCache();
+                // 降質快取以「原始路徑＋檔案大小＋修改時間」自我驗證，mod 清單變動不代表快取過期；
+                // 只移除原始檔已不屬於任何執行中 mod 的項目，對應的快取檔交由啟動後的背景清理刪除。
+                FasterGameLoadingMod.Instance?.CacheManager?.RemoveEntriesOutside(RunningModRootDirectories());
             }
             else if (ComputeCurrentAssemblyFingerprint() is not { } currentFingerprint
                 || !string.Equals(typeCacheAssemblyFingerprint, currentFingerprint, StringComparison.Ordinal))
@@ -132,6 +120,18 @@ namespace FasterGameLoading
                 // mod 清單相同但組件內容變了（mod 或遊戲更新）：型別可能已改名或搬移，舊對照不可再用。
                 // 本次指紋算不出來時也一律捨棄，否則兩端都是 null 會被誤判為一致。
                 loadedTypesByFullNameSinceLastSession.Clear();
+            }
+        }
+
+        /// <summary>所有執行中 mod 的根目錄；讀檔時（mod 建構子內）清單已建立完成。</summary>
+        private static IEnumerable<string> RunningModRootDirectories()
+        {
+            foreach (var mod in LoadedModManager.RunningMods)
+            {
+                if (mod != null)
+                {
+                    yield return mod.RootDir;
+                }
             }
         }
 
@@ -176,7 +176,7 @@ namespace FasterGameLoading
 
             using (var md5 = MD5.Create())
             {
-                var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(string.Join("\n", entries)));
+                var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(string.Join('\n', entries)));
                 var sb = new StringBuilder(hash.Length * 2);
                 foreach (var b in hash)
                 {

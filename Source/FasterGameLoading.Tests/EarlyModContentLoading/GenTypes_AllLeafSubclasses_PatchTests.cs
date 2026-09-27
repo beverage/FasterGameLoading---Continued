@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using HarmonyLib;
 using NUnit.Framework;
+using Verse;
 
 namespace FasterGameLoading.Tests.EarlyModContentLoading
 {
@@ -59,6 +61,27 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             GenTypes_AllLeafSubclasses_Patch.ClearCache();
 
             Assert.That(GenTypes_AllLeafSubclasses_Patch.keyValuePairs, Is.Empty);
+        }
+
+        [Test]
+        public void GenTypesClearCache_AlsoRemovesAllLeafEntries()
+        {
+            const string harmonyId = "FasterGameLoading.Tests.GenTypesClearCache";
+            var harmony = new Harmony(harmonyId);
+            try
+            {
+                harmony.CreateClassProcessor(typeof(GenTypes_ClearCache_Patch)).Patch();
+                GenTypes_AllLeafSubclasses_Patch.keyValuePairs[typeof(TestRoot)] =
+                    new HashSet<Type> { typeof(TestLeaf) };
+
+                GenTypes.ClearCache();
+
+                Assert.That(GenTypes_AllLeafSubclasses_Patch.keyValuePairs, Is.Empty);
+            }
+            finally
+            {
+                harmony.UnpatchAll(harmonyId);
+            }
         }
 
         private class TestRoot;

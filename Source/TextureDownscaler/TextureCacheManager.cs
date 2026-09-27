@@ -151,7 +151,7 @@ namespace FasterGameLoading
             }
 
             // 第二步：在鎖外執行磁碟 I/O（存在性檢查 + 時間更新）
-            bool fresh = File.Exists(candidatePath) && IsCacheFresh(originalPath, candidatePath);
+            bool fresh = IsManagedCacheFile(candidatePath) && File.Exists(candidatePath) && IsCacheFresh(originalPath, candidatePath);
 
             if (fresh)
             {
@@ -175,7 +175,7 @@ namespace FasterGameLoading
         }
 
         /// <summary>
-        /// 檢查快取是否比原始檔案更新。若無法讀取檔案時間則視為失效。
+        /// 檢查快取是否仍對應目前原始檔案；若原始檔較新，重新核對包含大小與修改時間的快取鍵。
         /// 此方法在 cacheLock 鎖定範圍外呼叫，可安全執行阻塞式磁碟 I/O。
         /// </summary>
         private bool IsCacheFresh(string originalPath, string cachePath)
@@ -195,8 +195,8 @@ namespace FasterGameLoading
                     return true;
                 }
 
-                // 原始檔案的修改時間比快取新。若快取路徑的檔名雜湊（基於目前檔案長度）與已儲存的快取路徑一致，
-                // 代表檔案長度並未改變（實質內容未變），此時只需將快取檔案的時間更新為原始檔案時間即可。
+                // 原始檔案的修改時間比快取新。只有目前路徑、大小和修改時間算出的鍵仍與快取路徑一致時，
+                // 才能更新快取時間；原始檔的大小或修改時間變更會產生不同鍵，使舊快取失效。
                 var currentExpectedPath = ComputeCachePathDirect(originalPath);
                 if (string.Equals(currentExpectedPath, cachePath, StringComparison.OrdinalIgnoreCase))
                 {
@@ -230,6 +230,46 @@ namespace FasterGameLoading
             lock (cacheLock)
             {
                 resizedTextureCache.Remove(originalPath);
+            }
+        }
+
+        /// <summary>
+        /// 移除原始檔不在任何指定根目錄下的快取項目（例如已不在 mod 清單中的 mod），回傳移除數量。
+        /// 被移除項目的快取檔不再被引用，之後由 <see cref="CleanupObsoleteCacheFiles"/> 刪除。
+        /// 沒有任何根目錄時不做事，避免在執行中的 mod 清單尚未就緒時等同於清空快取。
+        /// </summary>
+        public int RemoveEntriesOutside(IEnumerable<string> rootDirectories)
+        {
+            var roots = new List<string>();
+            foreach (var root in rootDirectories)
+            {
+                if (!string.IsNullOrEmpty(root))
+                {
+                    // 補上結尾斜線，避免 "Mods/A" 被當成 "Mods/AB/x.png" 的上層目錄。
+                    roots.Add(root.NormalizePath().TrimEnd('/') + "/");
+                }
+            }
+            if (roots.Count is 0)
+            {
+                return 0;
+            }
+
+            lock (cacheLock)
+            {
+                var keysToRemove = new List<string>();
+                foreach (var originalPath in resizedTextureCache.Keys)
+                {
+                    var normalizedPath = originalPath.NormalizePath();
+                    if (!roots.Exists(root => normalizedPath.StartsWith(root, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        keysToRemove.Add(originalPath);
+                    }
+                }
+                foreach (var key in keysToRemove)
+                {
+                    resizedTextureCache.Remove(key);
+                }
+                return keysToRemove.Count;
             }
         }
 
@@ -391,6 +431,15 @@ namespace FasterGameLoading
             }
         }
 
+        /// <summary>以讀檔結果取代整份對照表（執行緒安全）；設定檔沒有這份資料時換成空表。</summary>
+        internal void ReplaceCacheMap(Dictionary<string, string> cacheMap)
+        {
+            lock (cacheLock)
+            {
+                resizedTextureCache = cacheMap ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            }
+        }
+
         /// <summary>提供向內部字典新增項目的執行緒安全介面。</summary>
         public void SetCacheEntry(string originalPath, string cachePath)
         {
@@ -461,7 +510,7 @@ namespace FasterGameLoading
         /// 並把仍然有效的快取檔路徑收集到 <paramref name="validCacheFiles"/>。
         /// 原始檔已不存在者，其快取檔會就地刪除。
         /// </summary>
-        private static List<string> TriageCacheEntries(
+        private List<string> TriageCacheEntries(
             List<KeyValuePair<string, string>> cacheEntries,
             HashSet<string> validCacheFiles,
             out int deletedObsoleteFiles)
@@ -471,7 +520,12 @@ namespace FasterGameLoading
 
             foreach (var entry in cacheEntries)
             {
-                if (!SafeFileExists(entry.Key))
+                if (!IsManagedCacheFile(entry.Value))
+                {
+                    // 指向 FGL 資料夾以外的項目不可信任：只從對照表移除，絕不刪檔。
+                    keysToRemove.Add(entry.Key);
+                }
+                else if (!SafeFileExists(entry.Key))
                 {
                     keysToRemove.Add(entry.Key);
                     try
@@ -550,6 +604,31 @@ namespace FasterGameLoading
                 }
             }
             return deleted;
+        }
+
+        /// <summary>
+        /// 快取檔是否位於 FGL 自己的資料夾內（正式快取、降質暫存與備份目錄的上一層）。
+        /// 對照表的值來自設定檔，刪除或改動檔案前必須確認，避免損毀或被手動編輯的設定檔
+        /// 讓清理流程動到其他檔案。
+        /// </summary>
+        private bool IsManagedCacheFile(string path)
+        {
+            try
+            {
+                var root = Path.GetDirectoryName(Path.GetFullPath(CacheDirectory));
+                if (string.IsNullOrEmpty(root))
+                {
+                    return false;
+                }
+                // GetFullPath 會消去 ".."，避免 "TextureCache/../../x" 這類路徑以字首比對混過檢查。
+                var fullPath = Path.GetFullPath(path).NormalizePath();
+                return fullPath.StartsWith(root.NormalizePath().TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                // 路徑格式無效時一律視為不受管理，交由呼叫端當作失效項目。
+                return false;
+            }
         }
 
         /// <summary>

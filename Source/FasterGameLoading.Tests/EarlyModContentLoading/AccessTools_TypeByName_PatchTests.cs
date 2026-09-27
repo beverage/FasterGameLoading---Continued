@@ -23,6 +23,24 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
         }
 
         [Test]
+        public void Prepare_ReflectsTypeLookupCacheSetting()
+        {
+            var previous = FasterGameLoadingSettings.TypeLookupCache;
+            try
+            {
+                FasterGameLoadingSettings.TypeLookupCache = true;
+                Assert.That(AccessTools_TypeByName_Patch.Prepare(), Is.True);
+
+                FasterGameLoadingSettings.TypeLookupCache = false;
+                Assert.That(AccessTools_TypeByName_Patch.Prepare(), Is.False);
+            }
+            finally
+            {
+                FasterGameLoadingSettings.TypeLookupCache = previous;
+            }
+        }
+
+        [Test]
         public void Prefix_WhenNullOrEmptyName_RunsOriginal()
         {
             Type result = null;

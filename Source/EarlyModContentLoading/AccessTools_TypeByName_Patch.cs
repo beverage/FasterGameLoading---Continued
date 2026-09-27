@@ -13,6 +13,8 @@ namespace FasterGameLoading
     [HarmonyPatch(typeof(AccessTools), "TypeByName")]
     public static class AccessTools_TypeByName_Patch
     {
+        public static bool Prepare() => FasterGameLoadingSettings.TypeLookupCache;
+
         internal static ConcurrentDictionary<string, Type> cachedResults { get; } = new ConcurrentDictionary<string, Type>(StringComparer.Ordinal);
 
         static AccessTools_TypeByName_Patch()

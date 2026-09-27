@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using Verse;
@@ -39,6 +37,9 @@ namespace FasterGameLoading
         /// <summary>啟用多執行緒預載入（預設開啟）</summary>
         public static bool EnableMultiThreading { get; set; } = true;
 
+        /// <summary>型別查詢快取（預設開啟）；重新啟動遊戲後生效。</summary>
+        public static bool TypeLookupCache { get; set; } = true;
+
 
         private static Vector2 scrollPosition = Vector2.zero;
         private static float viewHeight = 0f;
@@ -68,6 +69,9 @@ namespace FasterGameLoading
             var enableMultiThreading = EnableMultiThreading;
             ls.CheckboxLabeled("FGL_MultiThreading".Translate(), ref enableMultiThreading);
             EnableMultiThreading = enableMultiThreading;
+            var typeLookupCache = TypeLookupCache;
+            ls.CheckboxLabeled("FGL_TypeLookupCache".Translate(), ref typeLookupCache);
+            TypeLookupCache = typeLookupCache;
             var delayGraphicLoading = DelayGraphicLoading;
             ls.CheckboxLabeled("FGL_DelayGraphicLoading".Translate(), ref delayGraphicLoading);
             DelayGraphicLoading = delayGraphicLoading;
@@ -100,7 +104,11 @@ namespace FasterGameLoading
                 Find.WindowStack.Add(new Dialog_MessageBox("FGL_DownscaleTexturesConfirmation".Translate(), "Confirm".Translate(), delegate
                 {
                     // 防止 Mod 初始化失敗時 Instance 或 Resizer 為 null 導致 NRE
-                    FasterGameLoadingMod.Instance?.Resizer?.DoTextureResizing();
+                    LongEventHandler.QueueLongEvent(
+                        () => FasterGameLoadingMod.Instance?.Resizer?.DoTextureResizing(),
+                        "FGL_DownscalingTextures",
+                        doAsynchronously: false,
+                        exceptionHandler: ex => FGLLog.Error("Texture downscale long event failed:", ex));
                 }, "GoBack".Translate()));
             }
 
@@ -138,6 +146,9 @@ namespace FasterGameLoading
             var enableMultiThreading = EnableMultiThreading;
             Scribe_Values.Look(ref enableMultiThreading, "enableMultiThreading", defaultValue: true);
             EnableMultiThreading = enableMultiThreading;
+            var typeLookupCache = TypeLookupCache;
+            Scribe_Values.Look(ref typeLookupCache, "typeLookupCache", defaultValue: true);
+            TypeLookupCache = typeLookupCache;
             var verboseLogging = VerboseLogging;
             Scribe_Values.Look(ref verboseLogging, "verboseLogging", defaultValue: false);
             VerboseLogging = verboseLogging;
@@ -147,10 +158,14 @@ namespace FasterGameLoading
             var cacheManager = FasterGameLoadingMod.Instance?.CacheManager;
             if (cacheManager != null)
             {
-                Scribe_Collections.Look(ref cacheManager.resizedTextureCache, "resizedTextureCache", LookMode.Value, LookMode.Value);
-                if (cacheManager.resizedTextureCache == null)
+                // 存檔時序列化鎖內取得的快照：啟動收尾的背景清理可能同時從對照表移除項目，
+                // 直接讓 Scribe 列舉正在被修改的字典會拋例外，而 InitSaving 已先截斷設定檔，只會留下半份設定。
+                var resizedTextureCache = Scribe.mode is LoadSaveMode.Saving ? cacheManager.GetResizedTextureCacheCopy() : null;
+                Scribe_Collections.Look(ref resizedTextureCache, "resizedTextureCache", LookMode.Value, LookMode.Value);
+                // 值型別字典只在 LoadingVars 那輪被填入，之後各輪的區域變數都是 null，必須在同一輪寫回。
+                if (Scribe.mode is LoadSaveMode.LoadingVars)
                 {
-                    cacheManager.resizedTextureCache = new Dictionary<string, string>(StringComparer.Ordinal);
+                    cacheManager.ReplaceCacheMap(resizedTextureCache);
                 }
             }
 

@@ -13,6 +13,24 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             SessionCache.loadedTypesByFullNameSinceLastSession.Clear();
         }
 
+        [Test]
+        public void Prepare_ReflectsTypeLookupCacheSetting()
+        {
+            var previous = FasterGameLoadingSettings.TypeLookupCache;
+            try
+            {
+                FasterGameLoadingSettings.TypeLookupCache = true;
+                Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.Prepare(), Is.True);
+
+                FasterGameLoadingSettings.TypeLookupCache = false;
+                Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.Prepare(), Is.False);
+            }
+            finally
+            {
+                FasterGameLoadingSettings.TypeLookupCache = previous;
+            }
+        }
+
         [TearDown]
         public void TearDown()
         {
@@ -48,6 +66,84 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             Assert.That(state.isCached, Is.True);
             Assert.That(state.originalTypeName, Is.EqualTo("TestType"));
             Assert.That(state.cacheKey, Is.EqualTo("TestType"));
+        }
+
+        [Test]
+        public void Prefix_WithNamespaceHint_ServesExactFullNameEntry()
+        {
+            // 模擬 FullName 預熱的結果。XML 的 Class= 屬性都會帶命名空間提示（例如 "Verse"）。
+            GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults["Verse.ThingDef"] = typeof(Verse.ThingDef);
+
+            Type result = null;
+            string typeName = "Verse.ThingDef";
+            bool shouldRunOriginal = GenTypes_GetTypeInAnyAssemblyInt_Patch.Prefix(ref result, out var state, ref typeName, "Verse");
+
+            // 原版第一步就是不看命名空間、以原名查詢；查得到的完整名稱與提示無關，應直接命中。
+            Assert.That(shouldRunOriginal, Is.False);
+            Assert.That(result, Is.EqualTo(typeof(Verse.ThingDef)));
+            Assert.That(state.isCached, Is.True);
+        }
+
+        [Test]
+        public void Prefix_WithNamespaceHint_DoesNotServeEntryResolvedByNamespaceProbing()
+        {
+            // "AI.JobDriver_Wait" 是在命名空間探測後才解析出 Verse.AI.JobDriver_Wait；
+            // 換成別的提示時原版會先試該命名空間，結果可能不同，因此不得沿用。
+            GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults["AI.JobDriver_Wait"] = typeof(Verse.AI.JobDriver_Wait);
+
+            Type result = null;
+            string typeName = "AI.JobDriver_Wait";
+            bool shouldRunOriginal = GenTypes_GetTypeInAnyAssemblyInt_Patch.Prefix(ref result, out _, ref typeName, "RimWorld");
+
+            Assert.That(shouldRunOriginal, Is.True);
+            Assert.That(result, Is.Null);
+        }
+
+        [Test]
+        public void WarmupFullNames_IndexesOnlyGivenAssembliesAndKeepsFirstEntry()
+        {
+            GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults[typeof(CacheResetter).FullName] = typeof(string);
+
+            GenTypes_GetTypeInAnyAssemblyInt_Patch.WarmupFullNames(new[] { typeof(SessionCache).Assembly });
+
+            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults[typeof(SessionCache).FullName], Is.EqualTo(typeof(SessionCache)));
+            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults[typeof(CacheResetter).FullName], Is.EqualTo(typeof(string)),
+                "先登記者優先：搜尋順序較前的組件中的同名型別不得被覆寫。");
+            Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.ContainsKey(typeof(Verse.ThingDef).FullName), Is.False);
+        }
+
+        [Test]
+        public void GenTypesSearchAssemblies_ListsGameAssemblyThenRunningModsInLoadOrder()
+        {
+            var runningModsField = HarmonyLib.AccessTools.Field(typeof(Verse.LoadedModManager), "runningMods");
+            var originalRunningMods = runningModsField.GetValue(null);
+            var firstModAssembly = typeof(NUnit.Framework.TestAttribute).Assembly;
+            var secondModAssembly = typeof(GenTypes_GetTypeInAnyAssemblyInt_PatchTests).Assembly;
+            try
+            {
+                runningModsField.SetValue(null, new System.Collections.Generic.List<Verse.ModContentPack>
+                {
+                    CreateModWithAssemblies(firstModAssembly),
+                    CreateModWithAssemblies(secondModAssembly),
+                });
+
+                Assert.That(GenTypes_GetTypeInAnyAssemblyInt_Patch.GenTypesSearchAssemblies(),
+                    Is.EqualTo(new[] { typeof(Verse.GenTypes).Assembly, firstModAssembly, secondModAssembly }));
+            }
+            finally
+            {
+                runningModsField.SetValue(null, originalRunningMods);
+            }
+        }
+
+        private static Verse.ModContentPack CreateModWithAssemblies(params System.Reflection.Assembly[] assemblies)
+        {
+            var handler = (Verse.ModAssemblyHandler)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Verse.ModAssemblyHandler));
+            HarmonyLib.AccessTools.Field(typeof(Verse.ModAssemblyHandler), "loadedAssemblies")
+                .SetValue(handler, new System.Collections.Generic.List<System.Reflection.Assembly>(assemblies));
+            var mod = (Verse.ModContentPack)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Verse.ModContentPack));
+            HarmonyLib.AccessTools.Field(typeof(Verse.ModContentPack), "assemblies").SetValue(mod, handler);
+            return mod;
         }
 
         [Test]
