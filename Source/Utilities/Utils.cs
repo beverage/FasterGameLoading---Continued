@@ -66,7 +66,7 @@ namespace FasterGameLoading
                 || thingDef.IsBlueprint
                 || thingDef.IsFrame
                 || (thingDef.graphicData != null && thingDef.graphicData.Linked)
-                || (thingDef.thingClass != null && string.Equals(thingDef.thingClass.Name, "Building_Pipe", StringComparison.Ordinal));
+                || (thingDef.thingClass != null && string.Equals(thingDef.thingClass.Name, FGLConsts.BuildingPipe, StringComparison.Ordinal));
         }
 
         /// <summary>醫療用品。</summary>

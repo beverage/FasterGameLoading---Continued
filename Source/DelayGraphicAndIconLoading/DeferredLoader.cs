@@ -21,30 +21,30 @@ namespace FasterGameLoading
 
         private static IEnumerator DrainQueue<TDef>(
             DelayedActions delayedActions,
-            Func<DelayedActions, int> getCount,
-            TryDequeueItem<TDef> tryDequeue,
-            Action<TDef, Action> runItem,
-            bool checkMainThread)
+            Func<DelayedActions, int> countSelector,
+            TryDequeueItem<TDef> tryDequeueNext,
+            Action<TDef, Action> runOne,
+            bool requireMainThread)
         {
             delayedActions.RestartStopwatch();
-            while (getCount(delayedActions) > 0)
+            while (countSelector(delayedActions) > 0)
             {
                 // 協程只在主執行緒被恢復執行，此檢查僅為防禦性保護。
                 // 若非主執行緒，讓出執行權後由外層 while 重新檢查，不落穿到 Unity 工作。
-                if (checkMainThread && !UnityData.IsInMainThread)
+                if (requireMainThread && !UnityData.IsInMainThread)
                 {
                     yield return 0;
                     continue;
                 }
-                while (getCount(delayedActions) > 0 && !delayedActions.IsOverBudget)
+                while (countSelector(delayedActions) > 0 && !delayedActions.IsOverBudget)
                 {
-                    if (!tryDequeue(out var def, out var run))
+                    if (!tryDequeueNext(out var def, out var run))
                         break;
 
-                    runItem(def, run);
+                    runOne(def, run);
                 }
 
-                if (getCount(delayedActions) > 0)
+                if (countSelector(delayedActions) > 0)
                 {
                     yield return 0;
                     delayedActions.RestartStopwatch();
@@ -54,9 +54,9 @@ namespace FasterGameLoading
 
         /// <summary>
         /// 執行單一 SubSound 延遲動作；個別例外只記錄（Warning）不外傳，避免中斷批次流程。
-        /// 由延遲解析協程與世界初始化收尾共用。
+        /// 由延遲解析協程與世界初始化收尾共用；世界收尾沿用原版 Error 級別。
         /// </summary>
-        internal static void TryRunSubSoundAction(SubSoundDef def, Action run)
+        internal static void TryRunSubSoundAction(SubSoundDef def, Action run, bool logError = false)
         {
             try
             {
@@ -64,7 +64,10 @@ namespace FasterGameLoading
             }
             catch (Exception ex)
             {
-                FGLLog.Warning($"Error resolving AudioGrain for {def}:", ex);
+                if (logError)
+                    FGLLog.Error($"Error resolving AudioGrain for {def}", ex);
+                else
+                    FGLLog.Warning($"Error resolving AudioGrain for {def}:", ex);
             }
         }
 
@@ -76,7 +79,7 @@ namespace FasterGameLoading
         public static IEnumerator LoadDeferredGraphicsCoroutine(DelayedActions delayedActions, ICollection<ThingDef> loadedDefs)
         {
             FGLLog.Message($"Starting deferred graphics: {delayedActions.GraphicsToLoadCount.ToString(CultureInfo.InvariantCulture)}");
-            var drain = DrainQueue<ThingDef>(delayedActions, static d => d.GraphicsToLoadCount, delayedActions.TryDequeueGraphic, (def, run) => LoadOneGraphic(def, run, loadedDefs), checkMainThread: true);
+            var drain = DrainQueue<ThingDef>(delayedActions, static d => d.GraphicsToLoadCount, delayedActions.TryDequeueGraphic, (def, run) => LoadOneGraphic(def, run, loadedDefs), requireMainThread: true);
             while (drain.MoveNext())
             {
                 yield return drain.Current;
@@ -146,7 +149,7 @@ namespace FasterGameLoading
         public static IEnumerator LoadDeferredIconsCoroutine(DelayedActions delayedActions)
         {
             FGLLog.Message($"Starting deferred icons: {delayedActions.IconsToLoadCount.ToString(CultureInfo.InvariantCulture)}");
-            var drain = DrainQueue<BuildableDef>(delayedActions, static d => d.IconsToLoadCount, delayedActions.TryDequeueIcon, static (def, run) => LoadOneIcon(def, run), checkMainThread: true);
+            var drain = DrainQueue<BuildableDef>(delayedActions, static d => d.IconsToLoadCount, delayedActions.TryDequeueIcon, static (def, run) => LoadOneIcon(def, run), requireMainThread: true);
             while (drain.MoveNext())
             {
                 yield return drain.Current;
@@ -184,7 +187,7 @@ namespace FasterGameLoading
         public static IEnumerator ResolveSubSoundDefsCoroutine(DelayedActions delayedActions)
         {
             FGLLog.Message($"Starting SubSoundDef resolution: {delayedActions.SubSoundDefToResolveCount.ToString(CultureInfo.InvariantCulture)}");
-            var drain = DrainQueue<SubSoundDef>(delayedActions, static d => d.SubSoundDefToResolveCount, delayedActions.TryDequeueSubSound, static (def, run) => TryRunSubSoundAction(def, run), checkMainThread: false);
+            var drain = DrainQueue<SubSoundDef>(delayedActions, static d => d.SubSoundDefToResolveCount, delayedActions.TryDequeueSubSound, static (def, run) => TryRunSubSoundAction(def, run), requireMainThread: false);
             while (drain.MoveNext())
             {
                 yield return drain.Current;

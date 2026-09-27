@@ -50,6 +50,14 @@ namespace FasterGameLoading
         /// </summary>
         internal const int HISTORY_SIZE = 4;
 
+        static SessionCache()
+        {
+            if (WEIGHTS.Length != HISTORY_SIZE)
+            {
+                FGLLog.Error("WEIGHTS length must match HISTORY_SIZE!");
+            }
+        }
+
         /// <summary>
         /// 由 FasterGameLoadingSettings.ExposeData() 委派呼叫，
         /// 處理所有跨 session 快取資料的序列化。

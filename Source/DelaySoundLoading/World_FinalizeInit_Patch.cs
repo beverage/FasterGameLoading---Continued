@@ -21,7 +21,7 @@ namespace FasterGameLoading
                 var delayedActions = FasterGameLoadingMod.delayedActions;
                 while (delayedActions != null && delayedActions.TryDequeueSubSound(out var def, out var run))
                 {
-                    DeferredLoader.TryRunSubSoundAction(def, run);
+                    DeferredLoader.TryRunSubSoundAction(def, run, logError: true);
                 }
                 // 所有 SubSoundDef 解析完畢後才取消攔截，避免中途播放聲音
                 SoundStarter_Patch.Unpatch();

@@ -130,9 +130,16 @@ namespace FasterGameLoading
         public static bool Prefix(TextureAtlasGroup group, Texture2D texture, Texture2D mask)
         {
             // 主紋理或遮罩任一屬於排除 Mod，就回傳 false 跳過原方法（不寫入靜態圖集）。
-            // 註：Dictionary.ContainsKey(null) 會拋例外，故 null 需先短路。
-            return (texture == null || !ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.ContainsKey(texture))
-                && (mask == null || !ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.ContainsKey(mask));
+            return !IsSkippedForBaking(texture) && !IsSkippedForBaking(mask);
+        }
+
+        /// <summary>
+        /// 該紋理是否因屬於排除 Mod 而跳過靜態圖集烘焙。
+        /// 註：Dictionary.ContainsKey(null) 會拋例外，故 null 需先短路。
+        /// </summary>
+        private static bool IsSkippedForBaking(Texture2D tex)
+        {
+            return tex != null && ModContentLoaderTexture2D_LoadTexture_Patch.skippedBakingTextures.ContainsKey(tex);
         }
     }
 }

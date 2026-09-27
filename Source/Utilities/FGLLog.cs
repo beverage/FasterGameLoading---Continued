@@ -18,7 +18,7 @@ namespace FasterGameLoading
         private const string Prefix = "[FasterGameLoading] ";
 
         /// <summary>背景執行緒待寫入的日誌佇列，由主執行緒消耗。</summary>
-        private static readonly ConcurrentQueue<(Action<string> write, string text)> pending =
+        private static readonly ConcurrentQueue<(Action<string> writeAction, string text)> pending =
             new ConcurrentQueue<(Action<string>, string)>();
 
         public static void Message(string message)
@@ -54,16 +54,16 @@ namespace FasterGameLoading
         /// 主執行緒：先排空背景緒累積的訊息（維持大致時序）再直接寫入。
         /// 背景執行緒：僅入列，待主執行緒 flush。
         /// </summary>
-        private static void Emit(Action<string> write, string text)
+        private static void Emit(Action<string> writeAction, string text)
         {
             if (UnityData.IsInMainThread)
             {
                 FlushPending();
-                write(text);
+                writeAction(text);
             }
             else
             {
-                pending.Enqueue((write, text));
+                pending.Enqueue((writeAction, text));
             }
         }
 
@@ -75,7 +75,7 @@ namespace FasterGameLoading
         {
             while (pending.TryDequeue(out var entry))
             {
-                entry.write(entry.text);
+                entry.writeAction(entry.text);
             }
         }
     }

@@ -43,10 +43,10 @@ namespace FasterGameLoading
             string[] paths;
             try
             {
-                // 單次列舉再按副檔名過濾：舊寫法對同一目錄樹做了兩次完整走訪
-                paths = Directory.EnumerateFiles(textureDir, "*.dds*", SearchOption.AllDirectories)
-                    .Where(p => p.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)
-                        || p.EndsWith(".dds.zstd", StringComparison.OrdinalIgnoreCase))
+                // 精確模式各走一遍：*.dds* 會順帶掃到 .dds 開頭的無關檔，
+                // 以兩個精確模式列舉再合併，副檔名判定交給後續的 HasValidCacheMagic。
+                paths = Directory.EnumerateFiles(textureDir, "*.dds.zstd", SearchOption.AllDirectories)
+                    .Concat(Directory.EnumerateFiles(textureDir, "*.dds", SearchOption.AllDirectories))
                     .ToArray();
             }
             catch
@@ -104,30 +104,40 @@ namespace FasterGameLoading
         }
 
         /// <summary>
-        /// 快取種類單次分派：2＝.dds.zstd、1＝.dds、0＝非快取。
-        /// 註：.dds.zstd 結尾亦符合 .dds 結尾，故長後綴必須優先判斷。
+        /// 快取種類單次分派：長後綴必須優先判斷（.dds.zstd 結尾亦符合 .dds 結尾）。
         /// </summary>
-        private static int CacheKind(string path)
+        private enum DdsCacheKind
         {
-            if (path.EndsWith(".dds.zstd", StringComparison.OrdinalIgnoreCase)) return 2;
-            if (path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)) return 1;
-            return 0;
+            None,
+            Dds,
+            DdsZstd,
+        }
+
+        private static DdsCacheKind GetCacheKind(string path)
+        {
+            if (path.EndsWith(".dds.zstd", StringComparison.OrdinalIgnoreCase)) return DdsCacheKind.DdsZstd;
+            if (path.EndsWith(".dds", StringComparison.OrdinalIgnoreCase)) return DdsCacheKind.Dds;
+            return DdsCacheKind.None;
         }
 
         private static string StripCacheExtension(string cachePath)
         {
-            int kind = CacheKind(cachePath);
-            if (kind is 2) return cachePath.Substring(0, cachePath.Length - ".dds.zstd".Length);
-            if (kind is 1) return cachePath.Substring(0, cachePath.Length - ".dds".Length);
-            return null;
+            return GetCacheKind(cachePath) switch
+            {
+                DdsCacheKind.DdsZstd => cachePath.Substring(0, cachePath.Length - ".dds.zstd".Length),
+                DdsCacheKind.Dds => cachePath.Substring(0, cachePath.Length - ".dds".Length),
+                _ => null,
+            };
         }
 
         private static bool HasValidCacheMagic(string path)
         {
-            int kind = CacheKind(path);
-            if (kind is 2) return HasMagic(path, zstdMagic);
-            if (kind is 1) return HasMagic(path, ddsMagic);
-            return true;
+            return GetCacheKind(path) switch
+            {
+                DdsCacheKind.DdsZstd => HasMagic(path, zstdMagic),
+                DdsCacheKind.Dds => HasMagic(path, ddsMagic),
+                _ => true,
+            };
         }
 
         private static bool HasMagic(string path, byte[] magic)
