@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using RimTestRedux;
 using RimWorld.IO;
@@ -11,12 +12,26 @@ namespace FasterGameLoading.InGameTests
     /// 降質快取在真實 Unity 上的載入結果：LoadImage、mipmap、壓縮都只能在遊戲內驗證。
     /// 不依賴事先跑過降質工具：測試自己產生「原始貼圖」與「降質快取」兩張 PNG，登記到 FGL 的快取對照表，
     /// 再透過原版 ModContentLoader&lt;Texture2D&gt;.LoadTexture（FGL 的 patch 所在）載入。
+    /// 縮放本身另由 <see cref="DownscaledTextureKeepsSourceAspectRatio"/> 經降質工具的 ResizeTexture 產生快取。
     /// </summary>
     [TestSuite]
     internal static class TextureDownscaleTests
     {
         private const int OriginalSize = 64;
         private const int CachedSize = 32;
+
+        /// <summary>每邊與精確比例的容許差距：換算時四捨五入的 0.5，加上就近對齊到 4 的半個區塊 2。</summary>
+        private const double MaxSideError = 2.5;
+
+        /// <summary>寬、高、目標尺寸。精確的短邊落在 4 像素區塊的不同位置。</summary>
+        private static readonly (int Width, int Height, int Target)[] AspectRatioCases =
+        {
+            (1024, 40, 128),  // AlignToBlockSize 註解的例子：精確 5，就近取整仍是 4
+            (1024, 56, 128),  // 精確 7：就近取整為 8，一律向下取整會壓成 4
+            (56, 1024, 128),  // 同上，直向
+            (1000, 600, 256), // 精確 153.6
+            (2048, 6, 512),   // 短邊不足 4 像素，保留原值
+        };
 
         private static bool ExternalTextureToolActive => ImageOptCompat.IsActive || GraphicsSettingsCompat.IsActive;
 
@@ -75,6 +90,44 @@ namespace FasterGameLoading.InGameTests
             Assert.That(ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadFailures).Is.EqualTo(failuresBefore);
         }
 
+        /// <summary>
+        /// 降質工具本身的縮放：TextureResize.ResizeTexture 換算尺寸（等比例、對齊 4 的倍數）、以 RenderTexture 縮放並寫出 PNG，
+        /// 再經 FGL 的快取載入。上面兩個測試自行產生快取 PNG，不經過這一步；長寬比的兩次修正（bc765bc、746918a）都在這裡。
+        /// 長邊必須等於目標尺寸，兩邊與精確比例的差距都不得超過 <see cref="MaxSideError"/>。
+        /// </summary>
+        [Test]
+        public static void DownscaledTextureKeepsSourceAspectRatio()
+        {
+            if (ExternalTextureToolActive) return;
+
+            var resize = new TextureResize(FasterGameLoadingMod.Instance.CacheManager);
+            var failures = new List<string>();
+            foreach (var (width, height, target) in AspectRatioCases)
+            {
+                using var probe = new ResizeProbe(width, height);
+                int hitsBefore = ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits;
+
+                resize.ResizeTexture(probe.Candidate(target));
+                var texture = probe.Load();
+
+                if (ModContentLoaderTexture2D_LoadTexture_Patch.cacheLoadHits != hitsBefore + 1)
+                {
+                    failures.Add(FormattableString.Invariant($"{width}x{height} to {target}: not served from the downscale cache ({texture.width}x{texture.height})"));
+                    continue;
+                }
+                double scale = (double)target / Math.Max(width, height);
+                double exactWidth = width * scale;
+                double exactHeight = height * scale;
+                if (Math.Max(texture.width, texture.height) != target
+                    || Math.Abs(texture.width - exactWidth) > MaxSideError
+                    || Math.Abs(texture.height - exactHeight) > MaxSideError)
+                {
+                    failures.Add(FormattableString.Invariant($"{width}x{height} to {target}: {texture.width}x{texture.height}, proportional {exactWidth:0.#}x{exactHeight:0.#}"));
+                }
+            }
+            FglState.AssertNone(failures, "downscaled textures off their source's aspect ratio");
+        }
+
         /// <summary>在隔離 session 的存檔資料夾產生一組原始貼圖與降質快取，結束時全部清掉。</summary>
         private sealed class Probe : IDisposable
         {
@@ -92,11 +145,11 @@ namespace FasterGameLoading.InGameTests
                 var directory = Path.Combine(GenFilePaths.SaveDataFolderPath, "FglInGameTests", "Textures", isUi ? "UI" : "Things");
                 Directory.CreateDirectory(directory);
                 OriginalPath = Path.Combine(directory, FileNameWithoutExtension + ".png");
-                WritePng(OriginalPath, OriginalSize);
+                WritePng(OriginalPath, OriginalSize, OriginalSize);
 
                 cachePath = cacheManager.GetCachePath(OriginalPath);
                 Directory.CreateDirectory(Path.GetDirectoryName(cachePath));
-                WritePng(cachePath, CachedSize);
+                WritePng(cachePath, CachedSize, CachedSize);
                 cacheManager.SetCacheEntry(OriginalPath, cachePath);
                 ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures.TryRemove(OriginalPath, out _);
             }
@@ -117,7 +170,7 @@ namespace FasterGameLoading.InGameTests
                 File.Delete(cachePath);
             }
 
-            private static Texture2D LoadTexture(string path)
+            internal static Texture2D LoadTexture(string path)
             {
                 var file = AbstractFilesystem.GetDirectory(Path.GetDirectoryName(path)).GetFile(Path.GetFileName(path));
                 var texture = ModContentLoader<Texture2D>.LoadTexture(file);
@@ -125,12 +178,12 @@ namespace FasterGameLoading.InGameTests
                 return texture;
             }
 
-            private static void WritePng(string path, int size)
+            internal static void WritePng(string path, int width, int height)
             {
-                var texture = new Texture2D(size, size, TextureFormat.RGBA32, mipChain: false);
+                var texture = new Texture2D(width, height, TextureFormat.RGBA32, mipChain: false);
                 try
                 {
-                    var pixels = new Color32[size * size];
+                    var pixels = new Color32[width * height];
                     for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color32((byte)i, 128, 64, 255);
                     texture.SetPixels32(pixels);
                     texture.Apply();
@@ -140,6 +193,50 @@ namespace FasterGameLoading.InGameTests
                 {
                     UnityEngine.Object.Destroy(texture);
                 }
+            }
+        }
+
+        /// <summary>一張非正方形的原始貼圖，交給降質工具真正的縮放流程；結束時清掉原圖、快取 PNG 與快取項目。</summary>
+        private sealed class ResizeProbe : IDisposable
+        {
+            private readonly TextureCacheManager cacheManager = FasterGameLoadingMod.Instance.CacheManager;
+            private readonly string originalPath;
+            private readonly int width;
+            private readonly int height;
+            private Texture2D loaded;
+
+            public ResizeProbe(int width, int height)
+            {
+                this.width = width;
+                this.height = height;
+                var directory = Path.Combine(GenFilePaths.SaveDataFolderPath, "FglInGameTests", "Textures", "Things");
+                Directory.CreateDirectory(directory);
+                originalPath = Path.Combine(directory, FormattableString.Invariant($"FglResizeProbe_{width}x{height}.png"));
+                Probe.WritePng(originalPath, width, height);
+                Directory.CreateDirectory(Path.GetDirectoryName(cacheManager.GetCachePath(originalPath)));
+                ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures.TryRemove(originalPath, out _);
+            }
+
+            /// <summary>與 BuildResizeCandidates 產生的候選相同；ResizeTexture 會自行從磁碟讀入原圖。</summary>
+            public TextureResize.TextureResizeCandidate Candidate(int targetSize) => new TextureResize.TextureResizeCandidate
+            {
+                path = originalPath,
+                targetSize = targetSize,
+                originalWidth = width,
+                originalHeight = height,
+            };
+
+            public Texture2D Load() => loaded = Probe.LoadTexture(originalPath);
+
+            public void Dispose()
+            {
+                // 快取路徑由原圖的路徑、大小與修改時間算出，必須在刪除原圖前取得。
+                var cachePath = cacheManager.GetCachePath(originalPath);
+                cacheManager.RemoveCachedTexturePath(originalPath);
+                ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures.TryRemove(originalPath, out _);
+                if (loaded != null) UnityEngine.Object.Destroy(loaded);
+                File.Delete(originalPath);
+                File.Delete(cachePath);
             }
         }
     }

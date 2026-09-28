@@ -222,6 +222,27 @@ namespace FasterGameLoading.InGameTests
         }
     }
 
+    /// <summary>
+    /// 攔截原版 ModContentHolder.ReloadAll 的「Tried to load duplicate」：同一個內容路徑第二次載入時，
+    /// 原版只記一筆 Warning（不是 Error，<see cref="DuplicateLoadErrorProbe"/> 看不到）就丟掉第二份；
+    /// 那份貼圖、音效或字串已從磁碟讀進記憶體，最終狀態看不出來。
+    /// </summary>
+    [HarmonyPatch(typeof(Log), nameof(Log.Warning), typeof(string))]
+    internal static class DuplicateContentWarningProbe
+    {
+        private const string DuplicateWarning = "Tried to load duplicate ";
+
+        public static readonly List<string> DuplicateContent = new List<string>();
+
+        public static void Prefix(string text)
+        {
+            if (text != null && text.StartsWith(DuplicateWarning, StringComparison.Ordinal))
+            {
+                lock (DuplicateContent) DuplicateContent.Add(text.Substring(DuplicateWarning.Length));
+            }
+        }
+    }
+
     /// <summary>提早載入與重複載入防護的最終狀態。</summary>
     [TestSuite]
     internal static class EarlyLoadingTests
@@ -291,6 +312,19 @@ namespace FasterGameLoading.InGameTests
             List<string> failures;
             lock (DuplicateLoadErrorProbe.DuplicateDefs) failures = DuplicateLoadErrorProbe.DuplicateDefs.ToList();
             FglState.AssertNone(failures, "duplicate defs");
+        }
+
+        /// <summary>
+        /// 同一個 mod 的內容被載入兩次時，原版只記 Warning 並丟掉第二份，最終狀態看不出來。
+        /// 例如 Loading Progress 沒偵測到 FGL 時，會自己再載入一次 FGL 已提早載入的每個 mod 的內容：
+        /// 228 個 mod 的清單上有 24,683 筆，全都從磁碟多讀了一次（log 在上限前只記得下其中約一萬筆）。
+        /// </summary>
+        [Test]
+        public static void NoModContentWasLoadedTwice()
+        {
+            List<string> failures;
+            lock (DuplicateContentWarningProbe.DuplicateContent) failures = DuplicateContentWarningProbe.DuplicateContent.ToList();
+            FglState.AssertNone(failures, "mod content files loaded twice", maxListed: 5);
         }
     }
 }
