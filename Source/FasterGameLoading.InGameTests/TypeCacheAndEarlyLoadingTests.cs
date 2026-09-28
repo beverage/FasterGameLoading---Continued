@@ -1,0 +1,260 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using HarmonyLib;
+using RimTestRedux;
+using Verse;
+
+namespace FasterGameLoading.InGameTests
+{
+    /// <summary>
+    /// 型別快取的每個結果都要與原版（未套用 patch 的）GetTypeInAnyAssemblyInt 相同。
+    /// 以 Harmony reverse patch 取得原始 IL 的副本當作對照組，在真實的 mod 組件組合上比對。
+    /// </summary>
+    [TestSuite]
+    internal static class TypeLookupCacheTests
+    {
+        private const int WarmupSampleSize = 500;
+
+        [Test]
+        public static void ResolvedNamesMatchVanilla()
+        {
+            if (!FasterGameLoadingSettings.TypeLookupCache) return;
+
+            // 預熱只寫入 FullName；經命名空間探測或短名稱解析出來的項目（鍵 ≠ FullName）風險最高，全部比對。
+            var failures = new List<string>();
+            foreach (var entry in GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.ToArray())
+            {
+                if (IsPlainFullNameEntry(entry.Key, entry.Value)) continue;
+                CompareWithVanilla(entry.Key, entry.Value, failures);
+            }
+            FglState.AssertNone(failures, "cached type lookups differing from vanilla");
+        }
+
+        /// <summary>
+        /// 原版以 ignoreCase 依 GenTypes.AllActiveAssemblies 順序查詢；預熱則是區分大小寫、依 RunningMods 順序先到先得。
+        /// 只有 FullName（忽略大小寫後）在多個型別間撞名時兩者才可能不同——含大小寫不同，以及同名型別出現在多個組件；
+        /// 這些名稱從所有搜尋組件的型別重新找出並全部比對，其餘抽樣。
+        /// </summary>
+        [Test]
+        public static void WarmedFullNamesMatchVanilla()
+        {
+            if (!FasterGameLoadingSettings.TypeLookupCache) return;
+
+            var warmed = GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.ToArray()
+                .Where(static e => IsPlainFullNameEntry(e.Key, e.Value))
+                .ToList();
+            // 快取裡同名只留一個鍵，無法看出撞名；必須回到組件本身列舉。
+            var collidingNames = new HashSet<string>(
+                GenTypes_GetTypeInAnyAssemblyInt_Patch.GenTypesSearchAssemblies()
+                    .SelectMany(static a => AccessTools.GetTypesFromAssembly(a))
+                    .Where(static t => !string.IsNullOrEmpty(t?.FullName))
+                    .GroupBy(static t => t.FullName, StringComparer.OrdinalIgnoreCase)
+                    .Where(static g => g.Count() > 1)
+                    .SelectMany(static g => g.Select(static t => t.FullName)),
+                StringComparer.Ordinal);
+
+            int step = Math.Max(1, warmed.Count / WarmupSampleSize);
+            var failures = new List<string>();
+            for (int i = 0; i < warmed.Count; i++)
+            {
+                var entry = warmed[i];
+                if (i % step == 0 || collidingNames.Contains(entry.Key))
+                {
+                    CompareWithVanilla(entry.Key, entry.Value, failures);
+                }
+            }
+            FglState.AssertNone(failures, "warmed full-name lookups differing from vanilla");
+        }
+
+        /// <summary>跨 session 名稱對照（短名稱 → FullName）必須指向原版會解析到的同一個型別。</summary>
+        [Test]
+        public static void SessionMappingsMatchVanilla()
+        {
+            if (!FasterGameLoadingSettings.TypeLookupCache) return;
+
+            var failures = new List<string>();
+            foreach (var entry in GenTypes_GetTypeInAnyAssemblyInt_Patch.loadedTypesThisSession.ToArray())
+            {
+                var (typeName, ns) = SplitKey(entry.Key);
+                var vanilla = VanillaLookup.GetTypeInAnyAssemblyInt(typeName, ns);
+                if (vanilla?.FullName != entry.Value)
+                {
+                    failures.Add($"{entry.Key}: mapped '{entry.Value}', vanilla '{vanilla?.FullName ?? "null"}'");
+                }
+            }
+            FglState.AssertNone(failures, "session type mappings differing from vanilla");
+        }
+
+        /// <summary>
+        /// 上次 session 的對照已失效（例如 mod 把類別改名）時，Postfix 必須丟掉該對照並以原名重查。
+        /// 隔離的測試 session 沒有上次的資料，這條路徑不會自然發生，因此直接植入一筆過期對照來觸發。
+        /// </summary>
+        [Test]
+        public static void StaleSessionMappingFallsBackToVanilla()
+        {
+            if (!FasterGameLoadingSettings.TypeLookupCache) return;
+
+            const string typeName = "CompProperties_Glower";
+            var key = GenTypes_GetTypeInAnyAssemblyInt_Patch.MakeCacheKey(typeName);
+            GenTypes_GetTypeInAnyAssemblyInt_Patch.cachedResults.TryRemove(key, out _);
+            SessionCache.loadedTypesByFullNameSinceLastSession[key] = "FasterGameLoading.InGameTests.Stale." + typeName;
+
+            var resolved = GenTypes.GetTypeInAnyAssemblyInt(typeName, null);
+
+            // Assert.That 只接受 IComparable，Type 改以布林比對。
+            Assert.That(resolved != null).Is.True();
+            Assert.That(resolved == VanillaLookup.GetTypeInAnyAssemblyInt(typeName, null)).Is.True();
+            Assert.That(SessionCache.loadedTypesByFullNameSinceLastSession.ContainsKey(key)).Is.False();
+        }
+
+        private static bool IsPlainFullNameEntry(string key, Type type)
+            => string.Equals(key, type?.FullName, StringComparison.Ordinal);
+
+        private static void CompareWithVanilla(string key, Type cached, List<string> failures)
+        {
+            var (typeName, ns) = SplitKey(key);
+            var vanilla = VanillaLookup.GetTypeInAnyAssemblyInt(typeName, ns);
+            if (vanilla != cached)
+            {
+                failures.Add($"{key}: cached {Describe(cached)}, vanilla {Describe(vanilla)}");
+            }
+        }
+
+        private static string Describe(Type type)
+            => type == null ? "null" : $"{type.FullName} [{type.Assembly.GetName().Name}]";
+
+        private static (string typeName, string ns) SplitKey(string key)
+        {
+            const string separator = "|ns|";
+            int index = key.IndexOf(separator, StringComparison.Ordinal);
+            return index < 0 ? (key, null) : (key.Substring(0, index), key.Substring(index + separator.Length));
+        }
+    }
+
+    /// <summary>未套用任何 patch 的原版 GetTypeInAnyAssemblyInt 副本。</summary>
+    [HarmonyPatch]
+    internal static class VanillaLookup
+    {
+        [HarmonyReversePatch]
+        [HarmonyPatch(typeof(GenTypes), nameof(GenTypes.GetTypeInAnyAssemblyInt))]
+        public static Type GetTypeInAnyAssemblyInt(string typeName, string namespaceIfAmbiguous)
+            => throw new NotImplementedException("Replaced by Harmony reverse patch");
+    }
+
+    /// <summary>
+    /// 記錄每次實際執行的 ReloadContentInt 當下，FGL 的內容載入相關 patch 是否已經套用。
+    /// 本測試 mod 刻意排在 FGL 之前載入，讓這個探針在 FGL 建構子（以及它建立的提早載入元件）之前就位。
+    /// </summary>
+    [HarmonyPatch(typeof(ModContentPack), nameof(ModContentPack.ReloadContentInt))]
+    internal static class ContentLoadProbe
+    {
+        public static int Loads;
+
+        /// <summary>載入當下缺少任一 FGL patch 的紀錄（已格式化成失敗訊息）。</summary>
+        public static readonly List<string> LoadedBeforePatches = new List<string>();
+
+        [HarmonyPriority(Priority.First)]
+        public static void Prefix(ModContentPack __instance, bool hotReload)
+        {
+            // 已載入的 mod 會被 FGL 的 prefix 略過，不算一次實際載入。
+            if (hotReload || ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(__instance)) return;
+            bool reloadContentInt = FglState.HasFglPatch(AccessTools.Method(typeof(ModContentPack), nameof(ModContentPack.ReloadContentInt)));
+            bool reloadAll = FglState.HasFglPatch(AccessTools.Method(typeof(ModAssetBundlesHandler), nameof(ModAssetBundlesHandler.ReloadAll)));
+            bool loadTexture = FglState.HasFglPatch(AccessTools.Method(typeof(ModContentLoader<UnityEngine.Texture2D>), nameof(ModContentLoader<UnityEngine.Texture2D>.LoadTexture)));
+            lock (LoadedBeforePatches)
+            {
+                Loads++;
+                if (!reloadContentInt || !reloadAll || !loadTexture)
+                {
+                    LoadedBeforePatches.Add($"{__instance.PackageIdPlayerFacing} (mainThread={UnityData.IsInMainThread}, ReloadContentInt={reloadContentInt}, ReloadAll={reloadAll}, LoadTexture={loadTexture})");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 攔截原版在重複載入時才會發出的錯誤：DefDatabase 遇到同名 Def 會改名後照樣加入、
+    /// 同一個 AssetBundle 第二次載入會失敗並留下錯誤，兩者都無法從最終狀態看出，只能從錯誤訊息得知。
+    /// </summary>
+    [HarmonyPatch(typeof(Log), nameof(Log.Error), typeof(string))]
+    internal static class DuplicateLoadErrorProbe
+    {
+        public static readonly List<string> DuplicateDefs = new List<string>();
+        public static readonly List<string> FailedBundles = new List<string>();
+
+        public static void Prefix(string text)
+        {
+            if (text == null) return;
+            if (text.StartsWith("Adding duplicate ", StringComparison.Ordinal))
+            {
+                lock (DuplicateDefs) DuplicateDefs.Add(text);
+            }
+            else if (text.StartsWith("Could not load asset bundle at ", StringComparison.Ordinal))
+            {
+                lock (FailedBundles) FailedBundles.Add(text);
+            }
+        }
+    }
+
+    /// <summary>提早載入與重複載入防護的最終狀態。</summary>
+    [TestSuite]
+    internal static class EarlyLoadingTests
+    {
+        [Test]
+        public static void EarlyLoadingCompleted()
+        {
+            Assert.That(FasterGameLoadingMod.delayedActions.earlyLoadingComplete).Is.True();
+        }
+
+        /// <summary>每個執行中的 mod 都要經過（提早或原版的）ReloadContentInt，漏掉的 mod 沒有貼圖與音效。</summary>
+        [Test]
+        public static void EveryRunningModContentWasLoaded()
+        {
+            var failures = LoadedModManager.RunningMods
+                .Where(static mod => !ModContentPack_ReloadContentInt_Patch.loadedMods.Contains(mod))
+                .Select(static mod => mod.PackageIdPlayerFacing)
+                .ToList();
+            FglState.AssertNone(failures, "running mods whose content was never loaded");
+        }
+
+        /// <summary>
+        /// Mod 建構子在事件緒執行，FGL 的提早載入卻在主執行緒的 LateUpdate 進行；
+        /// 若它在 FGL（或其他 mod）的 Harmony patch 套用完成前就開始載入內容，這些 patch 對已載入的 mod 全部無效。
+        /// </summary>
+        [Test]
+        public static void ContentIsOnlyLoadedAfterFglPatchesAreApplied()
+        {
+            List<string> failures;
+            lock (ContentLoadProbe.LoadedBeforePatches)
+            {
+                Assert.That(ContentLoadProbe.Loads).Is.GreaterThan(0);
+                failures = ContentLoadProbe.LoadedBeforePatches.ToList();
+            }
+            FglState.AssertNone(failures, "mod contents loaded before FGL's patches were applied");
+        }
+
+        /// <summary>
+        /// 每個 handler 都要經過 FGL 的 ReloadAll 防重複機制；重複呼叫 ReloadAll 會讓原版記下「Could not load asset bundle」。
+        /// </summary>
+        [Test]
+        public static void EveryAssetBundleHandlerReloadedWithoutReloadErrors()
+        {
+            var failures = LoadedModManager.RunningMods
+                .Where(static mod => !ModAssetBundlesHandler_ReloadAll_Patch.reloadedHandlers.Contains(mod.assetBundles))
+                .Select(static mod => $"{mod.PackageIdPlayerFacing}: handler never reloaded")
+                .ToList();
+            lock (DuplicateLoadErrorProbe.FailedBundles) failures.AddRange(DuplicateLoadErrorProbe.FailedBundles);
+            FglState.AssertNone(failures, "asset bundle handler problems");
+        }
+
+        /// <summary>原版遇到同名 Def 會改名後照樣加入資料庫，重複載入只能從「Adding duplicate」錯誤得知。</summary>
+        [Test]
+        public static void NoDuplicateDefsWereAdded()
+        {
+            List<string> failures;
+            lock (DuplicateLoadErrorProbe.DuplicateDefs) failures = DuplicateLoadErrorProbe.DuplicateDefs.ToList();
+            FglState.AssertNone(failures, "duplicate defs");
+        }
+    }
+}

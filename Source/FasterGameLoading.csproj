@@ -63,6 +63,9 @@
     <Compile Remove="FasterGameLoading.Tests\**" />
     <EmbeddedResource Remove="FasterGameLoading.Tests\**" />
     <None Remove="FasterGameLoading.Tests\**" />
+    <Compile Remove="FasterGameLoading.InGameTests\**" />
+    <EmbeddedResource Remove="FasterGameLoading.InGameTests\**" />
+    <None Remove="FasterGameLoading.InGameTests\**" />
   </ItemGroup>
   <ItemGroup>
     <Reference Update="System.Runtime.Serialization">
