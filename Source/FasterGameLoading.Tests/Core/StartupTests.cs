@@ -162,14 +162,19 @@ namespace FasterGameLoading.Tests.Core
             var harmonyInstance = new Harmony("test.startup.deferred.throw");
             var method = AccessTools.Method(typeof(Verse.LongEventHandler), nameof(Verse.LongEventHandler.ExecuteWhenFinished), new Type[] { typeof(Action) });
             harmonyInstance.Patch(method, prefix: new HarmonyMethod(AccessTools.Method(typeof(StartupTests), nameof(Prefix_ExecuteWhenFinishedThrows))));
+            var errors = new List<string>();
+            var previousOnLogError = TestSetup.OnLogError;
+            TestSetup.OnLogError = errors.Add;
 
             try
             {
                 var scheduleMethod = typeof(Startup).GetMethod("ScheduleDeferredStartupActions", BindingFlags.NonPublic | BindingFlags.Static);
                 Assert.DoesNotThrow(() => scheduleMethod.Invoke(null, null));
+                Assert.That(errors, Has.Some.Contains("Error scheduling startup completion actions in LongEventHandler"));
             }
             finally
             {
+                TestSetup.OnLogError = previousOnLogError;
                 harmonyInstance.Unpatch(method, HarmonyPatchType.Prefix, harmonyInstance.Id);
             }
         }
@@ -186,14 +191,19 @@ namespace FasterGameLoading.Tests.Core
             var translationInjectorType = AccessTools.TypeByName("FasterGameLoading.TranslationInjector");
             var method = AccessTools.Method(translationInjectorType, "InjectTranslations");
             harmonyInstance.Patch(method, prefix: new HarmonyMethod(AccessTools.Method(typeof(StartupTests), nameof(Prefix_InjectTranslationsThrows))));
+            var errors = new List<string>();
+            var previousOnLogError = TestSetup.OnLogError;
+            TestSetup.OnLogError = errors.Add;
 
             try
             {
                 var injectMethod = typeof(Startup).GetMethod("InjectTranslations", BindingFlags.NonPublic | BindingFlags.Static);
                 Assert.DoesNotThrow(() => injectMethod.Invoke(null, null));
+                Assert.That(errors, Has.Some.Contains("TranslationInjector.InjectTranslations execution failed"));
             }
             finally
             {
+                TestSetup.OnLogError = previousOnLogError;
                 harmonyInstance.Unpatch(method, HarmonyPatchType.Prefix, harmonyInstance.Id);
             }
         }

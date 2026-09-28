@@ -62,7 +62,12 @@ namespace FasterGameLoading
                     LoadKeyedTranslationsFromFile(xmlFile, activeLanguage);
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            // 刻意拆成兩個 catch 而非 catch-when：Harmony 無法 patch 含例外篩選器的方法（遊戲內 Mono 與測試皆然）
+            catch (IOException ex)
+            {
+                FGLLog.Error("Error injecting translations:", ex);
+            }
+            catch (UnauthorizedAccessException ex)
             {
                 FGLLog.Error("Error injecting translations:", ex);
             }
