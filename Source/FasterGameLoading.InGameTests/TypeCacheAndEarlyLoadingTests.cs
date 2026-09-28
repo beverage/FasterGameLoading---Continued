@@ -151,6 +151,9 @@ namespace FasterGameLoading.InGameTests
     {
         public static int Loads;
 
+        /// <summary>由 FGL 提早載入（而非原版 ExecuteWhenFinished）觸發的載入次數。</summary>
+        public static int EarlyLoads;
+
         /// <summary>載入當下缺少任一 FGL patch 的紀錄（已格式化成失敗訊息）。</summary>
         public static readonly List<string> LoadedBeforePatches = new List<string>();
 
@@ -165,12 +168,27 @@ namespace FasterGameLoading.InGameTests
             lock (LoadedBeforePatches)
             {
                 Loads++;
+                if (EarlyLoadMarker.Active) EarlyLoads++;
                 if (!reloadContentInt || !reloadAll || !loadTexture)
                 {
                     LoadedBeforePatches.Add($"{__instance.PackageIdPlayerFacing} (mainThread={UnityData.IsInMainThread}, ReloadContentInt={reloadContentInt}, ReloadAll={reloadAll}, LoadTexture={loadTexture})");
                 }
             }
         }
+    }
+
+    /// <summary>標記目前執行緒正處於 FGL 提早載入的 ReloadContentInt 呼叫中，供 <see cref="ContentLoadProbe"/> 分類。</summary>
+    // 掛在 LoadOneModContent：它自行攔下所有例外，postfix 一定會執行；
+    // 不掛 InvokeReloadContentInt，Harmony 無法替含 exception filter（catch when）的方法產生 finalizer。
+    [HarmonyPatch(typeof(EarlyModContentLoader), nameof(EarlyModContentLoader.LoadOneModContent))]
+    internal static class EarlyLoadMarker
+    {
+        [ThreadStatic]
+        public static bool Active;
+
+        public static void Prefix() => Active = true;
+
+        public static void Postfix() => Active = false;
     }
 
     /// <summary>
@@ -232,6 +250,17 @@ namespace FasterGameLoading.InGameTests
                 failures = ContentLoadProbe.LoadedBeforePatches.ToList();
             }
             FglState.AssertNone(failures, "mod contents loaded before FGL's patches were applied");
+        }
+
+        /// <summary>提早載入延到所有 Mod 建構子之後才開始，但仍須在原版載入前實際載入內容，否則加速效果消失。</summary>
+        [Test]
+        public static void EarlyLoadingActuallyLoadsModContent()
+        {
+            if (!FasterGameLoadingSettings.earlyModContentLoading) return;
+            lock (ContentLoadProbe.LoadedBeforePatches)
+            {
+                Assert.That(ContentLoadProbe.EarlyLoads).Is.GreaterThan(0);
+            }
         }
 
         /// <summary>

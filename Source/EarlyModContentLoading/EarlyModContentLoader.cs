@@ -47,6 +47,23 @@ namespace FasterGameLoading
             }
         }
 
+        private static volatile bool modClassesCreated;
+
+        static EarlyModContentLoader()
+        {
+            // 重載流程（切換語言）會重建 mod 類別；重置後等下一次 LoadModXML 才再開放。
+            CacheResetter.Register(static () => ModClassesCreated = false);
+        }
+
+        /// <summary>
+        /// 所有 Mod 建構子是否都已執行完畢；由 <see cref="LoadedModManager_LoadModXML_Patch"/> 在事件緒設定。
+        /// </summary>
+        internal static bool ModClassesCreated
+        {
+            get => modClassesCreated;
+            set => modClassesCreated = value;
+        }
+
         /// <summary>
         /// 取得 Mod 內容提早載入是否已完成。
         /// </summary>
@@ -67,11 +84,23 @@ namespace FasterGameLoading
             // 銷毀的舊 ModContentPack，再載入只會重複載入並與事件緒的 ClearDestroy 同時存取內容字典。
             if (PlayDataLoader.Loaded)
             {
+                if (FasterGameLoadingSettings.earlyModContentLoading && !ModClassesCreated)
+                {
+                    // 閘門始終沒開：LoadModXML 的 patch 沒生效（遊戲 API 改名或被其他 mod 取代），提早載入整個 session 都沒執行。
+                    FGLLog.Warning("Early mod content loading never started: LoadedModManager.LoadModXML hook did not run.");
+                }
                 EarlyLoadingComplete = true;
                 return;
             }
 
             if (!FasterGameLoadingSettings.earlyModContentLoading)
+            {
+                return;
+            }
+
+            // Mod 建構子在事件緒執行時，這裡（主執行緒）就已開始每幀呼叫；此時 FGL 自己與其他 mod 的
+            // Harmony patch 都還沒套用，提早載入的內容會完全繞過它們。等 CreateModClasses 結束再開始。
+            if (!ModClassesCreated)
             {
                 return;
             }

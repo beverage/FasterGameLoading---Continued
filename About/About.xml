@@ -6,7 +6,7 @@
     <li>1.6</li>
   </supportedVersions>
   <packageId>Taranchuk.FasterGameLoading</packageId>
-  <modVersion>2026.09.28.3</modVersion>
+  <modVersion>2026.09.28.4</modVersion>
   <description>
 === Does loading take forever? This mod is for you! ===
 
@@ -14,7 +14,7 @@ Sick of staring at the loading screen every time you start RimWorld? This mod cu
 
 --- What it does ---
 
-- Early mod content loading: Starts loading pending mod content during idle loading gaps before RimWorld's normal ReloadContentInt pass reaches those mods; stops once play data has loaded. (enabled by default)
+- Early mod content loading: Starts loading pending mod content during idle loading gaps before RimWorld's normal ReloadContentInt pass reaches those mods, beginning only after every mod has finished initializing so their patches apply; stops once play data has loaded. (enabled by default)
 - Multi-threaded preloading: Speeds up XML loading and type resolution by utilizing multiple CPU cores. (enabled by default)
 - Type lookup cache: Warms full type names before XML parsing and remembers resolved names across sessions; invalidates stale assembly mappings. (enabled by default)
 - Delay graphic and icon loading: Delays non-essential textures until after entering a game; essential categories are checked after Def references resolve, and RimWorld resolves icons before atlas baking. (disabled by default)

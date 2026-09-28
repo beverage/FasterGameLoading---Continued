@@ -78,6 +78,7 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             reloadedMods.Clear();
             ModContentPack_ReloadContentInt_Patch.loadedMods.Clear();
             FasterGameLoadingSettings.earlyModContentLoading = true;
+            EarlyModContentLoader.ModClassesCreated = true;
 
             var runningModsField = AccessTools.Field(typeof(LoadedModManager), "runningMods");
             if (runningModsField != null)
@@ -96,6 +97,8 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             reloadedMods.Clear();
             mockReloadShouldThrow = false;
             mockIsOverBudget = false;
+            // 靜態旗標恢復為執行期預設值，避免洩漏到其他 fixture。
+            EarlyModContentLoader.ModClassesCreated = false;
         }
 
         private static ModContentPack CreateMockModContentPack(string packageId = "test.mod")
@@ -154,6 +157,35 @@ namespace FasterGameLoading.Tests.EarlyModContentLoading
             {
                 loadedField.SetValue(null, false);
             }
+        }
+
+        [Test]
+        public void Update_BeforeModClassesCreated_DoesNotLoadAnything()
+        {
+            // Mod 建構子在事件緒執行期間，主執行緒已開始每幀呼叫 Update；此時 FGL 與其他 mod 的
+            // Harmony patch 都還沒套用，提早載入的內容會完全繞過它們。
+            EarlyModContentLoader.ModClassesCreated = false;
+            var mod = CreateMockModContentPack("test.mod");
+            SetRunningMods(new List<ModContentPack> { mod });
+
+            loader.Update(delayedActions);
+
+            Assert.That(loader.EarlyLoadingComplete, Is.False);
+            Assert.That(reloadedMods, Is.Empty);
+
+            LoadedModManager_LoadModXML_Patch.Prefix();
+            loader.Update(delayedActions);
+
+            Assert.That(loader.EarlyLoadingComplete, Is.True);
+            Assert.That(reloadedMods, Is.EquivalentTo(new[] { mod }));
+        }
+
+        [Test]
+        public void LoadModXML_PatchTargetExists()
+        {
+            // 上面的測試直接呼叫 Prefix；這裡確認 [HarmonyPatch] 的目標在目前的遊戲版本仍存在，
+            // 否則閘門永遠不會開、提早載入整個失效。
+            Assert.That(AccessTools.Method(typeof(LoadedModManager), "LoadModXML"), Is.Not.Null);
         }
 
         [Test]
