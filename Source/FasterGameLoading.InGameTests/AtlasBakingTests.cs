@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using RimTestRedux;
 using UnityEngine;
 using Verse;
@@ -12,10 +13,14 @@ namespace FasterGameLoading.InGameTests
     [TestSuite]
     internal static class AtlasBakingTests
     {
+        /// <summary>本次載入烘焙的圖集；語言重載後排除原版留下的舊圖集（見 <see cref="LanguageReload.AtlasesBeforeReload"/>）。</summary>
+        private static IEnumerable<StaticTextureAtlas> CurrentLoadAtlases
+            => GlobalTextureAtlasManager.staticTextureAtlases.Where(static a => TestRunDriver.Round != 2 || !LanguageReload.AtlasesBeforeReload.Contains(a));
+
         [Test]
         public static void StaticAtlasesWereBaked()
         {
-            Assert.ThatCollection(GlobalTextureAtlasManager.staticTextureAtlases).Is.Not.Empty();
+            Assert.ThatCollection(CurrentLoadAtlases.ToList()).Is.Not.Empty();
         }
 
         [Test]
@@ -31,7 +36,7 @@ namespace FasterGameLoading.InGameTests
         {
             var seen = new HashSet<(TextureAtlasGroupKey, Texture2D)>();
             var failures = new List<string>();
-            foreach (var atlas in GlobalTextureAtlasManager.staticTextureAtlases)
+            foreach (var atlas in CurrentLoadAtlases)
             {
                 foreach (var texture in atlas.textures)
                 {
@@ -48,7 +53,7 @@ namespace FasterGameLoading.InGameTests
         public static void EveryAtlasTextureHasATile()
         {
             var failures = new List<string>();
-            foreach (var atlas in GlobalTextureAtlasManager.staticTextureAtlases)
+            foreach (var atlas in CurrentLoadAtlases)
             {
                 if (atlas.ColorTexture == null)
                 {
@@ -74,7 +79,7 @@ namespace FasterGameLoading.InGameTests
         public static void QueuedTexturesAreInAnAtlasOfTheirGroup()
         {
             var packingFailedGroups = new HashSet<TextureAtlasGroupKey>();
-            foreach (var atlas in GlobalTextureAtlasManager.staticTextureAtlases)
+            foreach (var atlas in CurrentLoadAtlases)
             {
                 if (atlas.textures.Count == 0) packingFailedGroups.Add(atlas.groupKey);
             }
@@ -123,7 +128,7 @@ namespace FasterGameLoading.InGameTests
 
         private static bool IsInAtlas(TextureAtlasGroupKey key, Texture2D texture)
         {
-            foreach (var atlas in GlobalTextureAtlasManager.staticTextureAtlases)
+            foreach (var atlas in CurrentLoadAtlases)
             {
                 if (atlas.groupKey.Equals(key) && atlas.TryGetTile(texture, out _))
                 {

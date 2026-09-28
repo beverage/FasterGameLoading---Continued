@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using RimTestRedux;
+using Verse;
 
 namespace FasterGameLoading.InGameTests
 {
@@ -12,8 +13,16 @@ namespace FasterGameLoading.InGameTests
     {
         public const string HarmonyId = "FasterGameLoadingMod";
 
-        /// <summary>DelayedActions.PerformActions 主協程是否已整個跑完（含圖集烘焙與音效解析）。</summary>
-        public static bool DeferredPipelineFinished => PerformActionsTracker.Completed;
+        /// <summary>
+        /// 第 <paramref name="round"/> 次載入的 DelayedActions.PerformActions 主協程是否已整個跑完（含圖集烘焙與音效解析）。
+        /// 切換語言重載會再跑一次 CallAll 與整條延遲管線，因此以次數判斷，而非單一旗標；
+        /// 只看最近一次啟動的協程，先前被 StopAllCoroutines 中斷而沒跑完的不影響判斷。
+        /// </summary>
+        public static bool DeferredPipelineFinished(int round)
+            => PerformActionsTracker.Started >= round && PerformActionsTracker.LastFinished == PerformActionsTracker.Started;
+
+        /// <summary>以 -quicktest 啟動：跳過主選單直接生成地圖。</summary>
+        public static bool Quicktest => GenCommandLine.CommandLineArgPassed("quicktest");
 
         public static string SettingsProfile =>
             $"delayGraphicLoading={FasterGameLoadingSettings.DelayGraphicLoading}, "
@@ -53,14 +62,18 @@ namespace FasterGameLoading.InGameTests
     [HarmonyPatch(typeof(DelayedActions), nameof(DelayedActions.PerformActions))]
     internal static class PerformActionsTracker
     {
-        public static bool Completed { get; private set; }
+        public static int Started { get; private set; }
+
+        /// <summary>最近跑完的協程序號（對應 <see cref="Started"/> 的計數）。</summary>
+        public static int LastFinished { get; private set; }
 
         public static void Postfix(ref IEnumerator __result)
         {
-            __result = Track(__result);
+            Started++;
+            __result = Track(__result, Started);
         }
 
-        private static IEnumerator Track(IEnumerator inner)
+        private static IEnumerator Track(IEnumerator inner, int sequence)
         {
             try
             {
@@ -71,7 +84,7 @@ namespace FasterGameLoading.InGameTests
             }
             finally
             {
-                Completed = true;
+                LastFinished = sequence;
             }
         }
     }

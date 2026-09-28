@@ -157,6 +157,9 @@ namespace FasterGameLoading.InGameTests
         /// <summary>載入當下缺少任一 FGL patch 的紀錄（已格式化成失敗訊息）。</summary>
         public static readonly List<string> LoadedBeforePatches = new List<string>();
 
+        /// <summary>由 FGL 提早載入的 mod，供相容性測試確認排除名單內的 mod 沒被提早載入。</summary>
+        public static readonly List<ModContentPack> EarlyLoadedMods = new List<ModContentPack>();
+
         [HarmonyPriority(Priority.First)]
         public static void Prefix(ModContentPack __instance, bool hotReload)
         {
@@ -168,7 +171,11 @@ namespace FasterGameLoading.InGameTests
             lock (LoadedBeforePatches)
             {
                 Loads++;
-                if (EarlyLoadMarker.Active) EarlyLoads++;
+                if (EarlyLoadMarker.Active)
+                {
+                    EarlyLoads++;
+                    EarlyLoadedMods.Add(__instance);
+                }
                 if (!reloadContentInt || !reloadAll || !loadTexture)
                 {
                     LoadedBeforePatches.Add($"{__instance.PackageIdPlayerFacing} (mainThread={UnityData.IsInMainThread}, ReloadContentInt={reloadContentInt}, ReloadAll={reloadAll}, LoadTexture={loadTexture})");

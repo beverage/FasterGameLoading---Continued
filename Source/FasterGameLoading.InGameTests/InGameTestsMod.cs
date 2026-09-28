@@ -13,7 +13,8 @@ namespace FasterGameLoading.InGameTests
     /// 遊戲內測試的進入點。
     /// RimTest Redux 內建的「啟動時執行」在 PlayData 載入完成的那一幀就跑測試，
     /// 但 FGL 的延遲圖形、圖示、圖集與音效協程要之後才逐幀跑完；此時測試會量到半成品狀態。
-    /// 因此關掉內建的啟動執行，改由 <see cref="TestRunDriver"/> 等延遲管線跑完後再觸發（不需要地圖，主選單即可）。
+    /// 因此關掉內建的啟動執行，改由 <see cref="TestRunDriver"/> 等延遲管線跑完後再觸發；
+    /// 主選單模式另有語言重載後的第 2 輪，quicktest 模式則等地圖進入遊戲（輪次說明見 TestRunDriver）。
     /// </summary>
     public sealed class InGameTestsMod : Mod
     {
@@ -46,38 +47,63 @@ namespace FasterGameLoading.InGameTests
         }
     }
 
+    /// <summary>
+    /// 測試輪次：第 1 輪在初次載入完成後執行；主選單模式下接著切換語言觸發完整重載（見 <see cref="LanguageReload"/>），
+    /// 重載完成後以同一批測試再跑第 2 輪。quicktest 模式改為等地圖進入遊戲後只跑一輪（遊戲中無法切換語言）。
+    /// </summary>
     [HarmonyPatch(typeof(Root), nameof(Root.Update))]
     internal static class TestRunDriver
     {
         /// <summary>等待延遲管線的上限；逾時仍會執行測試，讓未完成的狀態以測試失敗呈現。</summary>
         private const double TimeoutSeconds = 300;
 
-        private static bool ran;
+        /// <summary>目前等待中（或正在執行）的輪次，從 1 開始。</summary>
+        public static int Round { get; private set; } = 1;
+
+        private static bool finished;
         private static Stopwatch waitingSince;
 
         public static void Postfix()
         {
-            if (ran || !PlayDataLoader.Loaded || LongEventHandler.AnyEventNowOrWaiting || Find.UIRoot == null)
+            if (finished || !ReadyForRound())
             {
                 return;
             }
             waitingSince ??= Stopwatch.StartNew();
 
             bool timedOut = waitingSince.Elapsed.TotalSeconds >= TimeoutSeconds;
-            if (!timedOut && !FglState.DeferredPipelineFinished)
+            if (!timedOut && !FglState.DeferredPipelineFinished(Round))
             {
                 return;
             }
-            ran = true;
 
             if (timedOut)
             {
-                Log.Error($"[FGL InGameTests] Timed out after {TimeoutSeconds}s waiting for FGL's deferred pipeline; running tests anyway.");
+                Log.Error($"[FGL InGameTests] Round {Round}: timed out after {TimeoutSeconds}s waiting for FGL's deferred pipeline; running tests anyway.");
             }
-            Log.Message($"[FGL InGameTests] Running suites after {waitingSince.Elapsed.TotalSeconds:F1}s wait. Settings: {FglState.SettingsProfile}");
+            Log.Message($"[FGL InGameTests] Round {Round}: running suites after {waitingSince.Elapsed.TotalSeconds:F1}s wait. Language: {LanguageDatabase.activeLanguage?.folderName}, quicktest: {FglState.Quicktest}. Settings: {FglState.SettingsProfile}");
             Runner.RunAllRegisteredTests();
             StatusExplorer.UpdateAllStatusCounts();
             Viewer.LogTestsResults();
+            waitingSince = null;
+
+            if (Round == 1 && LanguageReload.TryStart())
+            {
+                Round = 2;
+                return;
+            }
+            finished = true;
+            Log.Message("[FGL InGameTests] All rounds finished.");
+        }
+
+        private static bool ReadyForRound()
+        {
+            if (!PlayDataLoader.Loaded || LongEventHandler.AnyEventNowOrWaiting || Find.UIRoot == null)
+            {
+                return false;
+            }
+            // quicktest 直接生成地圖：等地圖進入遊戲，World.FinalizeInit 那條音效路徑才會走過。
+            return !FglState.Quicktest || (Current.ProgramState == ProgramState.Playing && Find.CurrentMap != null);
         }
     }
 }
