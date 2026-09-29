@@ -30,6 +30,7 @@ Harmony patch 實際套用結果、延遲圖形／圖示／音效是否全部完
 3. 結果寫在遊戲 log 的 `[RimTest Redux] TESTING START … TESTING END` 之間；失敗項目以 Error 輸出，`list_test_diagnostics` 可直接讀到。
    主選單組別會有兩段結果：第 1 輪（初次載入）與第 2 輪（切換成日文重載後），log 以 `[FGL InGameTests] Round N` 標示；
    全部結束時輸出 `[FGL InGameTests] All rounds finished.`。
+   `NoModContentWasLoadedTwice` 失敗時先看列出的路徑：mod 自帶同名不同副檔名的檔案（如 `Foo.png` 與 `Foo.jpg`）也會觸發原版的重複警告，與 FGL 無關。
 
 ## 設計重點
 

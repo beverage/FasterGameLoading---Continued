@@ -44,8 +44,9 @@ namespace FasterGameLoading.InGameTests
             // 同上，直向
             // The same, portrait
             (56, 1024, 128),
-            // 精確 153.6
-            // Exact 153.6
+            // 精確 153.6：取整 154、對齊 156，差 2.4，只比 MaxSideError 小 0.1；改動對齊方式時這組最先失敗
+            // Exact 153.6: rounds to 154 and aligns to 156, 2.4 off, only 0.1 under MaxSideError;
+            // this case fails first if the alignment changes
             (1000, 600, 256),
             // 短邊不足 4 像素，保留原值
             // Short side under 4 pixels, kept as it is
