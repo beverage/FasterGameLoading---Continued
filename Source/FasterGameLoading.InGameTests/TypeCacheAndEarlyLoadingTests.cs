@@ -226,6 +226,11 @@ namespace FasterGameLoading.InGameTests
     /// 攔截原版 ModContentHolder.ReloadAll 的「Tried to load duplicate」：同一個內容路徑第二次載入時，
     /// 原版只記一筆 Warning（不是 Error，<see cref="DuplicateLoadErrorProbe"/> 看不到）就丟掉第二份；
     /// 那份貼圖、音效或字串已從磁碟讀進記憶體，最終狀態看不出來。
+    ///
+    /// Catches vanilla ModContentHolder.ReloadAll's "Tried to load duplicate": when a content path is loaded
+    /// a second time, vanilla logs one Warning (not an Error, which <see cref="DuplicateLoadErrorProbe"/> would
+    /// see) and drops the second copy. That texture, sound or string has already been read from disk, and the
+    /// final state shows nothing.
     /// </summary>
     [HarmonyPatch(typeof(Log), nameof(Log.Warning), typeof(string))]
     internal static class DuplicateContentWarningProbe
@@ -318,6 +323,11 @@ namespace FasterGameLoading.InGameTests
         /// 同一個 mod 的內容被載入兩次時，原版只記 Warning 並丟掉第二份，最終狀態看不出來。
         /// 例如 Loading Progress 沒偵測到 FGL 時，會自己再載入一次 FGL 已提早載入的每個 mod 的內容：
         /// 228 個 mod 的清單上有 24,683 筆，全都從磁碟多讀了一次（log 在上限前只記得下其中約一萬筆）。
+        ///
+        /// When a mod's content is loaded twice, vanilla only logs a Warning and drops the second copy, so the
+        /// final state shows nothing. Loading Progress, for one, reloads the content of every mod that FGL's
+        /// early loading already loaded when it does not detect FGL: 24,683 files on a 228-mod list, each read
+        /// from disk a second time (the log keeps only about 10,000 of them before its cap).
         /// </summary>
         [Test]
         public static void NoModContentWasLoadedTwice()

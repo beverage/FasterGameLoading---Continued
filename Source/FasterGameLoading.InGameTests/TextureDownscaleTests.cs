@@ -13,6 +13,8 @@ namespace FasterGameLoading.InGameTests
     /// 不依賴事先跑過降質工具：測試自己產生「原始貼圖」與「降質快取」兩張 PNG，登記到 FGL 的快取對照表，
     /// 再透過原版 ModContentLoader&lt;Texture2D&gt;.LoadTexture（FGL 的 patch 所在）載入。
     /// 縮放本身另由 <see cref="DownscaledTextureKeepsSourceAspectRatio"/> 經降質工具的 ResizeTexture 產生快取。
+    /// The resize itself is covered by <see cref="DownscaledTextureKeepsSourceAspectRatio"/>, which makes its
+    /// cache through the downscaler's ResizeTexture.
     /// </summary>
     [TestSuite]
     internal static class TextureDownscaleTests
@@ -20,17 +22,34 @@ namespace FasterGameLoading.InGameTests
         private const int OriginalSize = 64;
         private const int CachedSize = 32;
 
-        /// <summary>每邊與精確比例的容許差距：換算時四捨五入的 0.5，加上就近對齊到 4 的半個區塊 2。</summary>
+        /// <summary>
+        /// 每邊與精確比例的容許差距：換算時四捨五入的 0.5，加上就近對齊到 4 的半個區塊 2。
+        /// How far each side may be from the exact proportion: 0.5 from rounding, plus 2 (half a block)
+        /// from aligning to the nearest multiple of 4.
+        /// </summary>
         private const double MaxSideError = 2.5;
 
-        /// <summary>寬、高、目標尺寸。精確的短邊落在 4 像素區塊的不同位置。</summary>
+        /// <summary>
+        /// 寬、高、目標尺寸。精確的短邊落在 4 像素區塊的不同位置。
+        /// Width, height, target size. The exact short sides land at different places within a 4-pixel block.
+        /// </summary>
         private static readonly (int Width, int Height, int Target)[] AspectRatioCases =
         {
-            (1024, 40, 128),  // AlignToBlockSize 註解的例子：精確 5，就近取整仍是 4
-            (1024, 56, 128),  // 精確 7：就近取整為 8，一律向下取整會壓成 4
-            (56, 1024, 128),  // 同上，直向
-            (1000, 600, 256), // 精確 153.6
-            (2048, 6, 512),   // 短邊不足 4 像素，保留原值
+            // AlignToBlockSize 註解的例子：精確 5，就近取整仍是 4
+            // The example in AlignToBlockSize's comment: exact 5, and nearest rounding still gives 4
+            (1024, 40, 128),
+            // 精確 7：就近取整為 8，一律向下取整會壓成 4
+            // Exact 7: nearest rounding gives 8, always rounding down would squash it to 4
+            (1024, 56, 128),
+            // 同上，直向
+            // The same, portrait
+            (56, 1024, 128),
+            // 精確 153.6
+            // Exact 153.6
+            (1000, 600, 256),
+            // 短邊不足 4 像素，保留原值
+            // Short side under 4 pixels, kept as it is
+            (2048, 6, 512),
         };
 
         private static bool ExternalTextureToolActive => ImageOptCompat.IsActive || GraphicsSettingsCompat.IsActive;
@@ -94,6 +113,12 @@ namespace FasterGameLoading.InGameTests
         /// 降質工具本身的縮放：TextureResize.ResizeTexture 換算尺寸（等比例、對齊 4 的倍數）、以 RenderTexture 縮放並寫出 PNG，
         /// 再經 FGL 的快取載入。上面兩個測試自行產生快取 PNG，不經過這一步；長寬比的兩次修正（bc765bc、746918a）都在這裡。
         /// 長邊必須等於目標尺寸，兩邊與精確比例的差距都不得超過 <see cref="MaxSideError"/>。
+        ///
+        /// The downscaler's own resize: TextureResize.ResizeTexture works out the size (proportional, aligned to a
+        /// multiple of 4), scales with a RenderTexture and writes a PNG, which is then loaded through FGL's cache.
+        /// The two tests above write their own cache PNGs and skip this step; both aspect-ratio fixes (bc765bc,
+        /// 746918a) were made here. The long side must equal the target, and neither side may be more than
+        /// <see cref="MaxSideError"/> from the exact proportion.
         /// </summary>
         [Test]
         public static void DownscaledTextureKeepsSourceAspectRatio()
@@ -196,7 +221,11 @@ namespace FasterGameLoading.InGameTests
             }
         }
 
-        /// <summary>一張非正方形的原始貼圖，交給降質工具真正的縮放流程；結束時清掉原圖、快取 PNG 與快取項目。</summary>
+        /// <summary>
+        /// 一張非正方形的原始貼圖，交給降質工具真正的縮放流程；結束時清掉原圖、快取 PNG 與快取項目。
+        /// A non-square source texture for the downscaler's real resize; disposing removes the source,
+        /// the cache PNG and the cache entry.
+        /// </summary>
         private sealed class ResizeProbe : IDisposable
         {
             private readonly TextureCacheManager cacheManager = FasterGameLoadingMod.Instance.CacheManager;
@@ -217,7 +246,10 @@ namespace FasterGameLoading.InGameTests
                 ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures.TryRemove(originalPath, out _);
             }
 
-            /// <summary>與 BuildResizeCandidates 產生的候選相同；ResizeTexture 會自行從磁碟讀入原圖。</summary>
+            /// <summary>
+            /// 與 BuildResizeCandidates 產生的候選相同；ResizeTexture 會自行從磁碟讀入原圖。
+            /// The same candidate BuildResizeCandidates would make; ResizeTexture reads the source from disk itself.
+            /// </summary>
             public TextureResize.TextureResizeCandidate Candidate(int targetSize) => new TextureResize.TextureResizeCandidate
             {
                 path = originalPath,
@@ -231,6 +263,8 @@ namespace FasterGameLoading.InGameTests
             public void Dispose()
             {
                 // 快取路徑由原圖的路徑、大小與修改時間算出，必須在刪除原圖前取得。
+                // The cache path comes from the source's path, size and modified time, so read it before
+                // deleting the source.
                 var cachePath = cacheManager.GetCachePath(originalPath);
                 cacheManager.RemoveCachedTexturePath(originalPath);
                 ModContentLoaderTexture2D_LoadTexture_Patch.savedTextures.TryRemove(originalPath, out _);
